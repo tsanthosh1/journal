@@ -1,8 +1,14 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
-import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
+import {
+  applicationDefault,
+  cert,
+  getApps,
+  initializeApp,
+  type App,
+} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
@@ -14,22 +20,29 @@ function getFirebaseAdminApp(): App {
     return getApps()[0];
   }
 
-  const serviceAccountPath =
-    process.env.FIREBASE_SERVICE_ACCOUNT_PATH ?? DEFAULT_SERVICE_ACCOUNT_PATH;
-  const serviceAccount = readServiceAccount(serviceAccountPath);
+  const explicitServiceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  const defaultServiceAccountPath = expandHome(DEFAULT_SERVICE_ACCOUNT_PATH);
+
+  if (explicitServiceAccountPath) {
+    return initializeApp({
+      credential: cert(readServiceAccount(explicitServiceAccountPath)),
+    });
+  }
+
+  if (existsSync(defaultServiceAccountPath)) {
+    return initializeApp({
+      credential: cert(readServiceAccount(defaultServiceAccountPath)),
+    });
+  }
 
   return initializeApp({
-    credential: cert(serviceAccount),
+    credential: applicationDefault(),
   });
 }
 
 function readServiceAccount(path: string) {
   try {
-    const resolvedPath = path.startsWith("~/")
-      ? resolve(homedir(), path.slice(2))
-      : path;
-
-    return JSON.parse(readFileSync(resolvedPath, "utf8"));
+    return JSON.parse(readFileSync(expandHome(path), "utf8"));
   } catch (error) {
     throw new Error(
       `Could not read Firebase service account from ${path}. ${
@@ -37,6 +50,10 @@ function readServiceAccount(path: string) {
       }`,
     );
   }
+}
+
+function expandHome(path: string) {
+  return path.startsWith("~/") ? resolve(homedir(), path.slice(2)) : path;
 }
 
 export function getFirebaseAdmin() {
