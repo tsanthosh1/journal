@@ -6,7 +6,7 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const GMAIL_READONLY_SCOPE =
   "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email openid";
 
-export function getGoogleOAuthCredentials() {
+export function getGoogleOAuthCredentials(customOrigin?: string) {
   const clientId =
     process.env.GOOGLE_CLIENT_ID ??
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ??
@@ -14,6 +14,7 @@ export function getGoogleOAuthCredentials() {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
 
   const baseUrl =
+    customOrigin ??
     process.env.NEXT_PUBLIC_APP_URL ??
     (process.env.NODE_ENV === "production"
       ? "https://track-everything-ai.web.app"
@@ -29,8 +30,8 @@ export function getGoogleOAuthCredentials() {
 /**
  * Builds the Google OAuth 2.0 Authorization URL
  */
-export function getGoogleAuthUrl(state = "default_user"): string {
-  const { clientId, redirectUri } = getGoogleOAuthCredentials();
+export function getGoogleAuthUrl(state = "default_user", customOrigin?: string): string {
+  const { clientId, redirectUri } = getGoogleOAuthCredentials(customOrigin);
 
   if (!clientId) {
     throw new Error(
@@ -54,14 +55,14 @@ export function getGoogleAuthUrl(state = "default_user"): string {
 /**
  * Exchanges the OAuth authorization code for Access and Refresh tokens
  */
-export async function exchangeCodeForTokens(code: string): Promise<{
+export async function exchangeCodeForTokens(code: string, customOrigin?: string): Promise<{
   accessToken: string;
   refreshToken: string;
   expiryDate: number;
   email?: string;
   scope?: string;
 }> {
-  const { clientId, clientSecret, redirectUri } = getGoogleOAuthCredentials();
+  const { clientId, clientSecret, redirectUri } = getGoogleOAuthCredentials(customOrigin);
 
   if (!clientId || !clientSecret) {
     throw new Error("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET.");

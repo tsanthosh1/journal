@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const tokens = await exchangeCodeForTokens(code);
+    const origin = request.nextUrl.origin || new URL(request.url).origin;
+    const tokens = await exchangeCodeForTokens(code, origin);
     await saveGmailTokens(userId, tokens);
 
     baseRedirectUrl.searchParams.set("auth", "success");

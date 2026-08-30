@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import {
   onAuthStateChanged,
+  signInWithPopup,
   signOut as fbSignOut,
   type User,
 } from "firebase/auth";
@@ -31,7 +32,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  userId: "default_user",
+  userId: "",
   userEmail: null,
   isSignedIn: false,
   isLoading: true,
@@ -51,18 +52,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const firebase = useMemo(() => getFirebaseClient(), []);
 
-  const userEmail = user?.email || googleEmail || null;
+  const userEmail = user?.email || null;
   const userId = user?.email
     ? user.email.replace(/[^a-zA-Z0-9_-]/g, "_")
-    : googleEmail
-    ? googleEmail.replace(/[^a-zA-Z0-9_-]/g, "_")
-    : user?.uid || "default_user";
+    : user?.uid || "";
 
-  const isSignedIn = !!user || isGmailSynced || !!googleEmail;
+  const isSignedIn = !!user;
 
   const checkGmailSyncStatus = useCallback(async () => {
+    if (!user?.email && !user?.uid) {
+      setIsGmailSynced(false);
+      setGoogleEmail(null);
+      setLastSyncAt(undefined);
+      return;
+    }
+
     try {
-      const qUserId = user?.email || googleEmail || user?.uid || "default_user";
+      const qUserId = user.email || user.uid;
       const res = await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`);
       if (res.ok) {
         const data = await res.json();
@@ -75,12 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore
     }
-  }, [user, googleEmail]);
+  }, [user]);
 
   useEffect(() => {
-    // Initial check on mount
-    checkGmailSyncStatus();
-
     if (!firebase) {
       setIsLoading(false);
       return;
@@ -89,46 +92,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(firebase.auth, async (currentUser) => {
       setUser(currentUser);
       setIsLoading(false);
-      const qUserId = currentUser?.email || currentUser?.uid || "default_user";
-      try {
-        const res = await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setIsGmailSynced(data.connected);
-          setLastSyncAt(data.lastSyncAt);
-          if (data.email) {
-            setGoogleEmail(data.email);
+
+      if (currentUser) {
+        const qUserId = currentUser.email || currentUser.uid;
+        try {
+          const res = await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`);
+          if (res.ok) {
+            const data = await res.json();
+            setIsGmailSynced(data.connected);
+            setLastSyncAt(data.lastSyncAt);
+            if (data.email) {
+              setGoogleEmail(data.email);
+            }
           }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
+      } else {
+        setIsGmailSynced(false);
+        setGoogleEmail(null);
+        setLastSyncAt(undefined);
       }
     });
 
     return () => unsubscribe();
-  }, [firebase, checkGmailSyncStatus]);
+  }, [firebase]);
 
   const signInWithGoogle = useCallback(async (returnTo?: string) => {
+    if (firebase) {
+      try {
+        const result = await signInWithPopup(firebase.auth, firebase.googleProvider);
+        setUser(result.user);
+        return;
+      } catch (popupErr) {
+        console.warn("Popup sign-in bypassed, redirecting to OAuth route...", popupErr);
+      }
+    }
+
     const currentPath =
       returnTo || (typeof window !== "undefined" ? window.location.pathname : "/subscriptions");
     window.location.href = `/api/auth/google?returnTo=${encodeURIComponent(currentPath)}`;
-  }, []);
+  }, [firebase]);
 
   const signOut = useCallback(async () => {
     if (firebase) {
       await fbSignOut(firebase.auth).catch(() => {});
     }
-    const qUserId = user?.email || googleEmail || user?.uid || "default_user";
-    await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`, {
-      method: "DELETE",
-    }).catch(() => {});
+    if (user?.email || user?.uid) {
+      const qUserId = user.email || user.uid;
+      await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
 
     setUser(null);
     setGoogleEmail(null);
     setIsGmailSynced(false);
     setLastSyncAt(undefined);
     window.location.reload();
-  }, [firebase, user, googleEmail]);
+  }, [firebase, user]);
 
   return (
     <AuthContext.Provider

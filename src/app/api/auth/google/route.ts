@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
       JSON.stringify({ userId, returnTo }),
     ).toString("base64url");
 
-    const authUrl = getGoogleAuthUrl(statePayload);
+    const origin = request.nextUrl.origin || new URL(request.url).origin;
+    const authUrl = getGoogleAuthUrl(statePayload, origin);
     return NextResponse.redirect(authUrl);
   } catch (error) {
     console.error("Google auth initiate error:", error);

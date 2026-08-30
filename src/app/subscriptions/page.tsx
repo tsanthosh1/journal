@@ -21,6 +21,7 @@ function SubscriptionsPageContent() {
     user,
     userId,
     userEmail,
+    isSignedIn,
     isGmailSynced,
     lastSyncAt,
     signInWithGoogle,
@@ -220,6 +221,34 @@ function SubscriptionsPageContent() {
     setEmailViewerCycleMonth(cycleMonth || null);
     setIsEmailViewerOpen(true);
   };
+
+  if (!isSignedIn && !isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        <FinanceTopBar />
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+          <div className="max-w-md w-full rounded-3xl border border-white/15 bg-slate-900/90 p-6 sm:p-8 text-center shadow-2xl backdrop-blur-xl space-y-6">
+            <div className="h-16 w-16 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-3xl shadow-inner">
+              🔒
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white tracking-tight">Private & Secure Vault</h2>
+              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                Sign in with your Google account to access your recurring commitments, statement ledger, and email synchronization.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => signInWithGoogle()}
+              className="w-full min-h-[46px] rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-bold text-sm shadow-xl hover:from-cyan-400 hover:to-blue-500 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>🔐</span> Sign in with Google
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-slate-950 font-sans pb-24">
