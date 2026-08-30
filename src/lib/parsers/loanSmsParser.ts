@@ -48,9 +48,15 @@ export function detectBankFromSender(sender: string, bodyText: string = ""): str
     if (upperSender.includes(key)) return name;
   }
 
-  // Check body prefix e.g. "BOI - Rs 34550" or "HDFC Bank:"
+  // Check body prefix or content e.g. "BOI - Rs 34550", "from HDFC Bank XX6013", "HDFC BANK LTD"
   for (const [key, name] of Object.entries(BANK_SENDER_MAP)) {
-    if (upperBody.startsWith(key) || upperBody.includes(`${key} -`) || upperBody.includes(`${key}:`)) {
+    if (
+      upperBody.startsWith(key) ||
+      upperBody.includes(`${key} -`) ||
+      upperBody.includes(`${key}:`) ||
+      upperBody.includes(`${key} BANK`) ||
+      upperBody.includes(`${key}BK`)
+    ) {
       return name;
     }
   }
@@ -70,7 +76,7 @@ export function parseLoanSms(
   const lower = body.toLowerCase();
 
   // Exclude non-loan funds transfers (e.g. "To RTGS ...", "To NEFT ...", "To UPI ...", "ATM WDL")
-  // unless explicitly marked as a loan recovery (e.g. "Loan Rec")
+  // unless explicitly marked as a loan recovery or ACH loan debit
   const isGenericTransfer =
     (lower.includes("to rtgs") ||
       lower.includes("to neft") ||
@@ -81,7 +87,9 @@ export function parseLoanSms(
     !lower.includes("loan rec") &&
     !lower.includes("loan recovery") &&
     !lower.includes("loan a/c") &&
-    !lower.includes("home loan");
+    !lower.includes("home loan") &&
+    !lower.includes("ach d-") &&
+    !lower.includes("nach d-");
 
   if (isGenericTransfer) {
     return {
@@ -98,7 +106,7 @@ export function parseLoanSms(
     };
   }
 
-  // Check for explicit loan recovery, loan debit, or EMI keywords
+  // Check for explicit loan recovery, loan debit, ACH/NACH mandate, or EMI keywords
   const isLoanOrEmi =
     lower.includes("loan rec") ||
     lower.includes("loan recovery") ||
@@ -106,6 +114,11 @@ export function parseLoanSms(
     lower.includes("home loan") ||
     lower.includes("ln rec") ||
     lower.includes("ln recovery") ||
+    lower.includes("ach d-") ||
+    lower.includes("ach d ") ||
+    lower.includes("nach d-") ||
+    lower.includes("ach debit") ||
+    lower.includes("nach debit") ||
     lower.includes("transferred to loan") ||
     lower.includes("towards loan") ||
     lower.includes("towards emi") ||
@@ -176,9 +189,10 @@ export function parseLoanSms(
   // Compute Cycle Month
   const cycleMonth = extractedDate ? extractedDate.slice(0, 7) : null;
 
-  // 3. Loan Account Extraction
+  // 3. Loan Account / ACH Mandate Reference Extraction
   let loanAccount: string | null = null;
   const loanPatterns = [
+    /(?:ACH\s*D-?\s*|NACH\s*D-?\s*)(?:[a-zA-Z\s]+-)?([a-zA-Z0-9]+)/i,
     /(?:Loan\s*Rec(?:overy)?|LN\s*REC)[/:\s]+([a-zA-Z0-9]+)/i,
     /(?:Home\s*Loan|Loan|LN)\s*(?:A\/C|Acct|Account|No\.?)?\s*(?:\*\*)?([a-zA-Z0-9]+)/i,
     /(?:towards|for)\s*(?:Home\s*Loan|Loan|EMI)\s*(?:A\/C|Account)?\s*(?:\*\*)?([a-zA-Z0-9]+)/i,
@@ -192,12 +206,12 @@ export function parseLoanSms(
     }
   }
 
-  // 4. Debit Bank Account Extraction (e.g. "in your Ac XX1607", "from A/C **1234", "your Account ending 9012")
+  // 4. Debit Bank Account Extraction (e.g. "from HDFC Bank XX6013", "in your Ac XX1607", "from A/C **1234")
   let debitAccount: string | null = null;
   const debitPatterns = [
+    /(?:from|in)\s*(?:[a-zA-Z\s]+)?(?:Bank|Ac|A\/c|Account|Acct)?\s*(?:XX|\*\*|X\*|\*)?(\d{4})/i,
     /(?:in\s*your\s*Ac|your\s*Ac|from\s*Ac|Ac|A\/C)\s*(?:XX|\*\*|X\*|\*)?(\d{4})/i,
     /(?:Account|Acct|A\/c|Ac)\s*(?:ending|no\.?|is)?\s*(?:XX|\*\*|X\*|\*)?(\d{4})/i,
-    /(?:from|in)\s*(?:A\/C|Account|Acct)?\s*(?:\*\*)?(\d{4})/i,
     /A\/C\s*(?:\*\*)?(\d{4})/i,
   ];
   for (const pattern of debitPatterns) {
@@ -254,7 +268,7 @@ const MONTH_NAME_MAP: Record<string, string> = {
 function parseDateToIso(dateStr: string): string | null {
   const clean = dateStr.trim();
 
-  // Format: 05-AUG-26 or 05-Aug-2026 or 10Aug26
+  // Format: 05-AUG-26 or 05-JUL-26 or 05-Aug-2026 or 10Aug26
   const alphaMatch = clean.match(/^(\d{1,2})[-/\s]?([a-zA-Z]{3})[-/\s]?(\d{2,4})$/);
   if (alphaMatch) {
     const day = alphaMatch[1].padStart(2, "0");
