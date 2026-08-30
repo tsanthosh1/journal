@@ -39,9 +39,19 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.firebase/
-functions/node_modules/
+# env files
 .env
+.env*.local
 .env.local
 .env.production
 .env.development
+.env.test
+
+# firebase & keys
+.firebase/
+functions/node_modules/
+functions/lib/
+*serviceAccount*.json
+*firebase-adminsdk*.json
+credentials.json
+token.json
