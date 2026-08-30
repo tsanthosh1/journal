@@ -449,8 +449,8 @@ export function HistoricalCyclesModal({
                                 <span>Settled on Invoice</span>
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5 flex-nowrap shrink-0">
                                 {firstEmail && onViewSourceEmail && (
                                   <button
                                     type="button"
@@ -462,7 +462,7 @@ export function HistoricalCyclesModal({
                                         c.cycleMonth,
                                       )
                                     }
-                                    className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/30 hover:text-white transition cursor-pointer"
+                                    className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/30 hover:text-white transition cursor-pointer shrink-0"
                                     title="View archived source invoice email"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -474,7 +474,7 @@ export function HistoricalCyclesModal({
                                 <button
                                   type="button"
                                   onClick={() => setSelectedCycleForOverride(c)}
-                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 transition cursor-pointer"
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 transition cursor-pointer shrink-0"
                                   title="Manually edit amounts, dates, or payment status"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -486,7 +486,7 @@ export function HistoricalCyclesModal({
                                   type="button"
                                   disabled={isDeletingMonth === c.cycleMonth}
                                   onClick={() => handleDeleteCycle(c.cycleMonth)}
-                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/40 hover:text-rose-200 transition cursor-pointer disabled:opacity-50"
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/40 hover:text-rose-200 transition cursor-pointer disabled:opacity-50 shrink-0"
                                   title="Permanently delete this billing cycle"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -517,7 +517,7 @@ export function HistoricalCyclesModal({
                         <th className="px-4 py-3 text-right">Remaining</th>
                         <th className="px-4 py-3 text-center">Status</th>
                         <th className="px-4 py-3">Payment Date</th>
-                        <th className="px-4 py-3 text-right">Actions</th>
+                        <th className="px-4 py-3 text-right whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 font-medium">
@@ -580,8 +580,8 @@ export function HistoricalCyclesModal({
                                 ? "Paid"
                                 : "Pending"}
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5 flex-nowrap shrink-0">
                                 {c.sourceSms && c.sourceSms.length > 0 && onViewSourceEmail ? (
                                   <button
                                     type="button"
@@ -609,7 +609,7 @@ export function HistoricalCyclesModal({
                                         c.cycleMonth,
                                       );
                                     }}
-                                    className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30 hover:text-white transition cursor-pointer"
+                                    className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30 hover:text-white transition cursor-pointer shrink-0"
                                     title="View archived source loan recovery SMS"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -627,7 +627,7 @@ export function HistoricalCyclesModal({
                                         c.cycleMonth,
                                       )
                                     }
-                                    className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/30 hover:text-white transition cursor-pointer"
+                                    className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/30 hover:text-white transition cursor-pointer shrink-0"
                                     title="View archived source statement & payment emails"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -639,7 +639,7 @@ export function HistoricalCyclesModal({
                                 <button
                                   type="button"
                                   onClick={() => setSelectedCycleForOverride(c)}
-                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 transition cursor-pointer"
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 transition cursor-pointer shrink-0"
                                   title="Manually edit amounts, dates, or payment status"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -651,7 +651,7 @@ export function HistoricalCyclesModal({
                                   type="button"
                                   disabled={isDeletingMonth === c.cycleMonth}
                                   onClick={() => handleDeleteCycle(c.cycleMonth)}
-                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/40 hover:text-rose-200 transition cursor-pointer disabled:opacity-50"
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/40 hover:text-rose-200 transition cursor-pointer disabled:opacity-50 shrink-0"
                                   title="Permanently delete this billing cycle"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
