@@ -375,4 +375,62 @@ export async function overrideCycleState(
   return updatedSub;
 }
 
+export async function deleteSubscriptionCycle(
+  subscriptionId: string,
+  cycleMonth: string,
+): Promise<Subscription> {
+  const { db } = getFirebaseAdmin();
+  const subscription = await getSubscription(subscriptionId);
+  if (!subscription) {
+    throw new Error(`Subscription with ID ${subscriptionId} not found.`);
+  }
+
+  const cycleDocId = `${subscriptionId}_${cycleMonth}`;
+  await db.collection("subscription_cycles").doc(cycleDocId).delete();
+  await db
+    .collection("subscriptions")
+    .doc(subscriptionId)
+    .collection("cycles")
+    .doc(cycleMonth)
+    .delete();
+
+  let updatedSub = subscription;
+  if (subscription.currentCycle?.cycleMonth === cycleMonth) {
+    const remainingCycles = await listHistoricalCycles(subscriptionId);
+    const latestRemaining = remainingCycles[0];
+    const fallbackMonth = new Date().toISOString().slice(0, 7);
+
+    const newCurrent: CycleState = latestRemaining
+      ? {
+          cycleMonth: latestRemaining.cycleMonth,
+          statementDate: latestRemaining.statementDate,
+          dueDate: latestRemaining.dueDate,
+          statementTotal: latestRemaining.statementTotal || 0,
+          paidAmount: latestRemaining.paidAmount || 0,
+          remainingBalance: latestRemaining.remainingBalance || 0,
+          status: latestRemaining.status || "UNPAID",
+          lastPaymentDate: latestRemaining.lastPaymentDate,
+          sourceEmails: latestRemaining.sourceEmails,
+          sourceSms: latestRemaining.sourceSms,
+          processedMessageIds: latestRemaining.processedMessageIds || [],
+          updatedAt: new Date().toISOString(),
+        }
+      : {
+          cycleMonth: fallbackMonth,
+          status: "UNPAID",
+          statementTotal: subscription.defaultAmount || 0,
+          paidAmount: 0,
+          remainingBalance: subscription.defaultAmount || 0,
+          processedMessageIds: [],
+          updatedAt: new Date().toISOString(),
+        };
+
+    updatedSub = await updateSubscription(subscriptionId, {
+      currentCycle: newCurrent,
+    });
+  }
+
+  return updatedSub;
+}
+
 export { overrideCycleState as overrideSubscriptionCycle };

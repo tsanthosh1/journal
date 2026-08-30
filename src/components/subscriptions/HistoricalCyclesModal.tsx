@@ -41,6 +41,33 @@ export function HistoricalCyclesModal({
   const [scanMonths, setScanMonths] = useState<number>(100);
   const [scanResultNotice, setScanResultNotice] = useState<string | null>(null);
   const [selectedCycleForOverride, setSelectedCycleForOverride] = useState<HistoricalCycle | null>(null);
+  const [isDeletingMonth, setIsDeletingMonth] = useState<string | null>(null);
+
+  const handleDeleteCycle = async (cycleMonth: string) => {
+    if (!subscription) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete cycle ${formatCycleMonth(cycleMonth)}? This will remove its ledger line and payment records.`,
+    );
+    if (!confirmed) return;
+
+    setIsDeletingMonth(cycleMonth);
+    try {
+      const res = await fetch(`/api/subscriptions/${subscription.id}/cycle?month=${encodeURIComponent(cycleMonth)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete cycle");
+      }
+      await fetchCycles();
+      if (onCyclesUpdated) onCyclesUpdated();
+      if (onRefreshSubscription) onRefreshSubscription();
+    } catch (err) {
+      alert(`Delete Error: ${(err as Error).message}`);
+    } finally {
+      setIsDeletingMonth(null);
+    }
+  };
 
   const fetchCycles = useCallback(async () => {
     if (!subscription) return;
@@ -395,7 +422,7 @@ export function HistoricalCyclesModal({
                         <th className="px-4 py-3">Invoice Date</th>
                         <th className="px-4 py-3 text-right">Invoiced Amount</th>
                         <th className="px-4 py-3 text-center">Status</th>
-                        <th className="px-4 py-3 text-right">Source Invoice</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 font-medium">
@@ -416,30 +443,60 @@ export function HistoricalCyclesModal({
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                                <span>⚡</span> Settled on Invoice
+                                <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                <span>Settled on Invoice</span>
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              {firstEmail && onViewSourceEmail ? (
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {firstEmail && onViewSourceEmail && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onViewSourceEmail(
+                                        subscription,
+                                        firstEmail,
+                                        cycleEmails,
+                                        c.cycleMonth,
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
+                                    title="View archived source invoice email"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    <span>Invoice</span>
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    onViewSourceEmail(
-                                      subscription,
-                                      firstEmail,
-                                      cycleEmails,
-                                      c.cycleMonth,
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
-                                  title="View archived source invoice email"
+                                  onClick={() => setSelectedCycleForOverride(c)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 transition cursor-pointer"
+                                  title="Manually edit amounts, dates, or payment status"
                                 >
-                                  <span>✉️</span>
-                                  <span>Source Email</span>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                  </svg>
+                                  <span>Edit</span>
                                 </button>
-                              ) : (
-                                <span className="text-slate-500 text-[11px]">Archived</span>
-                              )}
+
+                                <button
+                                  type="button"
+                                  disabled={isDeletingMonth === c.cycleMonth}
+                                  onClick={() => handleDeleteCycle(c.cycleMonth)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/40 transition cursor-pointer disabled:opacity-50"
+                                  title="Permanently delete this billing cycle"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  <span>Delete</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -494,7 +551,7 @@ export function HistoricalCyclesModal({
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                                   c.status === "SKIPPED"
                                     ? "bg-slate-800 text-slate-400 border border-white/10"
                                     : isPaid
@@ -504,7 +561,17 @@ export function HistoricalCyclesModal({
                                     : "bg-slate-800 text-slate-300"
                                 }`}
                               >
-                                {c.status === "SKIPPED" ? "⏭️ SKIPPED" : c.status}
+                                {c.status === "SKIPPED" && (
+                                  <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                  </svg>
+                                )}
+                                {c.status === "FULLY_PAID" && (
+                                  <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                                <span>{c.status === "SKIPPED" ? "SKIPPED" : c.status}</span>
                               </span>
                             </td>
                             <td className="px-4 py-3 text-slate-400 text-[11px]">
@@ -528,7 +595,7 @@ export function HistoricalCyclesModal({
                                         subscriptionName: subscription.name,
                                         cycleMonth: c.cycleMonth,
                                         type: "PAYMENT" as const,
-                                        subject: `💬 SMS Alert: ${sms.sender}`,
+                                        subject: `SMS Alert: ${sms.sender}`,
                                         from: sms.sender,
                                         date: sms.date || sms.createdAt || new Date().toISOString(),
                                         bodySnippet: sms.body,
@@ -548,7 +615,9 @@ export function HistoricalCyclesModal({
                                     className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/30 transition cursor-pointer"
                                     title="View archived source loan recovery SMS"
                                   >
-                                    <span>💬</span>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
                                     <span>SMS</span>
                                   </button>
                                 ) : firstEmail && onViewSourceEmail ? (
@@ -565,7 +634,9 @@ export function HistoricalCyclesModal({
                                     className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
                                     title="View archived source statement & payment emails"
                                   >
-                                    <span>✉️</span>
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
                                     <span>Email</span>
                                   </button>
                                 ) : null}
@@ -576,8 +647,23 @@ export function HistoricalCyclesModal({
                                   className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 transition cursor-pointer"
                                   title="Manually edit amounts, dates, or payment status"
                                 >
-                                  <span>✏️</span>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                  </svg>
                                   <span>Edit</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={isDeletingMonth === c.cycleMonth}
+                                  onClick={() => handleDeleteCycle(c.cycleMonth)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/40 transition cursor-pointer disabled:opacity-50"
+                                  title="Permanently delete this billing cycle"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  <span>Delete</span>
                                 </button>
                               </div>
                             </td>
