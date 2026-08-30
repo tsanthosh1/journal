@@ -39,7 +39,11 @@ export function SourceEmailViewerModal({
     if (scopedEmails && scopedEmails.length > 0) {
       const sorted = [...scopedEmails].sort((a, b) => b.date.localeCompare(a.date));
       setEmails(sorted);
-      setSelectedEmail(initialEmail || sorted[0]);
+      const chosen = initialEmail || sorted[0];
+      setSelectedEmail(chosen);
+      if (!chosen?.bodyHtml) {
+        setActiveTab("text");
+      }
       setIsLoading(false);
       return;
     }
@@ -268,27 +272,29 @@ export function SourceEmailViewerModal({
 
                   {/* Tab switchers: HTML Preview vs Raw Text vs Debug JSON */}
                   <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("html")}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        activeTab === "html"
-                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      Rich HTML Preview
-                    </button>
+                    {selectedEmail.bodyHtml && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("html")}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                          activeTab === "html"
+                            ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        Rich HTML Preview
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setActiveTab("text")}
                       className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
                         activeTab === "text"
-                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
-                      Plaintext
+                      {selectedEmail.bodyHtml ? "Plaintext" : "💬 SMS Text Content"}
                     </button>
                     {selectedEmail.rawMatches && Object.keys(selectedEmail.rawMatches).length > 0 && (
                       <button
@@ -323,6 +329,41 @@ export function SourceEmailViewerModal({
                       <pre className="overflow-x-auto p-3 rounded-xl bg-black/40 text-emerald-300 whitespace-pre-wrap">
                         {JSON.stringify(selectedEmail.rawMatches, null, 2)}
                       </pre>
+                    </div>
+                  ) : !selectedEmail.bodyHtml ? (
+                    /* Dedicated Native SMS Bubble */
+                    <div className="max-w-xl mx-auto my-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-slate-900 to-slate-950 p-5 shadow-2xl space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-9 w-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-base">
+                            💬
+                          </div>
+                          <div>
+                            <span className="font-bold text-white text-sm block">
+                              {selectedEmail.from || "Bank Sender"}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {formatEmailTimestamp(selectedEmail.date)}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                          VERIFIED SMS
+                        </span>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-black/40 border border-white/5 font-mono text-xs text-slate-100 whitespace-pre-wrap leading-relaxed">
+                        {selectedEmail.bodyText || selectedEmail.bodySnippet || "No text content."}
+                      </div>
+
+                      {selectedEmail.accountOrCardDigits && (
+                        <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+                          <span>Loan / Account Ref:</span>
+                          <span className="font-mono font-bold text-cyan-300">
+                            {selectedEmail.accountOrCardDigits}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded-2xl bg-slate-900 border border-white/10 p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">

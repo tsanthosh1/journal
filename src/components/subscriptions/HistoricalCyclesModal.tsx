@@ -502,14 +502,30 @@ export function HistoricalCyclesModal({
                               {c.sourceSms && c.sourceSms.length > 0 && onViewSourceEmail ? (
                                 <button
                                   type="button"
-                                  onClick={() =>
+                                  onClick={() => {
+                                    const mappedSms: SourceEmailRecord[] = (c.sourceSms || []).map((sms) => ({
+                                      id: sms.id,
+                                      subscriptionId: subscription.id,
+                                      subscriptionName: subscription.name,
+                                      cycleMonth: c.cycleMonth,
+                                      type: "PAYMENT" as const,
+                                      subject: `💬 SMS Alert: ${sms.sender}`,
+                                      from: sms.sender,
+                                      date: sms.date || sms.createdAt || new Date().toISOString(),
+                                      bodySnippet: sms.body,
+                                      bodyText: sms.body,
+                                      extractedAmount: sms.extractedAmount,
+                                      extractedDate: sms.extractedDate,
+                                      accountOrCardDigits: sms.accountReference,
+                                      createdAt: sms.createdAt || new Date().toISOString(),
+                                    }));
                                     onViewSourceEmail(
                                       subscription,
-                                      undefined,
-                                      undefined,
+                                      mappedSms[0],
+                                      mappedSms,
                                       c.cycleMonth,
-                                    )
-                                  }
+                                    );
+                                  }}
                                   className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/30 transition cursor-pointer"
                                   title="View archived source loan recovery SMS"
                                 >
