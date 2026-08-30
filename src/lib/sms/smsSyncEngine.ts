@@ -183,21 +183,28 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
         updatedAt: new Date().toISOString(),
       };
 
-      // Save historical cycle record
+      const cycleDocId = `${sub.id}_${month}`;
+      const cycleRecord = {
+        ...cycleState,
+        id: cycleDocId,
+        subscriptionId: sub.id,
+        subscriptionName: sub.name,
+        currency: sub.currency || "INR",
+      };
+
+      // 1. Save to subscription_cycles collection (queried by listHistoricalCycles)
+      await db
+        .collection("subscription_cycles")
+        .doc(cycleDocId)
+        .set(cycleRecord, { merge: true });
+
+      // 2. Also save to subcollection for redundancy
       await db
         .collection("subscriptions")
         .doc(sub.id)
         .collection("cycles")
         .doc(month)
-        .set(
-          {
-            ...cycleState,
-            subscriptionId: sub.id,
-            subscriptionName: sub.name,
-            currency: sub.currency || "INR",
-          },
-          { merge: true },
-        );
+        .set(cycleRecord, { merge: true });
 
       // If current cycle month matches, update subscription currentCycle
       const currentMonthStr = new Date().toISOString().slice(0, 7);

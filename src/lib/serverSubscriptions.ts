@@ -184,9 +184,18 @@ export async function deleteSubscription(id: string): Promise<void> {
 export async function listHistoricalCycles(subscriptionId: string): Promise<HistoricalCycle[]> {
   const { db } = getFirebaseAdmin();
   const subscription = await getSubscription(subscriptionId);
-  const snap = await db
+
+  // Query primary subscription_cycles collection
+  const snap1 = await db
     .collection("subscription_cycles")
     .where("subscriptionId", "==", subscriptionId)
+    .get();
+
+  // Query subcollection subscriptions/{id}/cycles
+  const snap2 = await db
+    .collection("subscriptions")
+    .doc(subscriptionId)
+    .collection("cycles")
     .get();
 
   const isPrepaidSub =
@@ -196,32 +205,56 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       subscription?.billingType === "BILL_GENERATED" &&
       !subscription?.emailConfig?.paymentQuery);
 
-  const list: HistoricalCycle[] = [];
-  snap.forEach((doc) => {
-    const data = doc.data() as Omit<HistoricalCycle, "id">;
+  const cycleMap = new Map<string, HistoricalCycle>();
+
+  const processDoc = (docId: string, data: any) => {
+    const month = data.cycleMonth;
+    if (!month) return;
+
     let paidAmount = data.paidAmount || 0;
     let statementTotal = data.statementTotal || 0;
     let remainingBalance = data.remainingBalance;
     let status = data.status;
 
-    // For prepaid subscriptions where the invoice email is also the payment confirmation:
     if (isPrepaidSub && paidAmount === 0 && statementTotal > 0) {
       paidAmount = statementTotal;
       remainingBalance = 0;
       status = "FULLY_PAID";
     }
 
-    list.push({
-      id: doc.id,
-      ...data,
+    cycleMap.set(month, {
+      id: docId,
+      subscriptionId,
+      subscriptionName: subscription?.name || data.subscriptionName || "",
+      currency: subscription?.currency || data.currency || "INR",
+      cycleMonth: month,
       dueDate: isPrepaidSub ? undefined : data.dueDate,
-      paidAmount,
+      statementDate: data.statementDate,
       statementTotal,
-      remainingBalance,
-      status,
+      paidAmount,
+      remainingBalance: remainingBalance ?? Math.max(0, statementTotal - paidAmount),
+      status: status || (paidAmount >= statementTotal && statementTotal > 0 ? "FULLY_PAID" : "UNPAID"),
+      lastPaymentDate: data.lastPaymentDate,
+      processedMessageIds: data.processedMessageIds || [],
+      sourceEmails: data.sourceEmails,
+      sourceSms: data.sourceSms,
+      createdAt: data.createdAt || new Date().toISOString(),
+      updatedAt: data.updatedAt || new Date().toISOString(),
     });
-  });
+  };
 
+  snap2.forEach((doc) => processDoc(doc.id, doc.data()));
+  snap1.forEach((doc) => processDoc(doc.id, doc.data()));
+
+  // Also include currentCycle if present and not in cycleMap
+  if (subscription?.currentCycle?.cycleMonth) {
+    const curMonth = subscription.currentCycle.cycleMonth;
+    if (!cycleMap.has(curMonth)) {
+      processDoc(`${subscriptionId}_${curMonth}`, subscription.currentCycle);
+    }
+  }
+
+  const list = Array.from(cycleMap.values());
   return list.sort((a, b) => b.cycleMonth.localeCompare(a.cycleMonth));
 }
 

@@ -499,7 +499,24 @@ export function HistoricalCyclesModal({
                                 : "Pending"}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              {firstEmail && onViewSourceEmail ? (
+                              {c.sourceSms && c.sourceSms.length > 0 && onViewSourceEmail ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onViewSourceEmail(
+                                      subscription,
+                                      undefined,
+                                      undefined,
+                                      c.cycleMonth,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/30 transition cursor-pointer"
+                                  title="View archived source loan recovery SMS"
+                                >
+                                  <span>💬</span>
+                                  <span>Source SMS</span>
+                                </button>
+                              ) : firstEmail && onViewSourceEmail ? (
                                 <button
                                   type="button"
                                   onClick={() =>
