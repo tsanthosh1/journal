@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
 import { FinancialSummaryCards } from "@/components/subscriptions/FinancialSummaryCards";
 import { OutflowsTimeline } from "@/components/subscriptions/OutflowsTimeline";
 import { SubscriptionList } from "@/components/subscriptions/SubscriptionList";
+import { CurrentMonthActionHub } from "@/components/subscriptions/CurrentMonthActionHub";
+import { SubscriptionDetailView } from "@/components/subscriptions/SubscriptionDetailView";
 import { SubscriptionModal } from "@/components/subscriptions/SubscriptionModal";
 import { ManualOverrideModal } from "@/components/subscriptions/ManualOverrideModal";
 import { ParserSandboxModal } from "@/components/subscriptions/ParserSandboxModal";
@@ -16,6 +18,7 @@ import { SourceEmailRecord, Subscription } from "@/lib/subscriptionTypes";
 import { useAuth } from "@/context/AuthContext";
 
 function SubscriptionsPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const {
     user,
@@ -35,7 +38,50 @@ function SubscriptionsPageContent() {
   const [isHistoricalSyncing, setIsHistoricalSyncing] = useState(false);
   const [isSmsSyncing, setIsSmsSyncing] = useState(false);
   const [syncSummary, setSyncSummary] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"subscriptions" | "timeline" | "split">("subscriptions");
+
+  const initialTab = (searchParams.get("tab") as any) || "action-hub";
+  const initialSubId = searchParams.get("subId");
+
+  const [activeView, setActiveView] = useState<"action-hub" | "subscriptions" | "timeline" | "split">(
+    ["action-hub", "subscriptions", "timeline", "split"].includes(initialTab) ? initialTab : "action-hub",
+  );
+  const [selectedSubId, setSelectedSubId] = useState<string | null>(initialSubId || null);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    const subIdParam = searchParams.get("subId");
+
+    if (tabParam && ["action-hub", "subscriptions", "timeline", "split"].includes(tabParam)) {
+      setActiveView(tabParam as any);
+    }
+    setSelectedSubId(subIdParam || null);
+  }, [searchParams]);
+
+  const handleSwitchTab = (tab: "action-hub" | "subscriptions" | "timeline" | "split") => {
+    setActiveView(tab);
+    setSelectedSubId(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    params.delete("subId");
+    router.push(`/subscriptions?${params.toString()}`);
+  };
+
+  const handleSelectSubscription = (sub: Subscription) => {
+    setSelectedSubId(sub.id);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", activeView);
+    params.set("subId", sub.id);
+    router.push(`/subscriptions?${params.toString()}`);
+  };
+
+  const handleBackFromDetail = () => {
+    setSelectedSubId(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("subId");
+    router.push(`/subscriptions?${params.toString()}`);
+  };
+
+  const activeSelectedSubscription = subscriptions.find((s) => s.id === selectedSubId);
 
   // Modals
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
@@ -392,58 +438,138 @@ function SubscriptionsPageContent() {
         {/* Financial Summary Aggregator Cards */}
         <FinancialSummaryCards subscriptions={subscriptions} />
 
-        {/* View Switcher: Subscriptions List vs Outflows Timeline vs Split */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveView("subscriptions")}
-              className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                activeView === "subscriptions"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              📋 All Commitments
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveView("timeline")}
-              className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                activeView === "timeline"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              📅 Outflows Timeline
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveView("split")}
-              className={`hidden lg:inline-flex min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                activeView === "split"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              ⚡ Split Overview
-            </button>
-          </div>
+        {/* If a subscription is selected, render deep Detail View with back navigation */}
+        {activeSelectedSubscription ? (
+          <SubscriptionDetailView
+            subscription={activeSelectedSubscription}
+            onBack={handleBackFromDetail}
+            onEdit={(sub) => {
+              setEditingSubscription(sub);
+              setIsSubscriptionModalOpen(true);
+            }}
+            onDelete={handleDeleteSubscription}
+            onOverride={(sub) => {
+              setOverrideSubscription(sub);
+              setIsOverrideModalOpen(true);
+            }}
+            onViewSourceEmail={handleOpenSourceEmailViewer}
+            onRefreshSubscription={fetchSubscriptions}
+          />
+        ) : (
+          <>
+            {/* View Switcher: Action Hub vs Subscriptions List vs Outflows Timeline vs Split */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTab("action-hub")}
+                  className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                    activeView === "action-hub"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  🎯 Due This Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTab("subscriptions")}
+                  className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                    activeView === "subscriptions"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  📋 All Commitments
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTab("timeline")}
+                  className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                    activeView === "timeline"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  📅 Outflows Timeline
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTab("split")}
+                  className={`hidden lg:inline-flex min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                    activeView === "split"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  ⚡ Split Overview
+                </button>
+              </div>
 
-          <span className="text-xs text-slate-400 hidden sm:inline">
-            Deterministic Sync Engine v2.0
-          </span>
-        </div>
+              <span className="text-xs text-slate-400 hidden sm:inline">
+                Deterministic Sync Engine v2.0
+              </span>
+            </div>
 
-        {/* Main View Area */}
-        {isLoading ? (
-          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-12 text-center backdrop-blur-md">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-cyan-400 border-r-transparent mb-3" />
-            <p className="text-sm font-medium text-slate-300">Loading recurring commitments...</p>
-          </div>
-        ) : activeView === "split" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <div className="lg:col-span-4 sticky top-6">
+            {/* Main View Area */}
+            {isLoading ? (
+              <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-12 text-center backdrop-blur-md">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-cyan-400 border-r-transparent mb-3" />
+                <p className="text-sm font-medium text-slate-300">Loading recurring commitments...</p>
+              </div>
+            ) : activeView === "action-hub" ? (
+              <CurrentMonthActionHub
+                subscriptions={subscriptions}
+                onSelectSubscription={handleSelectSubscription}
+                onQuickMarkPaid={handleQuickMarkPaid}
+                onOverride={(sub) => {
+                  setOverrideSubscription(sub);
+                  setIsOverrideModalOpen(true);
+                }}
+                onViewHistory={(sub) => {
+                  setHistorySubscription(sub);
+                  setIsHistoryModalOpen(true);
+                }}
+              />
+            ) : activeView === "split" ? (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <div className="lg:col-span-4 sticky top-6">
+                  <OutflowsTimeline
+                    subscriptions={subscriptions}
+                    onOpenOverride={(sub) => {
+                      setOverrideSubscription(sub);
+                      setIsOverrideModalOpen(true);
+                    }}
+                  />
+                </div>
+                <div className="lg:col-span-8">
+                  <SubscriptionList
+                    subscriptions={subscriptions}
+                    onEdit={(sub) => {
+                      setEditingSubscription(sub);
+                      setIsSubscriptionModalOpen(true);
+                    }}
+                    onOverride={(sub) => {
+                      setOverrideSubscription(sub);
+                      setIsOverrideModalOpen(true);
+                    }}
+                    onDelete={handleDeleteSubscription}
+                    onQuickMarkPaid={handleQuickMarkPaid}
+                    onSelectSubscription={handleSelectSubscription}
+                    onTestParser={(sub) => {
+                      setSandboxModule(sub.emailConfig?.parserModule || "AxisCardParser");
+                      setSandboxRegex(sub.emailConfig?.customRegex);
+                      setIsSandboxModalOpen(true);
+                    }}
+                    onViewHistory={(sub) => {
+                      setHistorySubscription(sub);
+                      setIsHistoryModalOpen(true);
+                    }}
+                    onViewSourceEmail={handleOpenSourceEmailViewer}
+                  />
+                </div>
+              </div>
+            ) : activeView === "timeline" ? (
               <OutflowsTimeline
                 subscriptions={subscriptions}
                 onOpenOverride={(sub) => {
@@ -451,8 +577,7 @@ function SubscriptionsPageContent() {
                   setIsOverrideModalOpen(true);
                 }}
               />
-            </div>
-            <div className="lg:col-span-8">
+            ) : (
               <SubscriptionList
                 subscriptions={subscriptions}
                 onEdit={(sub) => {
@@ -465,6 +590,7 @@ function SubscriptionsPageContent() {
                 }}
                 onDelete={handleDeleteSubscription}
                 onQuickMarkPaid={handleQuickMarkPaid}
+                onSelectSubscription={handleSelectSubscription}
                 onTestParser={(sub) => {
                   setSandboxModule(sub.emailConfig?.parserModule || "AxisCardParser");
                   setSandboxRegex(sub.emailConfig?.customRegex);
@@ -476,40 +602,8 @@ function SubscriptionsPageContent() {
                 }}
                 onViewSourceEmail={handleOpenSourceEmailViewer}
               />
-            </div>
-          </div>
-        ) : activeView === "timeline" ? (
-          <OutflowsTimeline
-            subscriptions={subscriptions}
-            onOpenOverride={(sub) => {
-              setOverrideSubscription(sub);
-              setIsOverrideModalOpen(true);
-            }}
-          />
-        ) : (
-          <SubscriptionList
-            subscriptions={subscriptions}
-            onEdit={(sub) => {
-              setEditingSubscription(sub);
-              setIsSubscriptionModalOpen(true);
-            }}
-            onOverride={(sub) => {
-              setOverrideSubscription(sub);
-              setIsOverrideModalOpen(true);
-            }}
-            onDelete={handleDeleteSubscription}
-            onQuickMarkPaid={handleQuickMarkPaid}
-            onTestParser={(sub) => {
-              setSandboxModule(sub.emailConfig?.parserModule || "AxisCardParser");
-              setSandboxRegex(sub.emailConfig?.customRegex);
-              setIsSandboxModalOpen(true);
-            }}
-            onViewHistory={(sub) => {
-              setHistorySubscription(sub);
-              setIsHistoryModalOpen(true);
-            }}
-            onViewSourceEmail={handleOpenSourceEmailViewer}
-          />
+            )}
+          </>
         )}
       </main>
 

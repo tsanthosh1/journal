@@ -16,6 +16,7 @@ interface SubscriptionListProps {
   onDelete: (id: string) => void;
   onQuickMarkPaid: (sub: Subscription) => void;
   onTestParser: (sub: Subscription) => void;
+  onSelectSubscription?: (sub: Subscription) => void;
   onViewHistory?: (sub: Subscription) => void;
   onViewSourceEmail?: (sub: Subscription) => void;
 }
@@ -27,6 +28,7 @@ export function SubscriptionList({
   onDelete,
   onQuickMarkPaid,
   onTestParser,
+  onSelectSubscription,
   onViewHistory,
   onViewSourceEmail,
 }: SubscriptionListProps) {
@@ -433,6 +435,7 @@ export function SubscriptionList({
               onOverride={onOverride}
               onDelete={onDelete}
               onQuickMarkPaid={onQuickMarkPaid}
+              onSelect={onSelectSubscription}
               onTestParser={onTestParser}
               onViewHistory={onViewHistory}
               onViewSourceEmail={onViewSourceEmail}

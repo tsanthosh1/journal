@@ -14,6 +14,7 @@ interface SubscriptionCardProps {
   onOverride: (sub: Subscription) => void;
   onDelete: (id: string) => void;
   onQuickMarkPaid: (sub: Subscription) => void;
+  onSelect?: (sub: Subscription) => void;
   onTestParser?: (sub: Subscription) => void;
   onViewHistory?: (sub: Subscription) => void;
   onViewSourceEmail?: (sub: Subscription) => void;
@@ -25,6 +26,7 @@ export function SubscriptionCard({
   onOverride,
   onDelete,
   onQuickMarkPaid,
+  onSelect,
   onTestParser,
   onViewHistory,
   onViewSourceEmail,
@@ -138,7 +140,10 @@ export function SubscriptionCard({
       <div>
         {/* Header: Avatar, Name, Category, Source Pill, Status */}
         <div className="flex items-start justify-between gap-3.5">
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div
+            className={`flex items-center gap-3.5 min-w-0 flex-1 ${onSelect ? "cursor-pointer" : ""}`}
+            onClick={() => onSelect && onSelect(subscription)}
+          >
             <SubscriptionAvatar
               name={subscription.name}
               category={subscription.category}
@@ -147,7 +152,7 @@ export function SubscriptionCard({
               size="lg"
             />
             <div className="min-w-0 flex-1">
-              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight truncate group-hover:text-cyan-100 transition">
+              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight truncate group-hover:text-cyan-300 transition">
                 {subscription.name}
               </h3>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
