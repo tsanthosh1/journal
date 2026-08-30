@@ -32,9 +32,6 @@ data class ApiResponse(
 
 object ApiService {
     private const val TAG = "ApiService"
-    
-    // Default production endpoint
-    var baseUrl: String = "https://journal--track-everything-ai.us-east4.hosted.app"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -45,46 +42,51 @@ object ApiService {
     private val gson = Gson()
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
-    suspend fun syncSingleSms(sms: SmsPayload): Result<ApiResponse> = withContext(Dispatchers.IO) {
-        syncBatchSms(listOf(sms), sms.userId)
-    }
-
-    suspend fun syncBatchSms(messages: List<SmsPayload>, userId: String): Result<ApiResponse> =
+    suspend fun syncSingleSms(sms: SmsPayload, customBaseUrl: String? = null): Result<ApiResponse> =
         withContext(Dispatchers.IO) {
-            try {
-                if (messages.isEmpty()) {
-                    return@withContext Result.success(
-                        ApiResponse(true, 0, null, "No messages to sync", null)
+            syncBatchSms(listOf(sms), sms.userId, customBaseUrl)
+        }
+
+    suspend fun syncBatchSms(
+        messages: List<SmsPayload>,
+        userId: String,
+        customBaseUrl: String? = null
+    ): Result<ApiResponse> = withContext(Dispatchers.IO) {
+        try {
+            if (messages.isEmpty()) {
+                return@withContext Result.success(
+                    ApiResponse(true, 0, null, "No messages to sync", null)
+                )
+            }
+
+            val baseUrl = (customBaseUrl ?: SyncConfig.DEFAULT_BASE_URL).removeSuffix("/")
+            val payload = BatchSmsRequest(userId = userId, messages = messages)
+            val jsonBody = gson.toJson(payload)
+
+            val url = "$baseUrl/api/sync/sms"
+            Log.d(TAG, "Posting ${messages.size} SMS to $url")
+
+            val request = Request.Builder()
+                .url(url)
+                .post(jsonBody.toRequestBody(JSON))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseStr = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "API Error (${response.code}): $responseStr")
+                    return@withContext Result.failure(
+                        Exception("HTTP ${response.code}: $responseStr")
                     )
                 }
 
-                val payload = BatchSmsRequest(userId = userId, messages = messages)
-                val jsonBody = gson.toJson(payload)
-
-                val url = "$baseUrl/api/sync/sms"
-                Log.d(TAG, "Posting ${messages.size} SMS to $url")
-
-                val request = Request.Builder()
-                    .url(url)
-                    .post(jsonBody.toRequestBody(JSON))
-                    .build()
-
-                client.newCall(request).execute().use { response ->
-                    val responseStr = response.body?.string() ?: ""
-                    if (!response.isSuccessful) {
-                        Log.e(TAG, "API Error (${response.code}): $responseStr")
-                        return@withContext Result.failure(
-                            Exception("HTTP ${response.code}: $responseStr")
-                        )
-                    }
-
-                    val apiResponse = gson.fromJson(responseStr, ApiResponse::class.java)
-                    Log.d(TAG, "API Success: ${apiResponse.message}")
-                    Result.success(apiResponse)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to post SMS to API", e)
-                Result.failure(e)
+                val apiResponse = gson.fromJson(responseStr, ApiResponse::class.java)
+                Log.d(TAG, "API Success: ${apiResponse.message}")
+                Result.success(apiResponse)
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post SMS to API", e)
+            Result.failure(e)
         }
+    }
 }

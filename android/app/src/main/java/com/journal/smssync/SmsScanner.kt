@@ -10,29 +10,24 @@ import java.util.Calendar
 object SmsScanner {
     private const val TAG = "SmsScanner"
 
-    // Default Bank Sender Keywords
-    val BANK_SENDER_PATTERNS = listOf(
-        "HDFC", "SBI", "ICICI", "AXIS", "KOTAK", "CANBNK", "CANARA",
-        "BARODA", "BOB", "PNB", "BAJAJ", "TATACAP", "LICHFL"
-    )
-
-    // Keywords indicating loan/EMI/debit transactions
-    val TRANSACTION_KEYWORDS = listOf(
-        "loan", "emi", "recovery", "debited", "nach", "ecs",
-        "auto-debit", "auto debit", "deducted"
-    )
-
     suspend fun scanHistoricalSms(
         context: Context,
-        userId: String,
-        monthsBack: Int = 12,
+        userId: String? = null,
+        monthsBack: Int? = null,
+        customSenders: List<String>? = null,
+        customKeywords: List<String>? = null,
         onProgress: ((current: Int, totalFound: Int) -> Unit)? = null
     ): List<SmsPayload> = withContext(Dispatchers.IO) {
         val results = mutableListOf<SmsPayload>()
 
+        val effectiveUserId = userId ?: SyncConfig.getUserId(context)
+        val effectiveMonths = monthsBack ?: SyncConfig.getScanMonths(context)
+        val senders = customSenders ?: SyncConfig.getBankSenders(context)
+        val keywords = customKeywords ?: SyncConfig.getFilterKeywords(context)
+
         try {
             val calendar = Calendar.getInstance()
-            calendar.add(Calendar.MONTH, -monthsBack)
+            calendar.add(Calendar.MONTH, -effectiveMonths)
             val minTimestamp = calendar.timeInMillis
 
             val uri = Uri.parse("content://sms/inbox")
@@ -62,13 +57,13 @@ object SmsScanner {
                     val body = it.getString(bodyIdx) ?: ""
                     val date = it.getLong(dateIdx)
 
-                    if (isRelevantBankSms(address, body)) {
+                    if (isRelevantBankSms(address, body, senders, keywords)) {
                         results.add(
                             SmsPayload(
                                 sender = address,
                                 body = body,
                                 timestamp = date,
-                                userId = userId
+                                userId = effectiveUserId
                             )
                         )
                     }
@@ -79,7 +74,7 @@ object SmsScanner {
                 }
             }
 
-            Log.d(TAG, "Scanned complete: Found ${results.size} matching loan/bank SMS messages")
+            Log.d(TAG, "Scanned complete: Found ${results.size} matching SMS messages")
         } catch (e: Exception) {
             Log.e(TAG, "Error scanning historical SMS", e)
         }
@@ -87,18 +82,36 @@ object SmsScanner {
         return@withContext results
     }
 
-    fun isRelevantBankSms(sender: String, body: String): Boolean {
+    fun isRelevantBankSms(
+        sender: String,
+        body: String,
+        customSenders: List<String>? = null,
+        customKeywords: List<String>? = null
+    ): Boolean {
         val upperSender = sender.uppercase()
         val lowerBody = body.lowercase()
 
-        val matchesBankSender = BANK_SENDER_PATTERNS.any { upperSender.contains(it) }
-        val matchesKeyword = TRANSACTION_KEYWORDS.any { lowerBody.contains(it) }
+        val bankSenders = customSenders?.takeIf { it.isNotEmpty() }
+            ?: SyncConfig.DEFAULT_BANK_SENDERS.split(",").map { it.trim().uppercase() }
 
-        // Must match either a bank sender AND a keyword, or strongly contain explicit loan keywords
+        val filterKeywords = customKeywords?.takeIf { it.isNotEmpty() }
+            ?: SyncConfig.DEFAULT_KEYWORDS.split(",").map { it.trim().lowercase() }
+
+        // Check if sender matches any configured bank patterns
+        val matchesBankSender = bankSenders.any {
+            it.isNotBlank() && upperSender.contains(it.uppercase().trim())
+        }
+
+        // Check if body matches any configured keywords
+        val matchesKeyword = filterKeywords.any {
+            it.isNotBlank() && lowerBody.contains(it.lowercase().trim())
+        }
+
         if (matchesBankSender && matchesKeyword) {
             return true
         }
 
+        // Strongly formatted loan signatures
         if (lowerBody.contains("home loan") || lowerBody.contains("loan a/c") || lowerBody.contains("ln recovery")) {
             return true
         }

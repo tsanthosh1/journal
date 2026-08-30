@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -30,8 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,20 +44,24 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun FinanceHubSmsApp() {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(SmsReceiver.PREFS_NAME, Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
 
-    var userEmail by remember {
-        mutableStateOf(prefs.getString(SmsReceiver.KEY_USER_ID, "tsanthosh.online@gmail.com") ?: "tsanthosh.online@gmail.com")
-    }
-    var isRealtimeSyncEnabled by remember {
-        mutableStateOf(prefs.getBoolean(SmsReceiver.KEY_SYNC_ENABLED, true))
-    }
+    // Config state
+    var userEmail by remember { mutableStateOf(SyncConfig.getUserId(context)) }
+    var baseUrl by remember { mutableStateOf(SyncConfig.getBaseUrl(context)) }
+    var bankSendersText by remember { mutableStateOf(SyncConfig.getBankSenders(context).joinToString(", ")) }
+    var keywordsText by remember { mutableStateOf(SyncConfig.getFilterKeywords(context).joinToString(", ")) }
+    var scanMonths by remember { mutableIntStateOf(SyncConfig.getScanMonths(context)) }
+    var isRealtimeSyncEnabled by remember { mutableStateOf(SyncConfig.isSyncEnabled(context)) }
+
     var isBackfilling by remember { mutableStateOf(false) }
     var backfillProgress by remember { mutableStateOf("Ready to scan") }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+
     var recentLogs by remember {
         mutableStateOf(
-            prefs.getString(SmsReceiver.KEY_LAST_SMS_LOG, "")
+            SyncConfig.getPrefs(context)
+                .getString(SyncConfig.KEY_LAST_SMS_LOG, "")
                 ?.split("\n")
                 ?.filter { it.isNotBlank() } ?: emptyList()
         )
@@ -92,7 +94,12 @@ fun FinanceHubSmsApp() {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("💬 Finance Hub SMS Sync", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("💬 Finance SMS Sync", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showSettingsDialog = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color(0xFF38BDF8))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F172A))
@@ -142,12 +149,21 @@ fun FinanceHubSmsApp() {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AccountCircle, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(32.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text("Target User Account", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                                Text(userEmail, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AccountCircle, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(32.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Authenticated User", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                                    Text(userEmail, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                }
+                            }
+                            IconButton(onClick = { showSettingsDialog = true }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Account", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -186,7 +202,7 @@ fun FinanceHubSmsApp() {
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "Automatically catches new loan recovery and EMI SMS from your bank.",
+                                "Matches bank senders & keywords automatically when an SMS arrives.",
                                 color = Color(0xFF94A3B8),
                                 fontSize = 11.sp
                             )
@@ -195,7 +211,7 @@ fun FinanceHubSmsApp() {
                             checked = isRealtimeSyncEnabled,
                             onCheckedChange = {
                                 isRealtimeSyncEnabled = it
-                                prefs.edit().putBoolean(SmsReceiver.KEY_SYNC_ENABLED, it).apply()
+                                SyncConfig.setSyncEnabled(context, it)
                             }
                         )
                     }
@@ -210,10 +226,29 @@ fun FinanceHubSmsApp() {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("🔄 1-Click Historical Backfill", fontWeight = FontWeight.Bold, color = Color(0xFFA5B4FC), fontSize = 14.sp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🔄 Historical Inbox Backfill", fontWeight = FontWeight.Bold, color = Color(0xFFA5B4FC), fontSize = 14.sp)
+                            Surface(
+                                color = Color(0xFF312E81),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    "Past $scanMonths Mos",
+                                    color = Color(0xFFC7D2FE),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Scans your inbox for past 12 months of loan EMI debits (HDFC, SBI, ICICI, etc.) and pushes them to your dashboard.",
+                            "Scans your SMS inbox using your configured sender matchers & keywords.",
                             color = Color(0xFFCBD5E1),
                             fontSize = 11.sp
                         )
@@ -235,22 +270,25 @@ fun FinanceHubSmsApp() {
                                         val messages = SmsScanner.scanHistoricalSms(
                                             context = context,
                                             userId = userEmail,
-                                            monthsBack = 12
+                                            monthsBack = scanMonths
                                         ) { scanned, found ->
-                                            backfillProgress = "Scanned $scanned SMS (Found $found loan records)..."
+                                            backfillProgress = "Scanned $scanned SMS (Found $found matched records)..."
                                         }
 
-                                        backfillProgress = "Found ${messages.size} loan records. Uploading..."
-                                        val result = ApiService.syncBatchSms(messages, userEmail)
+                                        backfillProgress = "Found ${messages.size} matching SMS. Uploading..."
+                                        val result = ApiService.syncBatchSms(messages, userEmail, baseUrl)
 
                                         if (result.isSuccess) {
                                             val summary = result.getOrNull()?.syncSummary ?: "Ingested ${messages.size} records!"
                                             backfillProgress = summary
                                             Toast.makeText(context, "Backfill Complete!", Toast.LENGTH_LONG).show()
 
-                                            val logs = messages.take(10).map { "[${it.sender}] ${it.body.take(60)}..." }
+                                            val logs = messages.take(15).map { "[${it.sender}] ${it.body.take(60)}..." }
                                             recentLogs = logs
-                                            prefs.edit().putString(SmsReceiver.KEY_LAST_SMS_LOG, logs.joinToString("\n")).apply()
+                                            SyncConfig.getPrefs(context)
+                                                .edit()
+                                                .putString(SyncConfig.KEY_LAST_SMS_LOG, logs.joinToString("\n"))
+                                                .apply()
                                         } else {
                                             backfillProgress = "Upload Error: ${result.exceptionOrNull()?.message}"
                                         }
@@ -273,7 +311,7 @@ fun FinanceHubSmsApp() {
                             } else {
                                 Icon(Icons.Default.Sync, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Scan & Backfill Past 12 Months", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Scan & Backfill SMS", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -285,29 +323,60 @@ fun FinanceHubSmsApp() {
                 }
             }
 
-            // Monitored Banks Chips
+            // Configured Matchers Card
             item {
-                Column {
-                    Text("🏦 Monitored Senders & Loan Types", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("HDFC", "SBI", "ICICI", "CANARA", "AXIS", "BAJAJ").forEach { bank ->
-                            Surface(
-                                color = Color(0xFF1E293B),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = bank,
-                                    color = Color(0xFF38BDF8),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("⚙️ Configured Matchers", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Edit in Settings ⚙️",
+                                color = Color(0xFF38BDF8),
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable { showSettingsDialog = true }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Bank Senders:", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            SyncConfig.getBankSenders(context).take(6).forEach { sender ->
+                                Surface(
+                                    color = Color(0xFF1E293B),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = sender,
+                                        color = Color(0xFF38BDF8),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("Keywords:", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = keywordsText,
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 11.sp,
+                            maxLines = 2
+                        )
                     }
                 }
             }
@@ -339,5 +408,92 @@ fun FinanceHubSmsApp() {
                 }
             }
         }
+    }
+
+    // Settings Modal Dialog
+    if (showSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = { Text("Configure SMS Matchers & Settings", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = userEmail,
+                        onValueChange = { userEmail = it },
+                        label = { Text("Account Email") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = bankSendersText,
+                        onValueChange = { bankSendersText = it },
+                        label = { Text("Bank Senders (Comma-separated)") },
+                        placeholder = { Text("HDFC, SBI, ICICI, CANARA, AXIS") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = keywordsText,
+                        onValueChange = { keywordsText = it },
+                        label = { Text("Filter Keywords (Comma-separated)") },
+                        placeholder = { Text("loan, emi, recovery, debited, nach") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = scanMonths.toString(),
+                        onValueChange = { scanMonths = it.toIntOrNull() ?: 12 },
+                        label = { Text("Historical Scan Lookback (Months)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = { baseUrl = it },
+                        label = { Text("Backend Server URL") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        SyncConfig.setUserId(context, userEmail)
+                        SyncConfig.setBaseUrl(context, baseUrl)
+                        SyncConfig.setBankSenders(context, bankSendersText)
+                        SyncConfig.setFilterKeywords(context, keywordsText)
+                        SyncConfig.setScanMonths(context, scanMonths)
+
+                        showSettingsDialog = false
+                        Toast.makeText(context, "Settings saved!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Save Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        SyncConfig.resetToDefaults(context)
+                        userEmail = SyncConfig.DEFAULT_USER_ID
+                        baseUrl = SyncConfig.DEFAULT_BASE_URL
+                        bankSendersText = SyncConfig.DEFAULT_BANK_SENDERS
+                        keywordsText = SyncConfig.DEFAULT_KEYWORDS
+                        scanMonths = SyncConfig.DEFAULT_SCAN_MONTHS
+                        Toast.makeText(context, "Reset to defaults", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Reset Defaults", color = Color(0xFFF87171))
+                }
+            }
+        )
     }
 }

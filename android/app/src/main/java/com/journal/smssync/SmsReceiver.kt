@@ -12,18 +12,16 @@ import kotlinx.coroutines.launch
 class SmsReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "SmsReceiver"
-        const val PREFS_NAME = "finance_sms_prefs"
-        const val KEY_USER_ID = "sync_user_id"
-        const val KEY_SYNC_ENABLED = "sync_enabled"
-        const val KEY_LAST_SMS_LOG = "last_sms_log"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
 
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val isSyncEnabled = prefs.getBoolean(KEY_SYNC_ENABLED, true)
-        val userId = prefs.getString(KEY_USER_ID, "tsanthosh.online@gmail.com") ?: "tsanthosh.online@gmail.com"
+        val isSyncEnabled = SyncConfig.isSyncEnabled(context)
+        val userId = SyncConfig.getUserId(context)
+        val senders = SyncConfig.getBankSenders(context)
+        val keywords = SyncConfig.getFilterKeywords(context)
+        val baseUrl = SyncConfig.getBaseUrl(context)
 
         if (!isSyncEnabled) {
             Log.d(TAG, "SMS sync is currently paused by user.")
@@ -40,13 +38,14 @@ class SmsReceiver : BroadcastReceiver() {
 
             Log.d(TAG, "Incoming SMS from $sender: $body")
 
-            if (SmsScanner.isRelevantBankSms(sender, body)) {
+            if (SmsScanner.isRelevantBankSms(sender, body, senders, keywords)) {
                 Log.d(TAG, "Relevant loan/bank debit SMS detected! Forwarding to API...")
 
                 // Save to local recent log
-                val currentLogs = prefs.getString(KEY_LAST_SMS_LOG, "") ?: ""
+                val prefs = SyncConfig.getPrefs(context)
+                val currentLogs = prefs.getString(SyncConfig.KEY_LAST_SMS_LOG, "") ?: ""
                 val newLog = "[$sender] ${body.take(60)}..."
-                prefs.edit().putString(KEY_LAST_SMS_LOG, "$newLog\n$currentLogs".take(2000)).apply()
+                prefs.edit().putString(SyncConfig.KEY_LAST_SMS_LOG, "$newLog\n$currentLogs".take(2000)).apply()
 
                 val payload = SmsPayload(
                     sender = sender,
@@ -59,7 +58,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val pendingResult = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
-                        val result = ApiService.syncSingleSms(payload)
+                        val result = ApiService.syncSingleSms(payload, baseUrl)
                         if (result.isSuccess) {
                             Log.d(TAG, "Successfully synced incoming SMS to backend!")
                         } else {
