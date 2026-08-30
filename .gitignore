@@ -55,3 +55,11 @@ functions/lib/
 *firebase-adminsdk*.json
 credentials.json
 token.json
+
+# android
+.gradle/
+android/.gradle/
+android/**/build/
+android/local.properties
+*.apk
+*.aab
