@@ -9,7 +9,9 @@ import React, {
   useMemo,
 } from "react";
 import {
+  GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithCustomToken,
   signInWithPopup,
   signOut as fbSignOut,
   type User,
@@ -83,6 +85,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  // Handle custom token from URL if redirected from OAuth callback
+  useEffect(() => {
+    if (typeof window !== "undefined" && firebase?.auth) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const fbToken = urlParams.get("firebase_token");
+      if (fbToken) {
+        signInWithCustomToken(firebase.auth, fbToken)
+          .then((userCred) => {
+            setUser(userCred.user);
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete("firebase_token");
+            window.history.replaceState({}, "", cleanUrl.toString());
+          })
+          .catch((err) => {
+            console.error("Custom token sign-in error:", err);
+          });
+      }
+    }
+  }, [firebase]);
+
   useEffect(() => {
     if (!firebase) {
       setIsLoading(false);
@@ -118,21 +140,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [firebase]);
 
-  const signInWithGoogle = useCallback(async (returnTo?: string) => {
-    if (firebase) {
-      try {
-        const result = await signInWithPopup(firebase.auth, firebase.googleProvider);
-        setUser(result.user);
-        return;
-      } catch (popupErr) {
-        console.warn("Popup sign-in bypassed, redirecting to OAuth route...", popupErr);
-      }
-    }
+  const signInWithGoogle = useCallback(
+    async (returnTo?: string) => {
+      if (firebase?.auth && firebase?.googleProvider) {
+        try {
+          const result = await signInWithPopup(firebase.auth, firebase.googleProvider);
+          setUser(result.user);
 
-    const currentPath =
-      returnTo || (typeof window !== "undefined" ? window.location.pathname : "/subscriptions");
-    window.location.href = `/api/auth/google?returnTo=${encodeURIComponent(currentPath)}`;
-  }, [firebase]);
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          if (credential?.accessToken && result.user.email) {
+            await fetch("/api/auth/google/store-token", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: result.user.email,
+                email: result.user.email,
+                accessToken: credential.accessToken,
+              }),
+            }).catch(() => {});
+            await checkGmailSyncStatus();
+          }
+          return;
+        } catch (popupErr: any) {
+          if (popupErr?.code === "auth/popup-closed-by-user") {
+            return;
+          }
+          console.warn("Popup sign-in fallback to OAuth redirect:", popupErr);
+        }
+      }
+
+      const currentPath =
+        returnTo || (typeof window !== "undefined" ? window.location.pathname : "/subscriptions");
+      window.location.href = `/api/auth/google?returnTo=${encodeURIComponent(currentPath)}`;
+    },
+    [firebase, checkGmailSyncStatus],
+  );
 
   const signOut = useCallback(async () => {
     if (firebase) {
