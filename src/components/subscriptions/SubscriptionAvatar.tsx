@@ -13,6 +13,7 @@ interface SubscriptionAvatarProps {
 }
 
 const CATEGORY_GRADIENTS: Record<string, string> = {
+  "Loans & EMIs": "from-teal-600 to-emerald-700 text-teal-100 font-bold",
   "Credit Cards": "from-indigo-600 to-purple-600 text-indigo-100",
   "Savings & Schemes": "from-amber-500 to-yellow-600 text-amber-950 font-black",
   Entertainment: "from-rose-500 to-pink-600 text-rose-100",

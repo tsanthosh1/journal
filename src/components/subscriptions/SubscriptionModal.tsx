@@ -433,6 +433,7 @@ export function SubscriptionModal({
                   onChange={(e) => handleCategoryChange(e.target.value as SubscriptionCategory)}
                   className="mt-1 w-full min-h-[42px] rounded-xl border border-white/10 bg-slate-800 px-3.5 py-2 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
                 >
+                  <option value="Loans & EMIs">🏦 Loans & EMIs (Home Loan, Auto, Personal, Recovery)</option>
                   <option value="Credit Cards">Credit Cards</option>
                   <option value="Savings & Schemes">Jewellery & Savings Schemes (Gold Chit, SIP, RD)</option>
                   <option value="Entertainment">Entertainment & OTT Streaming</option>
@@ -815,9 +816,22 @@ export function SubscriptionModal({
                   <button
                     type="button"
                     onClick={() => {
+                      setSmsSenderQuery("BOI");
+                      setSmsKeywords("Loan Rec, Debited(TRF), Debited");
+                      setCategory("Loans & EMIs");
+                      setName((n) => n || "Bank of India Home Loan");
+                      setImageUrl("https://logo.clearbit.com/bankofindia.co.in");
+                    }}
+                    className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] text-teal-300 hover:bg-teal-500/20 cursor-pointer"
+                  >
+                    🏦 BOI Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setSmsSenderQuery("HDFCBK");
                       setSmsKeywords("Home Loan, LN RECOVERY");
-                      setCategory("Housing & Rent");
+                      setCategory("Loans & EMIs");
                       setName((n) => n || "HDFC Home Loan");
                       setImageUrl("https://logo.clearbit.com/hdfcbank.com");
                     }}

@@ -1,6 +1,6 @@
 /**
  * Specialized parser for Indian Bank Loan, Home Loan, and EMI Recovery SMS alerts.
- * Supports HDFC, ICICI, SBI, Canara, Axis, Kotak, Bank of Baroda, PNB, Bajaj, Tata Capital, etc.
+ * Supports Bank of India (BOI), HDFC, ICICI, SBI, Canara, Axis, Kotak, Bank of Baroda, PNB, Bajaj, Tata Capital, etc.
  */
 
 export interface ParsedLoanSms {
@@ -17,6 +17,8 @@ export interface ParsedLoanSms {
 }
 
 const BANK_SENDER_MAP: Record<string, string> = {
+  BOI: "Bank of India",
+  BKID: "Bank of India",
   HDFC: "HDFC Bank",
   SBI: "State Bank of India",
   ICICI: "ICICI Bank",
@@ -30,16 +32,29 @@ const BANK_SENDER_MAP: Record<string, string> = {
   BAJAJ: "Bajaj Finserv",
   TATACAP: "Tata Capital",
   LICHFL: "LIC Housing Finance",
+  UNION: "Union Bank of India",
+  UBI: "Union Bank of India",
+  INDIANB: "Indian Bank",
 };
 
 /**
- * Detects bank from sender address (e.g. "AD-HDFCBK" -> "HDFC Bank")
+ * Detects bank from sender address or message body prefix
  */
-export function detectBankFromSender(sender: string): string | null {
-  const upper = sender.toUpperCase();
+export function detectBankFromSender(sender: string, bodyText: string = ""): string | null {
+  const upperSender = sender.toUpperCase();
+  const upperBody = bodyText.toUpperCase();
+
   for (const [key, name] of Object.entries(BANK_SENDER_MAP)) {
-    if (upper.includes(key)) return name;
+    if (upperSender.includes(key)) return name;
   }
+
+  // Check body prefix e.g. "BOI - Rs 34550" or "HDFC Bank:"
+  for (const [key, name] of Object.entries(BANK_SENDER_MAP)) {
+    if (upperBody.startsWith(key) || upperBody.includes(`${key} -`) || upperBody.includes(`${key}:`)) {
+      return name;
+    }
+  }
+
   return null;
 }
 
@@ -59,6 +74,7 @@ export function parseLoanSms(
     lower.includes("loan") ||
     lower.includes("emi") ||
     lower.includes("recovery") ||
+    lower.includes("loan rec") ||
     lower.includes("nach") ||
     lower.includes("ecs") ||
     lower.includes("auto-debit") ||
@@ -69,18 +85,20 @@ export function parseLoanSms(
     lower.includes("debit") ||
     lower.includes("deducted") ||
     lower.includes("transferred to loan") ||
-    lower.includes("towards");
+    lower.includes("towards") ||
+    lower.includes("debited(trf)");
 
   // 1. Amount Extraction
   // Patterns:
+  // Rs 34550.21 Debited
   // INR 38,450.00 debited
   // Rs. 42,100.00
   // debited by Rs.28,500.00
   // with INR 35,000.00
   let amount: number | null = null;
   const amountPatterns = [
-    /(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:has been debited|debited|deducted|paid|towards)/i,
-    /(?:debited|deducted|paid|with|by)\s*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:has been debited|debited\(trf\)|debited|deducted|paid|towards)/i,
+    /(?:debited\(trf\)|debited|deducted|paid|with|by)\s*(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
     /(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
   ];
 
@@ -97,7 +115,7 @@ export function parseLoanSms(
   }
 
   // 2. Date Extraction
-  // Patterns: "on 05-AUG-26", "on 05/08/2026", "on 10Aug26", "on 2026-08-05"
+  // Patterns: "on 07-07-2026", "on 05-AUG-26", "on 05/08/2026", "on 10Aug26", "on 2026-08-05"
   let extractedDate: string | null = null;
   const datePatterns = [
     /on\s*(\d{1,2}[-/](?:[a-zA-Z]{3}|\d{1,2})[-/]\d{2,4})/i,
@@ -130,9 +148,14 @@ export function parseLoanSms(
   const cycleMonth = extractedDate ? extractedDate.slice(0, 7) : null;
 
   // 3. Loan Account Extraction
-  // Patterns: "Home Loan A/C **7890", "Loan A/c 50100492819", "LOAN A/C 38291048201", "Loan Account 00057281928"
+  // Patterns:
+  // "Loan Rec/2575510000033/SANTHOS" -> "2575510000033"
+  // "Home Loan A/C **7890" -> "7890"
+  // "Loan A/c 50100492819" -> "50100492819"
+  // "LOAN A/C 38291048201" -> "38291048201"
   let loanAccount: string | null = null;
   const loanPatterns = [
+    /(?:Loan\s*Rec(?:overy)?|LN\s*REC)[/:\s]+([a-zA-Z0-9]+)/i,
     /(?:Home\s*Loan|Loan|LN)\s*(?:A\/C|Acct|Account|No\.?)?\s*(?:\*\*)?([a-zA-Z0-9]+)/i,
     /(?:towards|for)\s*(?:Home\s*Loan|Loan|EMI)\s*(?:A\/C|Account)?\s*(?:\*\*)?([a-zA-Z0-9]+)/i,
   ];
@@ -145,9 +168,11 @@ export function parseLoanSms(
     }
   }
 
-  // 4. Debit Bank Account Extraction (e.g. "from A/C **1234")
+  // 4. Debit Bank Account Extraction (e.g. "in your Ac XX1607", "from A/C **1234", "your Account ending 9012")
   let debitAccount: string | null = null;
   const debitPatterns = [
+    /(?:in\s*your\s*Ac|your\s*Ac|from\s*Ac|Ac|A\/C)\s*(?:XX|\*\*|X\*|\*)?(\d{4})/i,
+    /(?:Account|Acct|A\/c|Ac)\s*(?:ending|no\.?|is)?\s*(?:XX|\*\*|X\*|\*)?(\d{4})/i,
     /(?:from|in)\s*(?:A\/C|Account|Acct)?\s*(?:\*\*)?(\d{4})/i,
     /A\/C\s*(?:\*\*)?(\d{4})/i,
   ];
@@ -159,14 +184,16 @@ export function parseLoanSms(
     }
   }
 
-  // 5. Reference ID Extraction (e.g. "Ref No: 6223849281", "UPI/123456", "Info: LN RECOVERY")
+  // 5. Reference ID Extraction
   let referenceId: string | null = null;
   const refMatch = body.match(/(?:Ref(?:\s*No)?\.?|UPI|Txn\s*ID|URN)[:\s]*([a-zA-Z0-9]+)/i);
   if (refMatch && refMatch[1]) {
     referenceId = refMatch[1];
+  } else if (loanAccount) {
+    referenceId = loanAccount;
   }
 
-  const bankName = detectBankFromSender(sender);
+  const bankName = detectBankFromSender(sender, body);
 
   const isMatch = (isLoanOrEmi || isDebit) && amount !== null;
 
@@ -214,7 +241,7 @@ function parseDateToIso(dateStr: string): string | null {
     return `${year}-${month}-${day}`;
   }
 
-  // Format: 05/08/2026 or 05-08-2026
+  // Format: 07-07-2026 or 05/08/2026 or 05-08-2026
   const numMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
   if (numMatch) {
     const day = numMatch[1].padStart(2, "0");

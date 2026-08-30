@@ -17,8 +17,8 @@ object SyncConfig {
     // Default Fallbacks
     const val DEFAULT_USER_ID = "tsanthosh.online@gmail.com"
     const val DEFAULT_BASE_URL = "https://journal--track-everything-ai.us-east4.hosted.app"
-    const val DEFAULT_BANK_SENDERS = "HDFC, SBI, ICICI, CANARA, CANBNK, AXIS, KOTAK, BAJAJ, TATACAP, LICHFL, BOB, PNB, UNION"
-    const val DEFAULT_KEYWORDS = "loan, emi, recovery, debited, nach, ecs, auto-debit, auto debit, deducted, transferred to loan"
+    const val DEFAULT_BANK_SENDERS = "BOI, HDFC, SBI, ICICI, CANARA, CANBNK, AXIS, KOTAK, BAJAJ, TATACAP, LICHFL, BOB, PNB, UNION"
+    const val DEFAULT_KEYWORDS = "loan, emi, recovery, loan rec, debited(trf), debited, nach, ecs, auto-debit, auto debit, deducted, transferred to loan"
     const val DEFAULT_SCAN_MONTHS = 12
 
     fun getPrefs(context: Context): SharedPreferences {

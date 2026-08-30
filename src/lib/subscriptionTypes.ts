@@ -13,6 +13,7 @@ export type PaymentStatus =
   | "MISMATCH_REVIEW";
 
 export type SubscriptionCategory =
+  | "Loans & EMIs"
   | "Credit Cards"
   | "Utilities"
   | "Services"
