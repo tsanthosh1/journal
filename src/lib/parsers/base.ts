@@ -18,13 +18,28 @@ export interface IStatementParser {
 export function stripHtmlAndCleanText(raw: string): string {
   if (!raw) return "";
 
-  // Replace <br>, </p>, </div>, </tr> with newlines to preserve spacing
-  let text = raw
+  let text = raw;
+
+  // 1. Decode MIME quoted-printable sequences (=3D -> =, =\r\n -> "")
+  text = text
+    .replace(/=3D/gi, "=")
+    .replace(/=\r?\n/g, "")
+    .replace(/=20/g, " ");
+
+  // 2. Replace <br>, </p>, </div>, </tr>, </td> with spaces/newlines
+  text = text
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|tr|h\d)>/gi, "\n")
+    .replace(/<\/td>/gi, " ")
     .replace(/<[^>]+>/g, " ");
 
-  // Decode common HTML entities
+  // 3. Decode decimal & hex HTML entities (e.g. &#8377; -> ₹, &#x20B9; -> ₹, &#160; -> " ")
+  text = text
+    .replace(/&#8377;|&#x20B9;/gi, "₹")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
+
+  // 4. Decode named HTML entities
   text = text
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -32,7 +47,11 @@ export function stripHtmlAndCleanText(raw: string): string {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
-    .replace(/&#x20B9;|&INR;|Rs\.?|INR/gi, "Rs. ")
+    .replace(/&INR;/gi, "₹");
+
+  // 5. Standardize currency signs
+  text = text
+    .replace(/(?:Rs\.?|INR)/gi, "₹")
     .replace(/\s+/g, " ")
     .replace(/\n\s*\n+/g, "\n");
 

@@ -598,13 +598,13 @@ export async function syncHistoricalSubscriptionWithGmail(
             return p.timestamp >= cycleStartTime && p.timestamp <= cycleEndTime;
           });
 
+          const externalPayments = cyclePayments.filter((p) => p.msgId !== sMsg.id);
           let totalPaid = 0;
           if (isAdvanceDepositOrPrepaid && stmtParsed.statementTotal > 0) {
             // For advance payment / scheme emails, the statement total is already the paid amount
             totalPaid = stmtParsed.statementTotal;
           } else {
             // Exclude statement email itself from being summed on top of external payments
-            const externalPayments = cyclePayments.filter((p) => p.msgId !== sMsg.id);
             if (externalPayments.length > 0) {
               totalPaid = Math.round(externalPayments.reduce((sum, p) => sum + p.paidAmount, 0) * 100) / 100;
             } else if (isPrepaidSub && stmtParsed.statementTotal > 0) {
@@ -636,7 +636,16 @@ export async function syncHistoricalSubscriptionWithGmail(
           }
           const sourceEmails = Array.from(sourceEmailMap.values());
 
-          const lastPayment = cyclePayments[cyclePayments.length - 1];
+          const lastPayment =
+            externalPayments.length > 0
+              ? externalPayments[externalPayments.length - 1]
+              : undefined;
+
+          const cyclePaymentDate = lastPayment
+            ? lastPayment.paymentDate
+            : isAdvanceDepositOrPrepaid
+            ? stmtDate
+            : undefined;
 
           const cycleRecord: HistoricalCycle = {
             id: `${subscription.id}_${cycleMonth}`,
@@ -650,7 +659,7 @@ export async function syncHistoricalSubscriptionWithGmail(
             paidAmount: totalPaid,
             remainingBalance: remaining,
             status,
-            lastPaymentDate: lastPayment?.paymentDate,
+            lastPaymentDate: cyclePaymentDate,
             processedMessageIds,
             sourceEmails,
             createdAt: new Date().toISOString(),

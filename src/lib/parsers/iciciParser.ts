@@ -21,12 +21,13 @@ export class ICICICardParser implements IStatementParser {
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
 
-    // 1. Amount Due (Modern format with inline body tables)
+    // 1. Amount Due (Strictly prioritize Total Amount Due over Minimum Amount Due)
     const amountRegexes = [
-      /Total\s+Amount\s+Due\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /Total\s+Due\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /Amount\s+Payable\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /Total\s+Payment\s+Due\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /Total\s+Amount\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /Total\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /Total\s+Payment\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /(?<!Minimum\s+)Amount\s+Payable\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /(?<!Minimum\s+)Amount\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
     ];
 
     for (const rx of amountRegexes) {
@@ -39,10 +40,8 @@ export class ICICICardParser implements IStatementParser {
 
     // 2. Due Date
     const dueDateRegexes = [
-      /(?:payment\s+due\s+by|due\s+by)\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-      /Payment\s+Due\s+Date\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-      /Due\s+Date\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-      /Pay\s+by\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /(?:payment\s+due\s+by|payment\s+due\s+date|due\s+by|due\s+date|pay\s+by)\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /(?:by)\s+([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4})/i,
     ];
 
     for (const rx of dueDateRegexes) {
@@ -98,7 +97,7 @@ export class ICICICardParser implements IStatementParser {
             ? new Date(new Date(statementDate).getTime() + 18 * 86400000)
                 .toISOString()
                 .split("T")[0]
-            : new Date().toISOString().split("T")[0]);
+            : undefined);
 
         return {
           success: true,
@@ -120,7 +119,7 @@ export class ICICICardParser implements IStatementParser {
     return {
       success: true,
       statementTotal,
-      dueDate: dueDate ?? new Date().toISOString().split("T")[0],
+      dueDate: dueDate ?? (statementDate ? new Date(new Date(statementDate).getTime() + 18 * 86400000).toISOString().split("T")[0] : undefined),
       statementDate,
       accountOrCardDigits: matches.rawCardDigits,
       rawMatches: matches,
@@ -134,13 +133,14 @@ export class ICICICardParser implements IStatementParser {
 
     // 1. Amount Paid (supports Amazon Pay and direct ICICI receipts)
     const paymentAmountRegexes = [
-      /Paid\s+Amount\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /Amount\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /received\s+(?:a\s+)?payment\s+of\s+(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /payment\s+of\s+(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)\s+received/i,
-      /amount\s+of\s+(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)\s+credited/i,
-      /(?:Rs\.?|INR|₹)\s*([0-9,]+(?:\.[0-9]{2})?)\s+has\s+been\s+received/i,
-      /(?:Rs\.?|INR|₹)\s*([0-9,]+(?:\.[0-9]{2})?)\s+(?:is|has\s+been)\s+debited/i,
+      /payment\s+of\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /(?:Paid\s+Amount|Amount\s+Paid)\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /Amount\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /received\s+(?:a\s+)?payment\s+of\s+(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /payment\s+of\s+(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)\s+received/i,
+      /amount\s+of\s+(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)\s+credited/i,
+      /(?:₹|Rs\.?|INR)\s*([0-9,]+(?:\.[0-9]{2})?)\s+(?:has\s+been\s+received|received|towards|for|paid|successful)/i,
+      /(?:₹|Rs\.?|INR)\s*([0-9,]+(?:\.[0-9]{2})?)\s+(?:is|has\s+been)\s+debited/i,
     ];
 
     for (const rx of paymentAmountRegexes) {
@@ -153,7 +153,8 @@ export class ICICICardParser implements IStatementParser {
 
     // 2. Payment Date
     const paymentDateRegexes = [
-      /(?:on|dated)\s+(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /(?:transaction\s+date|payment\s+date|date|dated|on)\s*[:\-]?\s*(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})/i,
     ];
 
     for (const rx of paymentDateRegexes) {
@@ -169,6 +170,7 @@ export class ICICICardParser implements IStatementParser {
       /(?:credit\s+card|card|card\s+number)\s*(?:no\.?|XXXX|XX|-|\*+)?\s*[:\-]?\s*(?:[X*]*\s*)?(\d{4})/i,
       /\*{3,4}\s*(\d{4})/i,
       /XX-?(\d{4})/i,
+      /ending\s+with\s+(\d{4})/i,
     ];
 
     for (const rx of cardRegexes) {
@@ -207,7 +209,7 @@ export class ICICICardParser implements IStatementParser {
     return {
       success: true,
       paidAmount,
-      paymentDate: paymentDate ?? new Date().toISOString().split("T")[0],
+      paymentDate,
       accountOrCardDigits: matches.rawCardDigits,
       referenceId: matches.rawReferenceId,
       rawMatches: matches,
