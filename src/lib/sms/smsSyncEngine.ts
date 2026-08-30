@@ -171,8 +171,17 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
       const status: PaymentStatus =
         totalPaid >= expectedAmount ? "FULLY_PAID" : totalPaid > 0 ? "PARTIALLY_PAID" : "UNPAID";
 
+      let calculatedDueDate: string | undefined;
+      if (sub.dueDayOfMonth) {
+        const [yStr, mStr] = month.split("-");
+        const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
+        const validDay = Math.min(sub.dueDayOfMonth, maxDays);
+        calculatedDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+      }
+
       const cycleState: CycleState = {
         cycleMonth: month,
+        dueDate: calculatedDueDate,
         statementTotal: expectedAmount,
         paidAmount: totalPaid,
         remainingBalance: Math.max(0, expectedAmount - totalPaid),

@@ -82,9 +82,19 @@ export async function createSubscription(
     else status = "UNPAID";
   }
 
+  let calculatedDueDate = data.currentCycle?.dueDate;
+  if (!calculatedDueDate && data.dueDayOfMonth) {
+    const [yStr, mStr] = cycleMonth.split("-");
+    const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
+    const validDay = Math.min(data.dueDayOfMonth, maxDays);
+    calculatedDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+  } else if (!calculatedDueDate) {
+    calculatedDueDate = new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0];
+  }
+
   const currentCycle: CycleState = {
     cycleMonth,
-    dueDate: data.currentCycle?.dueDate || new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
+    dueDate: calculatedDueDate,
     statementDate: data.currentCycle?.statementDate,
     statementTotal: total,
     paidAmount: paid,
@@ -104,8 +114,10 @@ export async function createSubscription(
     currency: data.currency || "INR",
     defaultAmount: data.defaultAmount || 0,
     billingCycle: data.billingCycle,
+    dueDayOfMonth: data.dueDayOfMonth,
     notes: data.notes,
     emailConfig: data.emailConfig,
+    smsConfig: data.smsConfig,
     currentCycle,
     createdAt: now,
     updatedAt: now,
@@ -152,9 +164,22 @@ export async function updateSubscription(
     throw new Error(`Subscription with ID ${id} not found.`);
   }
 
+  let updatedCycle = data.currentCycle || existing.currentCycle;
+  if (data.dueDayOfMonth && updatedCycle?.cycleMonth) {
+    const [yStr, mStr] = updatedCycle.cycleMonth.split("-");
+    const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
+    const validDay = Math.min(data.dueDayOfMonth, maxDays);
+    const newDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+    updatedCycle = {
+      ...updatedCycle,
+      dueDate: newDueDate,
+    };
+  }
+
   const updated: Subscription = {
     ...existing,
     ...data,
+    currentCycle: updatedCycle,
     updatedAt: new Date().toISOString(),
   };
 
@@ -222,13 +247,21 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       status = "FULLY_PAID";
     }
 
+    let cycleDueDate = data.dueDate;
+    if (!cycleDueDate && !isPrepaidSub && subscription?.dueDayOfMonth) {
+      const [yStr, mStr] = month.split("-");
+      const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
+      const validDay = Math.min(subscription.dueDayOfMonth, maxDays);
+      cycleDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+    }
+
     cycleMap.set(month, {
       id: docId,
       subscriptionId,
       subscriptionName: subscription?.name || data.subscriptionName || "",
       currency: subscription?.currency || data.currency || "INR",
       cycleMonth: month,
-      dueDate: isPrepaidSub ? undefined : data.dueDate,
+      dueDate: isPrepaidSub ? undefined : cycleDueDate,
       statementDate: data.statementDate,
       statementTotal,
       paidAmount,
