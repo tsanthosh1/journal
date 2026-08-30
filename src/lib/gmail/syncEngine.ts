@@ -4,6 +4,7 @@ import { getParserForConfig } from "../parsers";
 import {
   CycleState,
   HistoricalCycle,
+  ParsedStatement,
   PaymentStatus,
   SourceEmailRecord,
   Subscription,
@@ -183,8 +184,14 @@ export async function syncSubscriptionWithGmail(
           const pTime = new Date(pDate).getTime();
           const payMonth = pDate.slice(0, 7);
 
-          // Payment must not belong to a subsequent cycle month (e.g. October payment when syncing September)
-          if (cycle.cycleMonth && payMonth > cycle.cycleMonth) {
+          const cycleDeadlineTime = cycle.dueDate
+            ? new Date(cycle.dueDate).getTime() + 12 * 86400000
+            : stmtThresholdTime > 0
+            ? stmtThresholdTime + 35 * 86400000
+            : Infinity;
+
+          // Payment must belong to this cycle's active window
+          if (pTime > cycleDeadlineTime) {
             continue;
           }
 
@@ -518,6 +525,19 @@ export async function syncHistoricalSubscriptionWithGmail(
 
   if (statementMessages.length > 0) {
     // Mode A: Statement-Driven Cycles (e.g. Credit Cards, Utility Invoices)
+    const parsedStatements: Array<{
+      sMsg: any;
+      msgDetail: any;
+      stmtParsed: ParsedStatement;
+      stmtDate: string;
+      cycleMonth: string;
+      dueDate?: string;
+      archivedStatementEmail: SourceEmailRecord;
+      isAdvanceDepositOrPrepaid: boolean;
+      isPrepaidSub: boolean;
+      stmtTime: number;
+    }> = [];
+
     for (const sMsg of statementMessages) {
       try {
         const msgDetail = await getGmailMessageDetails(accessToken, sMsg.id);
@@ -549,6 +569,8 @@ export async function syncHistoricalSubscriptionWithGmail(
             dueDate = `${cycleMonth}-${String(lastDay).padStart(2, "0")}`;
           } else if (subscription.dueDayOfMonth) {
             dueDate = `${cycleMonth}-${String(subscription.dueDayOfMonth).padStart(2, "0")}`;
+          } else if (stmtDate) {
+            dueDate = new Date(new Date(stmtDate).getTime() + 18 * 86400000).toISOString().split("T")[0];
           }
 
           // Archive statement email to Storage & Firestore
@@ -572,110 +594,125 @@ export async function syncHistoricalSubscriptionWithGmail(
             rawMatches: stmtParsed.rawMatches,
           });
 
-          // Check if the statement email itself is an advance payment receipt / invoice settlement
           const isAdvanceDepositOrPrepaid =
             subscription.category === "Savings & Schemes" ||
             subscription.isPrepaid ||
             isPrepaidSub ||
             (stmtParsed.statementTotal !== undefined && deduplicatedPayments.some((p) => p.msgId === sMsg.id));
 
-          // Exact cycle payment window
-          const cycleStartTime = new Date(stmtDate).getTime() - 1 * 86400000;
-          const cycleEndTime = dueDate
-            ? new Date(dueDate).getTime() + 10 * 86400000
-            : new Date(stmtDate).getTime() + 35 * 86400000;
-
-          // Strict cycle payment filtering:
-          // A payment belongs to this cycle if:
-          // 1. Its messageId is sMsg.id (the statement email itself), OR
-          // 2. Its payment month (YYYY-MM) matches this cycleMonth, OR
-          // 3. For postpaid credit cards, its timestamp is between [cycleStartTime, cycleEndTime] AND payMonth <= cycleMonth.
-          const cyclePayments = deduplicatedPayments.filter((p) => {
-            if (p.msgId === sMsg.id) return true;
-            const payMonth = p.paymentDate.slice(0, 7);
-            if (payMonth === cycleMonth) return true;
-            if (payMonth > cycleMonth) return false; // Subsequent month payment belongs to that month's cycle
-            return p.timestamp >= cycleStartTime && p.timestamp <= cycleEndTime;
-          });
-
-          const externalPayments = cyclePayments.filter((p) => p.msgId !== sMsg.id);
-          let totalPaid = 0;
-          if (isAdvanceDepositOrPrepaid && stmtParsed.statementTotal > 0) {
-            // For advance payment / scheme emails, the statement total is already the paid amount
-            totalPaid = stmtParsed.statementTotal;
-          } else {
-            // Exclude statement email itself from being summed on top of external payments
-            if (externalPayments.length > 0) {
-              totalPaid = Math.round(externalPayments.reduce((sum, p) => sum + p.paidAmount, 0) * 100) / 100;
-            } else if (isPrepaidSub && stmtParsed.statementTotal > 0) {
-              totalPaid = stmtParsed.statementTotal;
-            }
-          }
-
-          const totalDue =
-            stmtParsed.statementTotal > 0
-              ? stmtParsed.statementTotal
-              : subscription.defaultAmount > 0
-              ? subscription.defaultAmount
-              : totalPaid;
-
-          const remaining = Math.max(0, Math.round((totalDue - totalPaid) * 100) / 100);
-
-          let status: PaymentStatus = "UNPAID";
-          if (totalPaid >= totalDue && totalDue > 0) status = "FULLY_PAID";
-          else if (totalPaid > 0) status = "PARTIALLY_PAID";
-
-          const processedMessageIds = Array.from(
-            new Set([sMsg.id, ...cyclePayments.map((p) => p.msgId)]),
-          );
-
-          const sourceEmailMap = new Map<string, SourceEmailRecord>();
-          sourceEmailMap.set(archivedStatementEmail.id, archivedStatementEmail);
-          for (const p of cyclePayments) {
-            sourceEmailMap.set(p.archivedEmail.id, p.archivedEmail);
-          }
-          const sourceEmails = Array.from(sourceEmailMap.values());
-
-          const lastPayment =
-            externalPayments.length > 0
-              ? externalPayments[externalPayments.length - 1]
-              : undefined;
-
-          const cyclePaymentDate = lastPayment
-            ? lastPayment.paymentDate
-            : isAdvanceDepositOrPrepaid
-            ? stmtDate
-            : undefined;
-
-          const cycleRecord: HistoricalCycle = {
-            id: `${subscription.id}_${cycleMonth}`,
-            subscriptionId: subscription.id,
-            subscriptionName: subscription.name,
-            currency: subscription.currency,
+          parsedStatements.push({
+            sMsg,
+            msgDetail,
+            stmtParsed,
+            stmtDate,
             cycleMonth,
-            statementDate: stmtDate,
             dueDate,
-            statementTotal: totalDue,
-            paidAmount: totalPaid,
-            remainingBalance: remaining,
-            status,
-            lastPaymentDate: cyclePaymentDate,
-            processedMessageIds,
-            sourceEmails,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          cyclesMap.set(cycleMonth, cycleRecord);
-
-          await db
-            .collection("subscription_cycles")
-            .doc(cycleRecord.id)
-            .set(sanitizeForFirestore(cycleRecord), { merge: true });
+            archivedStatementEmail,
+            isAdvanceDepositOrPrepaid,
+            isPrepaidSub,
+            stmtTime: new Date(stmtDate).getTime(),
+          });
         }
       } catch (err) {
         warnings.push(`Historical statement parse error: ${(err as Error).message}`);
       }
+    }
+
+    // Sort statements chronologically (oldest to newest)
+    parsedStatements.sort((a, b) => a.stmtTime - b.stmtTime);
+
+    for (let i = 0; i < parsedStatements.length; i++) {
+      const stmt = parsedStatements[i];
+      const nextStmt = parsedStatements[i + 1];
+
+      // Exact cycle payment window:
+      // Starts on statement date (minus 1 day for same-day settlements)
+      // Ends when the next statement is generated (or dueDate + 12 days for the latest statement)
+      const cycleStartTime = stmt.stmtTime - 1 * 86400000;
+      const cycleEndTime = nextStmt
+        ? nextStmt.stmtTime - 1
+        : stmt.dueDate
+        ? new Date(stmt.dueDate).getTime() + 12 * 86400000
+        : stmt.stmtTime + 35 * 86400000;
+
+      // Payments that belong to this statement cycle
+      const cyclePayments = deduplicatedPayments.filter((p) => {
+        if (p.msgId === stmt.sMsg.id) return true;
+        return p.timestamp >= cycleStartTime && p.timestamp <= cycleEndTime;
+      });
+
+      const externalPayments = cyclePayments.filter((p) => p.msgId !== stmt.sMsg.id);
+      let totalPaid = 0;
+      if (stmt.isAdvanceDepositOrPrepaid && (stmt.stmtParsed.statementTotal || 0) > 0) {
+        totalPaid = stmt.stmtParsed.statementTotal!;
+      } else {
+        if (externalPayments.length > 0) {
+          totalPaid = Math.round(externalPayments.reduce((sum, p) => sum + p.paidAmount, 0) * 100) / 100;
+        } else if (stmt.isPrepaidSub && (stmt.stmtParsed.statementTotal || 0) > 0) {
+          totalPaid = stmt.stmtParsed.statementTotal!;
+        }
+      }
+
+      const totalDue =
+        (stmt.stmtParsed.statementTotal || 0) > 0
+          ? stmt.stmtParsed.statementTotal!
+          : subscription.defaultAmount > 0
+          ? subscription.defaultAmount
+          : totalPaid;
+
+      const remaining = Math.max(0, Math.round((totalDue - totalPaid) * 100) / 100);
+
+      let status: PaymentStatus = "UNPAID";
+      if (totalPaid >= totalDue && totalDue > 0) status = "FULLY_PAID";
+      else if (totalPaid > 0) status = "PARTIALLY_PAID";
+
+      const processedMessageIds = Array.from(
+        new Set([stmt.sMsg.id, ...cyclePayments.map((p) => p.msgId)]),
+      );
+
+      const sourceEmailMap = new Map<string, SourceEmailRecord>();
+      sourceEmailMap.set(stmt.archivedStatementEmail.id, stmt.archivedStatementEmail);
+      for (const p of cyclePayments) {
+        sourceEmailMap.set(p.archivedEmail.id, p.archivedEmail);
+      }
+      const sourceEmails = Array.from(sourceEmailMap.values());
+
+      const lastPayment =
+        externalPayments.length > 0
+          ? externalPayments[externalPayments.length - 1]
+          : undefined;
+
+      const cyclePaymentDate = lastPayment
+        ? lastPayment.paymentDate
+        : stmt.isAdvanceDepositOrPrepaid
+        ? stmt.stmtDate
+        : undefined;
+
+      const cycleRecord: HistoricalCycle = {
+        id: `${subscription.id}_${stmt.cycleMonth}`,
+        subscriptionId: subscription.id,
+        subscriptionName: subscription.name,
+        currency: subscription.currency,
+        cycleMonth: stmt.cycleMonth,
+        statementDate: stmt.stmtDate,
+        dueDate: stmt.dueDate,
+        statementTotal: totalDue,
+        paidAmount: totalPaid,
+        remainingBalance: remaining,
+        status,
+        lastPaymentDate: cyclePaymentDate,
+        processedMessageIds,
+        sourceEmails,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      cyclesMap.set(stmt.cycleMonth, cycleRecord);
+
+      await db
+        .collection("subscription_cycles")
+        .doc(cycleRecord.id)
+        .set(sanitizeForFirestore(cycleRecord), { merge: true });
     }
   } else if (deduplicatedPayments.length > 0) {
     // Mode B: Payment-Driven Cycles (e.g. Vehicle Cleaning, Maid, Fixed Recurring, Gold Schemes with no separate statement email)
