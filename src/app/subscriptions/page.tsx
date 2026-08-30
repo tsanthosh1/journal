@@ -33,6 +33,7 @@ function SubscriptionsPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isHistoricalSyncing, setIsHistoricalSyncing] = useState(false);
+  const [isSmsSyncing, setIsSmsSyncing] = useState(false);
   const [syncSummary, setSyncSummary] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"subscriptions" | "timeline" | "split">("subscriptions");
 
@@ -80,7 +81,12 @@ function SubscriptionsPageContent() {
 
   const fetchSubscriptions = useCallback(async () => {
     try {
-      const qUserId = user?.email || user?.uid || userId || "default_user";
+      const qUserId = user?.email || user?.uid || userId;
+      if (!qUserId) {
+        setSubscriptions([]);
+        setIsLoading(false);
+        return;
+      }
       const res = await fetch(`/api/subscriptions?userId=${encodeURIComponent(qUserId)}`);
       if (res.ok) {
         const data = await res.json();
@@ -124,7 +130,7 @@ function SubscriptionsPageContent() {
         setSubscriptions((prev) => prev.filter((s) => s.id !== id));
       }
     } catch (err) {
-      console.error("Failed to delete subscription:", err);
+      console.error("Error deleting subscription:", err);
     }
   };
 
@@ -158,7 +164,7 @@ function SubscriptionsPageContent() {
     setSyncSummary(null);
     try {
       const qUserId = user?.email || user?.uid || userId || "default_user";
-      const res = await fetch("/api/sync", {
+      const res = await fetch("/api/sync/gmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: qUserId }),
@@ -166,17 +172,45 @@ function SubscriptionsPageContent() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Gmail synchronization failed");
+        throw new Error(data.error || "Synchronization failed");
       }
 
       setSyncSummary(
-        `Synced ${data.syncedCount} of ${data.totalSubscriptions} subscriptions. Found ${data.totalNewMessages} new statements & payment receipts. Copies saved to Storage.`,
+        `Gmail scan completed: ${data.processedSubscriptions || 0} subscriptions updated, ${
+          data.totalEmailsMatched || 0
+        } new emails synced.`,
       );
       await fetchSubscriptions();
     } catch (err) {
-      setSyncSummary(`⚠️ Scan Error: ${(err as Error).message}`);
+      setSyncSummary(`⚠️ Sync Error: ${(err as Error).message}`);
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleTriggerSmsSync = async () => {
+    setIsSmsSyncing(true);
+    setSyncSummary(null);
+    try {
+      const qUserId = user?.email || user?.uid || userId;
+      if (!qUserId) return;
+      const res = await fetch("/api/sync/sms/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: qUserId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "SMS synchronization failed");
+      }
+
+      setSyncSummary(data.summaryText || "SMS sync completed successfully.");
+      await fetchSubscriptions();
+    } catch (err) {
+      setSyncSummary(`⚠️ SMS Sync Error: ${(err as Error).message}`);
+    } finally {
+      setIsSmsSyncing(false);
     }
   };
 
@@ -340,15 +374,17 @@ function SubscriptionsPageContent() {
           </div>
         </div>
 
-        {/* Gmail Sync Status Banner */}
+        {/* Gmail & SMS Sync Status Banner */}
         <GmailSyncBanner
           isConnected={isGmailSynced}
           lastSyncAt={lastSyncAt}
           userEmail={userEmail}
           isSyncing={isSyncing}
           isHistoricalSyncing={isHistoricalSyncing}
+          isSmsSyncing={isSmsSyncing}
           onTriggerSync={handleTriggerSync}
           onTriggerHistoricalSync={handleTriggerDeepHistoricalSync}
+          onTriggerSmsSync={handleTriggerSmsSync}
           onConnect={() => signInWithGoogle("/subscriptions")}
           onDisconnect={signOut}
         />

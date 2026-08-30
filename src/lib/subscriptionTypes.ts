@@ -1,7 +1,7 @@
 // Billing Models & Schema definitions for Subscriptions and Outflow Tracker
 
 export type BillingType = "FIXED_TENURE" | "BILL_GENERATED";
-export type SourceType = "MANUAL" | "EMAIL_AUTOMATED";
+export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED";
 export type BillingCycle = "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "ANNUAL" | "CUSTOM";
 export type PaymentStatus =
   | "UNPAID"
@@ -41,6 +41,36 @@ export interface EmailConfig {
   };
 }
 
+export interface SmsConfig {
+  enabled: boolean;
+  senderQuery: string; // e.g. "HDFCBK" or "SBIINB" or "CANBNK"
+  filterKeywords?: string[]; // e.g. ["loan", "EMI", "recovery"]
+  accountOrLoanDigits?: string; // Optional last 4 digits of loan account e.g. "7890"
+  dedupStrategy?: DedupStrategy;
+  parserModule?: string; // e.g. "LoanSmsParser"
+  customRegex?: {
+    amountPattern?: string;
+    datePattern?: string;
+    accountPattern?: string;
+  };
+}
+
+export interface RawSmsRecord {
+  id: string; // SHA-256 fingerprint
+  userId: string;
+  sender: string;
+  body: string;
+  timestamp: number; // epoch ms
+  date: string; // ISO date
+  processed: boolean;
+  processedAt?: string;
+  matchedSubscriptionId?: string;
+  extractedAmount?: number;
+  extractedDate?: string;
+  accountReference?: string;
+  createdAt: string;
+}
+
 export interface SourceEmailRecord {
   id: string; // Gmail messageId
   subscriptionId: string;
@@ -75,6 +105,7 @@ export interface CycleState {
   lastError?: string;
   processedMessageIds: string[];
   sourceEmails?: SourceEmailRecord[];
+  sourceSms?: RawSmsRecord[];
   updatedAt: string;
 }
 
@@ -94,6 +125,7 @@ export interface Subscription {
   dedupStrategy?: DedupStrategy; // Anti-duplicate strategy for duplicate email alerts
   isPrepaid?: boolean; // True for OTTs/immediate renewals (no due date)
   emailConfig?: EmailConfig;
+  smsConfig?: SmsConfig;
   currentCycle: CycleState;
   notes?: string;
   imageUrl?: string; // Custom uploaded image URL or online logo URL

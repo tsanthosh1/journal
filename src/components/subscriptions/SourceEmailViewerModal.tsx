@@ -52,11 +52,33 @@ export function SourceEmailViewerModal({
           const data = await res.json();
           const list: SourceEmailRecord[] = data.emails || [];
 
-          // Also merge any in-memory currentCycle sourceEmails
+          // Also merge any in-memory currentCycle sourceEmails & sourceSms
           const cycleEmails = subscription.currentCycle?.sourceEmails || [];
+          const cycleSms = subscription.currentCycle?.sourceSms || [];
+
           const mergedMap = new Map<string, SourceEmailRecord>();
           list.forEach((e) => mergedMap.set(e.id, e));
           cycleEmails.forEach((e) => mergedMap.set(e.id, e));
+
+          // Convert SMS records to unified viewer items
+          cycleSms.forEach((sms) => {
+            mergedMap.set(sms.id, {
+              id: sms.id,
+              subscriptionId: subscription.id,
+              subscriptionName: subscription.name,
+              cycleMonth: sms.date.slice(0, 7),
+              type: "PAYMENT",
+              subject: `💬 SMS Alert: ${sms.sender}`,
+              from: sms.sender,
+              date: sms.date,
+              bodySnippet: sms.body,
+              bodyText: sms.body,
+              extractedAmount: sms.extractedAmount,
+              extractedDate: sms.extractedDate,
+              accountOrCardDigits: sms.accountReference,
+              createdAt: sms.createdAt,
+            });
+          });
 
           let merged = Array.from(mergedMap.values()).sort((a, b) =>
             b.date.localeCompare(a.date),

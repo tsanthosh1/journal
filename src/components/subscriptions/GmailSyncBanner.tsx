@@ -8,10 +8,12 @@ interface GmailSyncBannerProps {
   lastSyncAt?: string;
   onTriggerSync: () => Promise<void>;
   onTriggerHistoricalSync?: () => Promise<void>;
+  onTriggerSmsSync?: () => Promise<void>;
   onConnect: () => void;
   onDisconnect: () => Promise<void>;
   isSyncing: boolean;
   isHistoricalSyncing?: boolean;
+  isSmsSyncing?: boolean;
   syncSummary?: string | null;
 }
 
@@ -21,10 +23,12 @@ export function GmailSyncBanner({
   lastSyncAt,
   onTriggerSync,
   onTriggerHistoricalSync,
+  onTriggerSmsSync,
   onConnect,
   onDisconnect,
   isSyncing,
   isHistoricalSyncing = false,
+  isSmsSyncing = false,
   syncSummary,
 }: GmailSyncBannerProps) {
   const [showConfirmDisconnect, setShowConfirmDisconnect] = useState(false);
@@ -58,7 +62,7 @@ export function GmailSyncBanner({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <span className="text-xs sm:text-sm font-semibold text-white">
-                {isConnected ? "Gmail Sync Engine" : "Gmail Automation"}
+                {isConnected ? "Gmail & SMS Sync Engine" : "Automated Sync Engine"}
               </span>
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.2 text-[9px] sm:text-[10px] font-medium ${
@@ -78,13 +82,26 @@ export function GmailSyncBanner({
             <p className="mt-0.5 text-[11px] sm:text-xs text-slate-400 truncate">
               {isConnected
                 ? `Account: ${userEmail || "Google"} • Last Sync: ${formattedLastSync}`
-                : "Connect your Google account to automatically scan statements and payment receipts."}
+                : "Connect your Google account to automatically scan statements, payment receipts, and SMS loan debits."}
             </p>
           </div>
         </div>
 
         {/* Right: Actions */}
         <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto justify-end">
+          {onTriggerSmsSync && (
+            <button
+              type="button"
+              disabled={isSmsSyncing || isSyncing}
+              onClick={onTriggerSmsSync}
+              className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 hover:text-white disabled:opacity-50 transition cursor-pointer"
+              title="Process and reconcile stored Android SMS messages"
+            >
+              <span>💬</span>
+              <span>{isSmsSyncing ? "Reconciling..." : "Sync SMS"}</span>
+            </button>
+          )}
+
           {isConnected ? (
             <>
               {onTriggerHistoricalSync && (
@@ -108,7 +125,7 @@ export function GmailSyncBanner({
                       d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  {isHistoricalSyncing ? "Deep Scanning..." : "Deep Historical Sync"}
+                  <span>{isHistoricalSyncing ? "Backfilling..." : "Backfill Past Cycles"}</span>
                 </button>
               )}
 
@@ -116,7 +133,7 @@ export function GmailSyncBanner({
                 type="button"
                 disabled={isSyncing || isHistoricalSyncing}
                 onClick={onTriggerSync}
-                className="flex-1 sm:flex-none min-h-[38px] flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-cyan-500/20 hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
+                className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-lg hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 transition cursor-pointer"
               >
                 <svg
                   className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
@@ -131,7 +148,7 @@ export function GmailSyncBanner({
                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
                 </svg>
-                {isSyncing ? "Scanning Gmail..." : "Sync Gmail Now"}
+                <span>{isSyncing ? "Syncing..." : "Sync Gmail"}</span>
               </button>
 
               {showConfirmDisconnect ? (

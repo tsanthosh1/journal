@@ -49,9 +49,14 @@ export function SubscriptionModal({
   const [statementSource, setStatementSource] = useState<"EMAIL" | "MANUAL">("EMAIL");
   const [statementQuery, setStatementQuery] = useState("");
 
-  // Payment Source: "EMAIL" | "PREPAID_INVOICE" | "MANUAL"
-  const [paymentSource, setPaymentSource] = useState<"EMAIL" | "PREPAID_INVOICE" | "MANUAL">("EMAIL");
+  // Payment Source: "EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL"
+  const [paymentSource, setPaymentSource] = useState<"EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL">("EMAIL");
   const [paymentQuery, setPaymentQuery] = useState("");
+
+  // SMS Configuration
+  const [smsSenderQuery, setSmsSenderQuery] = useState("");
+  const [smsKeywords, setSmsKeywords] = useState("loan, emi, recovery");
+  const [smsLoanDigits, setSmsLoanDigits] = useState("");
 
   // Custom Query Builder Helper state
   const [fromDomain, setFromDomain] = useState("");
@@ -79,7 +84,15 @@ export function SubscriptionModal({
       setNotes(initialData.notes || "");
 
       const ec = initialData.emailConfig;
-      if (ec && ec.enabled) {
+      const sc = initialData.smsConfig;
+
+      if (sc && (sc.enabled || initialData.source === "SMS_AUTOMATED")) {
+        setPaymentSource("SMS");
+        setSmsSenderQuery(sc.senderQuery || "");
+        setSmsKeywords(sc.filterKeywords?.join(", ") || "loan, emi, recovery");
+        setSmsLoanDigits(sc.accountOrLoanDigits || "");
+        setStatementSource("MANUAL");
+      } else if (ec && ec.enabled) {
         if (ec.statementQuery && ec.statementQuery.trim().length > 0) {
           setStatementSource("EMAIL");
           setStatementQuery(ec.statementQuery);
@@ -122,6 +135,9 @@ export function SubscriptionModal({
       setStatementQuery('from:cc.statements@axis.bank.in subject:"Credit Card"');
       setPaymentSource("EMAIL");
       setPaymentQuery('from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"');
+      setSmsSenderQuery("HDFCBK");
+      setSmsKeywords("loan, emi, recovery");
+      setSmsLoanDigits("");
     }
   }, [initialData, isOpen]);
 
@@ -279,16 +295,38 @@ export function SubscriptionModal({
     setErrorMessage("");
 
     try {
+      const isSmsAutomated = paymentSource === "SMS";
       const isEmailAutomated =
-        statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE";
-      const billingType: BillingType = statementSource === "EMAIL" ? "BILL_GENERATED" : "FIXED_TENURE";
-      const source: SourceType = isEmailAutomated ? "EMAIL_AUTOMATED" : "MANUAL";
+        !isSmsAutomated &&
+        (statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE");
+
+      const billingType: BillingType =
+        statementSource === "EMAIL" ? "BILL_GENERATED" : "FIXED_TENURE";
+
+      const source: SourceType = isSmsAutomated
+        ? "SMS_AUTOMATED"
+        : isEmailAutomated
+        ? "EMAIL_AUTOMATED"
+        : "MANUAL";
 
       const emailConfig: EmailConfig | undefined = isEmailAutomated
         ? {
             enabled: true,
             statementQuery: statementSource === "EMAIL" ? statementQuery.trim() : "",
             paymentQuery: paymentSource === "EMAIL" ? paymentQuery.trim() : "",
+            dedupStrategy,
+          }
+        : undefined;
+
+      const smsConfig = isSmsAutomated
+        ? {
+            enabled: true,
+            senderQuery: smsSenderQuery.trim(),
+            filterKeywords: smsKeywords
+              .split(",")
+              .map((k) => k.trim())
+              .filter(Boolean),
+            accountOrLoanDigits: smsLoanDigits.trim() || undefined,
             dedupStrategy,
           }
         : undefined;
@@ -308,6 +346,7 @@ export function SubscriptionModal({
         allowSkip,
         dedupStrategy,
         emailConfig,
+        smsConfig,
         notes,
       };
 
@@ -718,7 +757,18 @@ export function SubscriptionModal({
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
-                      ✉️ Gmail Sync (UPI / Alert)
+                      ✉️ Gmail Sync
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentSource("SMS")}
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                        paymentSource === "SMS"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      💬 Android SMS (Loan/EMI)
                     </button>
                     <button
                       type="button"
@@ -732,7 +782,7 @@ export function SubscriptionModal({
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
-                      ✋ Manual Mark Paid
+                      ✋ Manual
                     </button>
                   </>
                 )}
@@ -747,6 +797,121 @@ export function SubscriptionModal({
                 <p className="text-[11px] text-slate-300">
                   Because this is a prepaid subscription, the invoice email in Section 2 is also the payment confirmation. Each detected bill is automatically recorded as <strong>Fully Paid</strong>.
                 </p>
+              </div>
+            ) : paymentSource === "SMS" ? (
+              <div className="space-y-3 pt-1">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
+                  <span className="font-bold flex items-center gap-1 mb-0.5">
+                    <span>💬</span> Android SMS Companion Sync
+                  </span>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Loan debits and EMI recovery messages forwarded from your Android phone will automatically reconcile this commitment.
+                  </p>
+                </div>
+
+                {/* Loan Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmsSenderQuery("HDFCBK");
+                      setSmsKeywords("Home Loan, LN RECOVERY");
+                      setCategory("Housing & Rent");
+                      setName((n) => n || "HDFC Home Loan");
+                      setImageUrl("https://logo.clearbit.com/hdfcbank.com");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    🏦 HDFC Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmsSenderQuery("SBIINB");
+                      setSmsKeywords("LOAN A/C, transfer to LOAN");
+                      setCategory("Housing & Rent");
+                      setName((n) => n || "SBI Home Loan");
+                      setImageUrl("https://logo.clearbit.com/sbi.co.in");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    🏦 SBI Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmsSenderQuery("ICICIB");
+                      setSmsKeywords("Loan Account, towards EMI");
+                      setCategory("Housing & Rent");
+                      setName((n) => n || "ICICI Home Loan");
+                      setImageUrl("https://logo.clearbit.com/icicibank.com");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    🏦 ICICI Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmsSenderQuery("BAJAJ");
+                      setSmsKeywords("EMI, debited");
+                      setCategory("Services");
+                      setName((n) => n || "Bajaj Finserv Loan");
+                      setImageUrl("https://logo.clearbit.com/bajajfinserv.in");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    💳 Bajaj Finserv EMI
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Bank Sender Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. HDFCBK, SBIINB, CANBNK"
+                      value={smsSenderQuery}
+                      onChange={(e) => setSmsSenderQuery(e.target.value)}
+                      className="mt-1 w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Matches SMS sender header (e.g. AD-HDFCBK).
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Loan Last 4 Digits (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 7890"
+                      value={smsLoanDigits}
+                      onChange={(e) => setSmsLoanDigits(e.target.value)}
+                      className="mt-1 w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Filters SMS matching your specific loan account.
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Filter Keywords (Comma Separated)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="loan, emi, recovery, debited"
+                    value={smsKeywords}
+                    onChange={(e) => setSmsKeywords(e.target.value)}
+                    className="mt-1 w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
+                  />
+                </div>
               </div>
             ) : paymentSource === "EMAIL" ? (
               <div className="space-y-2.5 pt-1">
