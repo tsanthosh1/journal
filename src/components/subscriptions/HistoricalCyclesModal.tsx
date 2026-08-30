@@ -9,6 +9,7 @@ import {
   formatDisplayDate,
 } from "@/lib/subscriptionTypes";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
+import { ManualOverrideModal } from "./ManualOverrideModal";
 import { useAuth } from "@/context/AuthContext";
 
 interface HistoricalCyclesModalProps {
@@ -39,6 +40,7 @@ export function HistoricalCyclesModal({
   const [isScanningHistorical, setIsScanningHistorical] = useState(false);
   const [scanMonths, setScanMonths] = useState<number>(100);
   const [scanResultNotice, setScanResultNotice] = useState<string | null>(null);
+  const [selectedCycleForOverride, setSelectedCycleForOverride] = useState<HistoricalCycle | null>(null);
 
   const fetchCycles = useCallback(async () => {
     if (!subscription) return;
@@ -102,6 +104,22 @@ export function HistoricalCyclesModal({
     } finally {
       setIsScanningHistorical(false);
     }
+  };
+
+  const handleSaveCycleOverride = async (subId: string, updates: any) => {
+    const res = await fetch(`/api/subscriptions/${subId}/cycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to save cycle override");
+    }
+    setSelectedCycleForOverride(null);
+    await fetchCycles();
+    if (onCyclesUpdated) onCyclesUpdated();
+    if (onRefreshSubscription) onRefreshSubscription();
   };
 
   const handleTriggerHistoricalScan = async () => {
@@ -445,7 +463,7 @@ export function HistoricalCyclesModal({
                         <th className="px-4 py-3 text-right">Remaining</th>
                         <th className="px-4 py-3 text-center">Status</th>
                         <th className="px-4 py-3">Payment Date</th>
-                        <th className="px-4 py-3 text-right">Line Source</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 font-medium">
@@ -499,59 +517,69 @@ export function HistoricalCyclesModal({
                                 : "Pending"}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              {c.sourceSms && c.sourceSms.length > 0 && onViewSourceEmail ? (
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {c.sourceSms && c.sourceSms.length > 0 && onViewSourceEmail ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const mappedSms: SourceEmailRecord[] = (c.sourceSms || []).map((sms) => ({
+                                        id: sms.id,
+                                        subscriptionId: subscription.id,
+                                        subscriptionName: subscription.name,
+                                        cycleMonth: c.cycleMonth,
+                                        type: "PAYMENT" as const,
+                                        subject: `💬 SMS Alert: ${sms.sender}`,
+                                        from: sms.sender,
+                                        date: sms.date || sms.createdAt || new Date().toISOString(),
+                                        bodySnippet: sms.body,
+                                        bodyText: sms.body,
+                                        extractedAmount: sms.extractedAmount,
+                                        extractedDate: sms.extractedDate,
+                                        accountOrCardDigits: sms.accountReference,
+                                        createdAt: sms.createdAt || new Date().toISOString(),
+                                      }));
+                                      onViewSourceEmail(
+                                        subscription,
+                                        mappedSms[0],
+                                        mappedSms,
+                                        c.cycleMonth,
+                                      );
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/30 transition cursor-pointer"
+                                    title="View archived source loan recovery SMS"
+                                  >
+                                    <span>💬</span>
+                                    <span>SMS</span>
+                                  </button>
+                                ) : firstEmail && onViewSourceEmail ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onViewSourceEmail(
+                                        subscription,
+                                        firstEmail,
+                                        cycleEmails,
+                                        c.cycleMonth,
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
+                                    title="View archived source statement & payment emails"
+                                  >
+                                    <span>✉️</span>
+                                    <span>Email</span>
+                                  </button>
+                                ) : null}
+
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const mappedSms: SourceEmailRecord[] = (c.sourceSms || []).map((sms) => ({
-                                      id: sms.id,
-                                      subscriptionId: subscription.id,
-                                      subscriptionName: subscription.name,
-                                      cycleMonth: c.cycleMonth,
-                                      type: "PAYMENT" as const,
-                                      subject: `💬 SMS Alert: ${sms.sender}`,
-                                      from: sms.sender,
-                                      date: sms.date || sms.createdAt || new Date().toISOString(),
-                                      bodySnippet: sms.body,
-                                      bodyText: sms.body,
-                                      extractedAmount: sms.extractedAmount,
-                                      extractedDate: sms.extractedDate,
-                                      accountOrCardDigits: sms.accountReference,
-                                      createdAt: sms.createdAt || new Date().toISOString(),
-                                    }));
-                                    onViewSourceEmail(
-                                      subscription,
-                                      mappedSms[0],
-                                      mappedSms,
-                                      c.cycleMonth,
-                                    );
-                                  }}
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/30 transition cursor-pointer"
-                                  title="View archived source loan recovery SMS"
+                                  onClick={() => setSelectedCycleForOverride(c)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 transition cursor-pointer"
+                                  title="Manually edit amounts, dates, or payment status"
                                 >
-                                  <span>💬</span>
-                                  <span>Source SMS</span>
+                                  <span>✏️</span>
+                                  <span>Edit</span>
                                 </button>
-                              ) : firstEmail && onViewSourceEmail ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onViewSourceEmail(
-                                      subscription,
-                                      firstEmail,
-                                      cycleEmails,
-                                      c.cycleMonth,
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
-                                  title="View archived source statement & payment emails"
-                                >
-                                  <span>✉️</span>
-                                  <span>Source Email</span>
-                                </button>
-                              ) : (
-                                <span className="text-slate-500 text-[11px]">Archived</span>
-                              )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -580,6 +608,16 @@ export function HistoricalCyclesModal({
           </button>
         </div>
       </div>
+
+      {selectedCycleForOverride && (
+        <ManualOverrideModal
+          isOpen={Boolean(selectedCycleForOverride)}
+          onClose={() => setSelectedCycleForOverride(null)}
+          subscription={subscription}
+          targetCycle={selectedCycleForOverride}
+          onSaveOverride={handleSaveCycleOverride}
+        />
+      )}
     </div>
   );
 }

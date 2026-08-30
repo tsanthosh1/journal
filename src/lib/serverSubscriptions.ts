@@ -302,22 +302,38 @@ export async function overrideCycleState(
   }
 
   const current = subscription.currentCycle;
+  const targetMonth = updates.cycleMonth || current?.cycleMonth || new Date().toISOString().slice(0, 7);
   const now = new Date().toISOString();
 
-  const total = updates.statementTotal ?? current.statementTotal ?? subscription.defaultAmount ?? 0;
-  const paid = updates.paidAmount ?? current.paidAmount ?? 0;
+  // Try to load existing cycle data for targetMonth
+  const cycleDocId = `${subscriptionId}_${targetMonth}`;
+  const existingCycleSnap = await db.collection("subscription_cycles").doc(cycleDocId).get();
+  const existingData = existingCycleSnap.exists ? (existingCycleSnap.data() as CycleState) : current;
+
+  const total = updates.statementTotal ?? existingData.statementTotal ?? subscription.defaultAmount ?? 0;
+  const paid = updates.paidAmount ?? existingData.paidAmount ?? 0;
   const remaining = updates.remainingBalance ?? Math.max(0, Math.round((total - paid) * 100) / 100);
 
-  let status = updates.status || current.status;
+  let status = updates.status || existingData.status;
   if (!updates.status) {
     if (total > 0 && paid >= total) status = "FULLY_PAID";
     else if (paid > 0) status = "PARTIALLY_PAID";
     else status = "UNPAID";
   }
 
+  let cycleDueDate = updates.dueDate ?? existingData.dueDate;
+  if (!cycleDueDate && subscription.dueDayOfMonth) {
+    const [yStr, mStr] = targetMonth.split("-");
+    const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
+    const validDay = Math.min(subscription.dueDayOfMonth, maxDays);
+    cycleDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+  }
+
   const mergedCycle: CycleState = {
-    ...current,
+    ...existingData,
     ...updates,
+    cycleMonth: targetMonth,
+    dueDate: cycleDueDate,
     statementTotal: total,
     paidAmount: paid,
     remainingBalance: remaining,
@@ -325,23 +341,36 @@ export async function overrideCycleState(
     updatedAt: now,
   };
 
-  const updatedSub = await updateSubscription(subscriptionId, {
-    currentCycle: mergedCycle,
-  });
+  const cycleRecord = {
+    ...mergedCycle,
+    id: cycleDocId,
+    subscriptionId,
+    subscriptionName: subscription.name,
+    currency: subscription.currency,
+    updatedAt: now,
+  };
 
-  const cycleDocId = `${subscriptionId}_${mergedCycle.cycleMonth}`;
-  const cycleRef = db.collection("subscription_cycles").doc(cycleDocId);
-  await cycleRef.set(
-    sanitizeForFirestore({
-      ...mergedCycle,
-      id: cycleDocId,
-      subscriptionId,
-      subscriptionName: subscription.name,
-      currency: subscription.currency,
-      updatedAt: now,
-    }),
-    { merge: true },
-  );
+  // 1. Save to global subscription_cycles
+  await db
+    .collection("subscription_cycles")
+    .doc(cycleDocId)
+    .set(sanitizeForFirestore(cycleRecord), { merge: true });
+
+  // 2. Save to subcollection subscriptions/{id}/cycles/{month}
+  await db
+    .collection("subscriptions")
+    .doc(subscriptionId)
+    .collection("cycles")
+    .doc(targetMonth)
+    .set(sanitizeForFirestore(cycleRecord), { merge: true });
+
+  // 3. If targetMonth is current cycle or newer, update currentCycle on subscription
+  let updatedSub = subscription;
+  if (!current?.cycleMonth || targetMonth >= current.cycleMonth) {
+    updatedSub = await updateSubscription(subscriptionId, {
+      currentCycle: mergedCycle,
+    });
+  }
 
   return updatedSub;
 }
