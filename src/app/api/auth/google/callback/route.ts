@@ -67,6 +67,9 @@ export async function GET(request: NextRequest) {
       console.warn("Could not generate Firebase custom token:", adminErr);
     }
 
+    if (tokens.email) {
+      baseRedirectUrl.searchParams.set("email", tokens.email);
+    }
     baseRedirectUrl.searchParams.set("auth", "success");
     return NextResponse.redirect(baseRedirectUrl);
   } catch (err) {

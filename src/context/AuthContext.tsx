@@ -54,56 +54,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const firebase = useMemo(() => getFirebaseClient(), []);
 
-  const userEmail = user?.email || null;
-  const userId = user?.email
-    ? user.email.replace(/[^a-zA-Z0-9_-]/g, "_")
+  const userEmail = user?.email || googleEmail || null;
+  const userId = userEmail
+    ? userEmail.replace(/[^a-zA-Z0-9_-]/g, "_")
     : user?.uid || "";
 
-  const isSignedIn = !!user;
+  const isSignedIn = !!user || !!googleEmail;
 
   const checkGmailSyncStatus = useCallback(async () => {
-    if (!user?.email && !user?.uid) {
+    const activeEmail =
+      user?.email ||
+      googleEmail ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("journal_user_email")
+        : null);
+
+    if (!activeEmail && !user?.uid) {
       setIsGmailSynced(false);
-      setGoogleEmail(null);
       setLastSyncAt(undefined);
       return;
     }
 
     try {
-      const qUserId = user.email || user.uid;
-      const res = await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`);
+      const qUserId = activeEmail || user?.uid || "";
+      const res = await fetch(
+        `/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`,
+      );
       if (res.ok) {
         const data = await res.json();
         setIsGmailSynced(data.connected);
         setLastSyncAt(data.lastSyncAt);
         if (data.email) {
           setGoogleEmail(data.email);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("journal_user_email", data.email);
+          }
         }
       }
     } catch {
       // ignore
     }
-  }, [user]);
+  }, [user, googleEmail]);
 
-  // Handle custom token from URL if redirected from OAuth callback
+  // Handle URL email / auth / custom token on mount
   useEffect(() => {
-    if (typeof window !== "undefined" && firebase?.auth) {
+    if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
+      const emailParam = urlParams.get("email");
+      const authParam = urlParams.get("auth");
       const fbToken = urlParams.get("firebase_token");
-      if (fbToken) {
+
+      if (emailParam) {
+        localStorage.setItem("journal_user_email", emailParam);
+        setGoogleEmail(emailParam);
+      } else {
+        const stored = localStorage.getItem("journal_user_email");
+        if (stored) {
+          setGoogleEmail(stored);
+        }
+      }
+
+      if (fbToken && firebase?.auth) {
         signInWithCustomToken(firebase.auth, fbToken)
           .then((userCred) => {
             setUser(userCred.user);
-            const cleanUrl = new URL(window.location.href);
-            cleanUrl.searchParams.delete("firebase_token");
-            window.history.replaceState({}, "", cleanUrl.toString());
+            if (userCred.user.email) {
+              setGoogleEmail(userCred.user.email);
+              localStorage.setItem("journal_user_email", userCred.user.email);
+            }
           })
           .catch((err) => {
             console.error("Custom token sign-in error:", err);
           });
       }
+
+      if (emailParam || authParam || fbToken) {
+        checkGmailSyncStatus();
+      }
     }
-  }, [firebase]);
+  }, [firebase, checkGmailSyncStatus]);
 
   useEffect(() => {
     if (!firebase) {
@@ -116,9 +145,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
 
       if (currentUser) {
+        if (currentUser.email) {
+          setGoogleEmail(currentUser.email);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("journal_user_email", currentUser.email);
+          }
+        }
         const qUserId = currentUser.email || currentUser.uid;
         try {
-          const res = await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`);
+          const res = await fetch(
+            `/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`,
+          );
           if (res.ok) {
             const data = await res.json();
             setIsGmailSynced(data.connected);
@@ -131,9 +168,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ignore
         }
       } else {
-        setIsGmailSynced(false);
-        setGoogleEmail(null);
-        setLastSyncAt(undefined);
+        const stored =
+          typeof window !== "undefined"
+            ? localStorage.getItem("journal_user_email")
+            : null;
+        if (stored) {
+          setGoogleEmail(stored);
+          setIsLoading(false);
+        } else {
+          setIsGmailSynced(false);
+          setLastSyncAt(undefined);
+        }
       }
     });
 
@@ -146,6 +191,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const result = await signInWithPopup(firebase.auth, firebase.googleProvider);
           setUser(result.user);
+          if (result.user.email) {
+            setGoogleEmail(result.user.email);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("journal_user_email", result.user.email);
+            }
+          }
 
           const credential = GoogleAuthProvider.credentialFromResult(result);
           if (credential?.accessToken && result.user.email) {
@@ -180,11 +231,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (firebase) {
       await fbSignOut(firebase.auth).catch(() => {});
     }
-    if (user?.email || user?.uid) {
-      const qUserId = user.email || user.uid;
+    const qUserId =
+      user?.email ||
+      googleEmail ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("journal_user_email")
+        : null);
+
+    if (qUserId) {
       await fetch(`/api/auth/google/status?userId=${encodeURIComponent(qUserId)}`, {
         method: "DELETE",
       }).catch(() => {});
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("journal_user_email");
     }
 
     setUser(null);
@@ -192,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsGmailSynced(false);
     setLastSyncAt(undefined);
     window.location.reload();
-  }, [firebase, user]);
+  }, [firebase, user, googleEmail]);
 
   return (
     <AuthContext.Provider
