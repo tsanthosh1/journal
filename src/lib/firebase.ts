@@ -36,11 +36,15 @@ export function getFirebaseClient() {
   db = getFirestore(app);
   storage = getStorage(app);
 
+  const googleProvider = new GoogleAuthProvider();
+  googleProvider.addScope("https://www.googleapis.com/auth/gmail.readonly");
+  googleProvider.addScope("https://www.googleapis.com/auth/userinfo.email");
+
   return {
     app,
     auth,
     db,
     storage,
-    googleProvider: new GoogleAuthProvider(),
+    googleProvider,
   };
 }

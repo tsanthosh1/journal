@@ -1,6 +1,8 @@
 import type { ParsedStatement, StatementTransaction } from "@/lib/types";
 
 const HDFC_TRANSACTION_START = /^\d{2}\/\d{2}\/\d{2}\s+/;
+const HDFC_DELIMITED_HEADER =
+  /Date\s*,\s*Narration\s*,\s*Value Dat\s*,\s*Debit Amount\s*,\s*Credit Amount\s*,\s*Chq\/Ref Number\s*,\s*Closing Balance/i;
 
 const HEADER_MARKERS = [
   "Statement of accounts",
@@ -31,9 +33,20 @@ type WorkingTransaction = Omit<
   "id" | "direction" | "amount" | "categoryHint"
 >;
 
-export function parseBankStatement(text: string): ParsedStatement {
+type ParseBankStatementOptions = {
+  fileName?: string;
+};
+
+export function parseBankStatement(
+  text: string,
+  options: ParseBankStatementOptions = {},
+): ParsedStatement {
+  if (HDFC_DELIMITED_HEADER.test(text)) {
+    return parseDelimitedBankStatement(text, options);
+  }
+
   const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  const metadata = parseMetadata(text);
+  const metadata = parseMetadata(text, options);
   const transactions: StatementTransaction[] = [];
   let current: WorkingTransaction | null = null;
   let reachedStatementSummary = false;
@@ -101,19 +114,113 @@ export function parseBankStatement(text: string): ParsedStatement {
   };
 }
 
-function parseMetadata(text: string) {
+function parseDelimitedBankStatement(
+  text: string,
+  options: ParseBankStatementOptions,
+): ParsedStatement {
+  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const transactions: StatementTransaction[] = [];
+  let reachedHeader = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+
+    if (!reachedHeader) {
+      reachedHeader = HDFC_DELIMITED_HEADER.test(line);
+      continue;
+    }
+
+    if (!line.trim()) {
+      continue;
+    }
+
+    if (!HDFC_TRANSACTION_START.test(line.trimStart())) {
+      continue;
+    }
+
+    transactions.push(
+      finalizeTransaction(
+        parseDelimitedTransactionLine(line),
+        transactions.length,
+      ),
+    );
+  }
+
+  const totalWithdrawals = roundMoney(
+    transactions.reduce(
+      (sum, transaction) => sum + (transaction.withdrawalAmount ?? 0),
+      0,
+    ),
+  );
+  const totalDeposits = roundMoney(
+    transactions.reduce(
+      (sum, transaction) => sum + (transaction.depositAmount ?? 0),
+      0,
+    ),
+  );
+
+  return {
+    ...parseMetadata(text, options),
+    statementFrom: formatRangeDate(transactions[0]?.date) ?? null,
+    statementTo: formatRangeDate(transactions.at(-1)?.date) ?? null,
+    generatedAt: new Date().toISOString(),
+    transactionCount: transactions.length,
+    openingBalance: inferOpeningBalance(transactions),
+    closingBalance: transactions.at(-1)?.closingBalance ?? null,
+    totalWithdrawals,
+    totalDeposits,
+    transactions,
+  };
+}
+
+function parseMetadata(text: string, options: ParseBankStatementOptions = {}) {
   const accountNumber = text.match(/Account No\s+:\s+([0-9]+)/)?.[1] ?? "";
   const statementRange = text.match(
     /Statement From\s+:\s+(\d{2}\/\d{2}\/\d{4})\s+To:\s+(\d{2}\/\d{2}\/\d{4})/,
   );
+  const accountNumberMasked =
+    maskAccountNumber(accountNumber) ?? maskAccountNumberFromFileName(options.fileName);
 
   return {
-    bankName: text.includes("HDFC BANK") ? "HDFC Bank" : "Unknown bank",
-    accountNumberMasked: maskAccountNumber(accountNumber),
+    bankName:
+      text.includes("HDFC BANK") || HDFC_DELIMITED_HEADER.test(text)
+        ? "HDFC Bank"
+        : "Unknown bank",
+    accountNumberMasked,
     accountType: text.match(/Account Type\s+:\s+(.+)/)?.[1]?.trim() ?? null,
     currency: text.match(/Currency\s+:\s+([A-Z]+)/)?.[1] ?? "INR",
     statementFrom: statementRange?.[1] ?? null,
     statementTo: statementRange?.[2] ?? null,
+  };
+}
+
+function parseDelimitedTransactionLine(line: string): WorkingTransaction {
+  const columns = line.split(",").map((column) => column.trim());
+
+  if (columns.length < 7) {
+    throw new Error(`Could not parse delimited transaction line: ${line}`);
+  }
+
+  const date = columns[0] ?? "";
+  const closingBalance = parseAmount(columns.at(-1) ?? "") ?? Number.NaN;
+  const referenceNumber = columns.at(-2) ?? "";
+  const depositAmount = zeroToNull(parseAmount(columns.at(-3) ?? ""));
+  const withdrawalAmount = zeroToNull(parseAmount(columns.at(-4) ?? ""));
+  const valueDate = columns.at(-5) ?? "";
+  const narration = columns.slice(1, -5).join(", ").replace(/\s+/g, " ");
+
+  if (!date || !valueDate || Number.isNaN(closingBalance)) {
+    throw new Error(`Could not parse delimited transaction line: ${line}`);
+  }
+
+  return {
+    date,
+    valueDate,
+    narration,
+    referenceNumber,
+    withdrawalAmount,
+    depositAmount,
+    closingBalance,
   };
 }
 
@@ -157,7 +264,7 @@ function finalizeTransaction(
     id: `${transaction.date}-${transaction.referenceNumber}-${index}`,
     direction,
     amount,
-    categoryHint: inferCategory(transaction.narration, direction),
+    categoryHint: "Uncategorized",
   };
 }
 
@@ -182,6 +289,10 @@ function parseAmount(value: string) {
   return Number.isFinite(amount) ? amount : null;
 }
 
+function zeroToNull(value: number | null) {
+  return value === 0 ? null : value;
+}
+
 function parseTrailingBalance(line: string) {
   const matches = line.match(/(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}/g);
   const lastMatch = matches?.at(-1);
@@ -202,47 +313,30 @@ function inferOpeningBalance(transactions: StatementTransaction[]) {
   return roundMoney(first.closingBalance - signedAmount);
 }
 
-function inferCategory(narration: string, direction: "withdrawal" | "deposit") {
-  const upperNarration = narration.toUpperCase();
-
-  if (direction === "deposit") {
-    return "Income / Credit";
-  }
-
-  if (upperNarration.includes("CREDIT CA") || upperNarration.includes("CC ")) {
-    return "Credit card payment";
-  }
-
-  if (upperNarration.includes("TNEB") || upperNarration.includes("ELECTRIC")) {
-    return "Utilities";
-  }
-
-  if (upperNarration.includes("GROWW") || upperNarration.includes("INVEST")) {
-    return "Investment";
-  }
-
-  if (
-    upperNarration.includes("BLINKIT") ||
-    upperNarration.includes("ZEPTO") ||
-    upperNarration.includes("FRUIT") ||
-    upperNarration.includes("PROTEINS")
-  ) {
-    return "Food / Groceries";
-  }
-
-  if (upperNarration.includes("UPI")) {
-    return "UPI spend";
-  }
-
-  return "Uncategorized";
-}
-
 function maskAccountNumber(accountNumber: string) {
   if (!accountNumber) {
-    return "Unknown account";
+    return null;
   }
 
   return `XXXX${accountNumber.slice(-4)}`;
+}
+
+function maskAccountNumberFromFileName(fileName?: string) {
+  const match = fileName?.match(/X{2,}\d{4}/i);
+
+  return match ? `XXXX${match[0].slice(-4)}` : "Unknown account";
+}
+
+function formatRangeDate(date?: string) {
+  const match = date?.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, day, month, year] = match;
+
+  return `${day}/${month}/20${year}`;
 }
 
 function roundMoney(value: number) {

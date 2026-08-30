@@ -1,0 +1,483 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  HistoricalCycle,
+  SourceEmailRecord,
+  Subscription,
+  formatCycleMonth,
+  formatDisplayDate,
+} from "@/lib/subscriptionTypes";
+import { SubscriptionAvatar } from "./SubscriptionAvatar";
+import { useAuth } from "@/context/AuthContext";
+
+interface HistoricalCyclesModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  subscription: Subscription | null;
+  onCyclesUpdated?: () => void;
+  onViewSourceEmail?: (
+    sub: Subscription,
+    initialEmail?: SourceEmailRecord,
+    scopedEmails?: SourceEmailRecord[],
+    cycleMonth?: string,
+  ) => void;
+  onRefreshSubscription?: () => void;
+}
+
+export function HistoricalCyclesModal({
+  isOpen,
+  onClose,
+  subscription,
+  onCyclesUpdated,
+  onViewSourceEmail,
+  onRefreshSubscription,
+}: HistoricalCyclesModalProps) {
+  const { user, userId } = useAuth();
+  const [cycles, setCycles] = useState<HistoricalCycle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isScanningHistorical, setIsScanningHistorical] = useState(false);
+  const [scanMonths, setScanMonths] = useState<number>(100);
+  const [scanResultNotice, setScanResultNotice] = useState<string | null>(null);
+
+  const fetchCycles = useCallback(async () => {
+    if (!subscription) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/subscriptions/${subscription.id}/cycles`);
+      if (res.ok) {
+        const data = await res.json();
+        setCycles(data.cycles || []);
+      }
+    } catch (err) {
+      console.error("Error fetching historical cycles:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [subscription]);
+
+  useEffect(() => {
+    if (isOpen && subscription) {
+      fetchCycles();
+      setScanResultNotice(null);
+    }
+  }, [isOpen, subscription, fetchCycles]);
+
+  if (!isOpen || !subscription) return null;
+
+  const isPrepaidSub =
+    Boolean(subscription.isPrepaid) ||
+    subscription.category === "Entertainment" ||
+    (!subscription.dueDayOfMonth &&
+      subscription.billingType === "BILL_GENERATED" &&
+      !subscription.emailConfig?.paymentQuery);
+
+  const handleTriggerHistoricalScan = async () => {
+    setIsScanningHistorical(true);
+    setScanResultNotice(null);
+
+    try {
+      const qUserId = user?.email || user?.uid || userId || "default_user";
+      const res = await fetch("/api/sync/historical", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: qUserId,
+          subscriptionId: subscription.id,
+          maxStatements: scanMonths,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Historical sync failed");
+      }
+
+      setScanResultNotice(
+        `✅ Deep scan completed: Found ${data.cyclesFound || 0} historical billing cycles across ${
+          data.messagesScanned || 0
+        } scanned emails.`,
+      );
+
+      await fetchCycles();
+      if (onCyclesUpdated) onCyclesUpdated();
+      if (onRefreshSubscription) onRefreshSubscription();
+    } catch (err) {
+      setScanResultNotice(`⚠️ Scan Error: ${(err as Error).message}`);
+    } finally {
+      setIsScanningHistorical(false);
+    }
+  };
+
+  // Stats calculation
+  const totalBilled = cycles.reduce((sum, c) => sum + (c.statementTotal || 0), 0);
+  const totalPaid = isPrepaidSub
+    ? totalBilled
+    : cycles.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+  const totalPending = isPrepaidSub
+    ? 0
+    : cycles.reduce((sum, c) => sum + (c.remainingBalance || 0), 0);
+  const avgMonthly = cycles.length > 0 ? Math.round(totalBilled / cycles.length) : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 backdrop-blur-sm">
+      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-white/15 bg-slate-900 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 px-4 sm:px-6 py-4 shrink-0 bg-slate-950/40">
+          <div className="flex items-center gap-3.5">
+            <SubscriptionAvatar
+              name={subscription.name}
+              category={subscription.category}
+              imageUrl={subscription.imageUrl}
+              icon={subscription.icon}
+              size="xl"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-white">
+                  {isPrepaidSub ? "Historical Invoice & Purchase Ledger" : "Historical Dues & Payment Ledger"}
+                </h2>
+                <span className="rounded-md bg-indigo-500/20 px-2 py-0.5 text-[11px] font-semibold text-indigo-300">
+                  {subscription.name}
+                </span>
+                {isPrepaidSub && (
+                  <span className="rounded-md bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                    ⚡ PREPAID
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {isPrepaidSub
+                  ? "Prepaid service: Invoices are settled immediately upon arrival. Each record is confirmed as paid."
+                  : "Multi-month statement dues reconciled against automated Gmail payment confirmations."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body Container */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5 flex-1">
+          {/* Deep Scan Trigger Card */}
+          {subscription.source === "EMAIL_AUTOMATED" && (
+            <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 to-slate-900/90 p-4 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 block">
+                  Scan Historical Statements in Gmail
+                </span>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Fetch past billing emails from Gmail and backfill multi-month payments and dues.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <select
+                  value={scanMonths}
+                  onChange={(e) => setScanMonths(Number(e.target.value))}
+                  disabled={isScanningHistorical}
+                  className="min-h-[36px] rounded-xl border border-white/10 bg-slate-800 px-3 py-1 text-xs font-medium text-white focus:outline-none cursor-pointer"
+                >
+                  <option value={100}>All Time (All Emails)</option>
+                  <option value={36}>Past 3 Years (36 Mo)</option>
+                  <option value={24}>Past 2 Years (24 Mo)</option>
+                  <option value={12}>Past 1 Year (12 Mo)</option>
+                  <option value={6}>Past 6 Months</option>
+                  <option value={3}>Past 3 Months</option>
+                </select>
+
+                <button
+                  type="button"
+                  disabled={isScanningHistorical}
+                  onClick={handleTriggerHistoricalScan}
+                  className="min-h-[36px] flex items-center gap-1.5 rounded-xl bg-indigo-500 px-4 py-1.5 text-xs font-bold text-white shadow-md hover:bg-indigo-400 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {isScanningHistorical ? (
+                    <>
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-r-transparent" />
+                      <span>Scanning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔍</span>
+                      <span>Run Historical Scan</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Scan Notice */}
+          {scanResultNotice && (
+            <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3 text-xs text-indigo-200">
+              {scanResultNotice}
+            </div>
+          )}
+
+          {/* Stat Cards - Tailored for Prepaid vs Postpaid */}
+          {isPrepaidSub ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Total Historical Invoiced</span>
+                <span className="text-base sm:text-lg font-bold text-white mt-0.5 block">
+                  ₹{totalBilled.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Total Settled</span>
+                <span className="text-base sm:text-lg font-bold text-emerald-400 mt-0.5 block">
+                  ₹{totalPaid.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Billing Model</span>
+                <span className="text-base sm:text-lg font-bold text-emerald-300 mt-0.5 flex items-center gap-1">
+                  <span>⚡</span> 100% Settled
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Monthly Average</span>
+                <span className="text-base sm:text-lg font-bold text-cyan-300 mt-0.5 block">
+                  ₹{avgMonthly.toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Total Historical Billed</span>
+                <span className="text-base sm:text-lg font-bold text-white mt-0.5 block">
+                  ₹{totalBilled.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Total Amount Paid</span>
+                <span className="text-base sm:text-lg font-bold text-emerald-400 mt-0.5 block">
+                  ₹{totalPaid.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Pending Balance</span>
+                <span className="text-base sm:text-lg font-bold text-amber-400 mt-0.5 block">
+                  ₹{totalPending.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
+                <span className="text-[11px] font-medium text-slate-400 block">Monthly Average</span>
+                <span className="text-base sm:text-lg font-bold text-cyan-300 mt-0.5 block">
+                  ₹{avgMonthly.toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Cycles Ledger Table */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-300">
+                {isPrepaidSub ? `Invoices & Purchase Cycles (${cycles.length})` : `Billing Cycles Ledger (${cycles.length})`}
+              </h3>
+              <span className="text-xs text-slate-400">Chronological Monthly Ledger</span>
+            </div>
+
+            {isLoading ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-indigo-400 border-r-transparent mb-2" />
+                <p>Loading historical ledger...</p>
+              </div>
+            ) : cycles.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-8 text-center text-xs text-slate-400">
+                No past cycles found. Click &quot;Run Historical Scan&quot; to backfill past statements.
+              </div>
+            ) : isPrepaidSub ? (
+              /* Prepaid Table Layout */
+              <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="border-b border-white/10 bg-white/[0.03] text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Billing Cycle</th>
+                        <th className="px-4 py-3">Invoice Date</th>
+                        <th className="px-4 py-3 text-right">Invoiced Amount</th>
+                        <th className="px-4 py-3 text-center">Status</th>
+                        <th className="px-4 py-3 text-right">Source Invoice</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-medium">
+                      {cycles.map((c) => {
+                        const cycleEmails = c.sourceEmails || [];
+                        const firstEmail = cycleEmails.length > 0 ? cycleEmails[0] : null;
+
+                        return (
+                          <tr key={c.id || c.cycleMonth} className="hover:bg-white/[0.02] transition">
+                            <td className="px-4 py-3 font-bold text-white">
+                              {formatCycleMonth(c.cycleMonth)}
+                            </td>
+                            <td className="px-4 py-3 text-slate-300">
+                              {c.statementDate ? formatDisplayDate(c.statementDate) : "On Invoice"}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-white">
+                              ₹{(c.statementTotal || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                <span>⚡</span> Settled on Invoice
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {firstEmail && onViewSourceEmail ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onViewSourceEmail(
+                                      subscription,
+                                      firstEmail,
+                                      cycleEmails,
+                                      c.cycleMonth,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
+                                  title="View archived source invoice email"
+                                >
+                                  <span>✉️</span>
+                                  <span>Source Email</span>
+                                </button>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">Archived</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* Postpaid Table Layout */
+              <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="border-b border-white/10 bg-white/[0.03] text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Cycle Month</th>
+                        <th className="px-4 py-3">Statement Date</th>
+                        <th className="px-4 py-3">Due Date</th>
+                        <th className="px-4 py-3 text-right">Statement Amount</th>
+                        <th className="px-4 py-3 text-right">Paid Amount</th>
+                        <th className="px-4 py-3 text-right">Remaining</th>
+                        <th className="px-4 py-3 text-center">Status</th>
+                        <th className="px-4 py-3">Payment Date</th>
+                        <th className="px-4 py-3 text-right">Line Source</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-medium">
+                      {cycles.map((c) => {
+                        const isPaid = c.status === "FULLY_PAID";
+                        const cycleEmails = c.sourceEmails || [];
+                        const firstEmail = cycleEmails.length > 0 ? cycleEmails[0] : null;
+
+                        return (
+                          <tr key={c.id || c.cycleMonth} className="hover:bg-white/[0.02] transition">
+                            <td className="px-4 py-3 font-bold text-white">
+                              {formatCycleMonth(c.cycleMonth)}
+                            </td>
+                            <td className="px-4 py-3 text-slate-400">
+                              {c.statementDate ? formatDisplayDate(c.statementDate) : "N/A"}
+                            </td>
+                            <td className="px-4 py-3 text-slate-200">
+                              {c.dueDate ? formatDisplayDate(c.dueDate) : "N/A"}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-white">
+                              ₹{(c.statementTotal || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="px-4 py-3 text-right text-emerald-400">
+                              ₹{(c.paidAmount || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-amber-400">
+                              ₹{(c.remainingBalance || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  c.status === "SKIPPED"
+                                    ? "bg-slate-800 text-slate-400 border border-white/10"
+                                    : isPaid
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : c.status === "PARTIALLY_PAID"
+                                    ? "bg-sky-500/20 text-sky-300"
+                                    : "bg-slate-800 text-slate-300"
+                                }`}
+                              >
+                                {c.status === "SKIPPED" ? "⏭️ SKIPPED" : c.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-400 text-[11px]">
+                              {c.status === "SKIPPED"
+                                ? "Skipped"
+                                : c.lastPaymentDate
+                                ? formatDisplayDate(c.lastPaymentDate)
+                                : isPaid
+                                ? "Paid"
+                                : "Pending"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {firstEmail && onViewSourceEmail ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onViewSourceEmail(
+                                      subscription,
+                                      firstEmail,
+                                      cycleEmails,
+                                      c.cycleMonth,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
+                                  title="View archived source statement & payment emails"
+                                >
+                                  <span>✉️</span>
+                                  <span>Source Email</span>
+                                </button>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">Archived</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-white/10 px-4 sm:px-6 py-3.5 bg-slate-950/40">
+          <span className="text-xs text-slate-400">
+            {isPrepaidSub
+              ? "All historical invoices are permanently stored in Firestore & Cloud Storage."
+              : "All multi-month statement and payment records are saved in Firestore."}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[38px] rounded-xl bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15 cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

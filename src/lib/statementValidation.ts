@@ -1,5 +1,7 @@
 import type { ParsedStatement, StatementTransaction } from "@/lib/types";
 
+const MAX_TRANSACTIONS_PER_IMPORT = 5000;
+
 type ValidationResult =
   | { ok: true; statement: ParsedStatement }
   | { ok: false; error: string };
@@ -11,6 +13,7 @@ export function validateImportPayload(payload: unknown): ValidationResult {
 
   const fileHash = payload.fileHash;
   const fileName = payload.fileName;
+  const statementText = payload.statementText;
   const statement = payload.statement;
 
   if (!isSha256(fileHash)) {
@@ -21,11 +24,17 @@ export function validateImportPayload(payload: unknown): ValidationResult {
     return { ok: false, error: "File name is required." };
   }
 
-  if (!isParsedStatement(statement)) {
-    return { ok: false, error: "Invalid parsed statement payload." };
+  if (typeof statementText !== "string" || !statementText.trim()) {
+    return { ok: false, error: "Statement text is required." };
   }
 
-  return { ok: true, statement };
+  const statementValidationError = getParsedStatementValidationError(statement);
+
+  if (statementValidationError) {
+    return { ok: false, error: statementValidationError };
+  }
+
+  return { ok: true, statement: statement as ParsedStatement };
 }
 
 export function getImportMetadata(payload: unknown) {
@@ -36,7 +45,35 @@ export function getImportMetadata(payload: unknown) {
   return {
     fileHash: String(payload.fileHash),
     fileName: String(payload.fileName),
+    statementText: String(payload.statementText),
   };
+}
+
+function getParsedStatementValidationError(value: unknown) {
+  if (!isRecord(value)) {
+    return "Parsed statement must be an object.";
+  }
+
+  if (!Array.isArray(value.transactions)) {
+    return "Parsed statement transactions must be an array.";
+  }
+
+  if (value.transactions.length > MAX_TRANSACTIONS_PER_IMPORT) {
+    return `Statement has ${value.transactions.length} transactions; max supported per import is ${MAX_TRANSACTIONS_PER_IMPORT}.`;
+  }
+
+  if (
+    typeof value.transactionCount === "number" &&
+    value.transactions.length !== value.transactionCount
+  ) {
+    return `Transaction count mismatch: expected ${value.transactionCount}, got ${value.transactions.length}.`;
+  }
+
+  if (!isParsedStatement(value)) {
+    return "Invalid parsed statement payload.";
+  }
+
+  return null;
 }
 
 function isParsedStatement(value: unknown): value is ParsedStatement {
@@ -59,7 +96,7 @@ function isParsedStatement(value: unknown): value is ParsedStatement {
     isNumber(value.totalDeposits) &&
     Array.isArray(value.transactions) &&
     value.transactions.length === value.transactionCount &&
-    value.transactions.length <= 450 &&
+    value.transactions.length <= MAX_TRANSACTIONS_PER_IMPORT &&
     value.transactions.every(isStatementTransaction)
   );
 }

@@ -1,0 +1,25 @@
+import { NextRequest, NextResponse } from "next/server";
+import { overrideSubscriptionCycle } from "@/lib/serverSubscriptions";
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+
+    const updated = await overrideSubscriptionCycle(id, body);
+    if (!updated) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ subscription: updated });
+  } catch (error) {
+    console.error("POST /api/subscriptions/[id]/cycle error:", error);
+    return NextResponse.json(
+      { error: (error as Error).message || "Failed to override cycle" },
+      { status: 500 },
+    );
+  }
+}

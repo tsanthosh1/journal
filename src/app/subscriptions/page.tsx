@@ -1,0 +1,527 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { FinanceTopBar } from "@/components/FinanceTopBar";
+import { FinancialSummaryCards } from "@/components/subscriptions/FinancialSummaryCards";
+import { OutflowsTimeline } from "@/components/subscriptions/OutflowsTimeline";
+import { SubscriptionList } from "@/components/subscriptions/SubscriptionList";
+import { SubscriptionModal } from "@/components/subscriptions/SubscriptionModal";
+import { ManualOverrideModal } from "@/components/subscriptions/ManualOverrideModal";
+import { ParserSandboxModal } from "@/components/subscriptions/ParserSandboxModal";
+import { HistoricalCyclesModal } from "@/components/subscriptions/HistoricalCyclesModal";
+import { SourceEmailViewerModal } from "@/components/subscriptions/SourceEmailViewerModal";
+import { GmailSyncBanner } from "@/components/subscriptions/GmailSyncBanner";
+import { SourceEmailRecord, Subscription } from "@/lib/subscriptionTypes";
+import { useAuth } from "@/context/AuthContext";
+
+function SubscriptionsPageContent() {
+  const searchParams = useSearchParams();
+  const {
+    user,
+    userId,
+    userEmail,
+    isGmailSynced,
+    lastSyncAt,
+    signInWithGoogle,
+    signOut,
+    checkGmailSyncStatus,
+  } = useAuth();
+
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isHistoricalSyncing, setIsHistoricalSyncing] = useState(false);
+  const [syncSummary, setSyncSummary] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<"subscriptions" | "timeline" | "split">("subscriptions");
+
+  // Modals
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
+
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [overrideSubscription, setOverrideSubscription] = useState<Subscription | null>(null);
+
+  const [isSandboxModalOpen, setIsSandboxModalOpen] = useState(false);
+  const [sandboxModule, setSandboxModule] = useState("HDFCCardParser");
+  const [sandboxRegex, setSandboxRegex] = useState<any>(null);
+
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historySubscription, setHistorySubscription] = useState<Subscription | null>(null);
+
+  const [isEmailViewerOpen, setIsEmailViewerOpen] = useState(false);
+  const [emailViewerSubscription, setEmailViewerSubscription] = useState<Subscription | null>(null);
+  const [emailViewerInitialRecord, setEmailViewerInitialRecord] = useState<SourceEmailRecord | null>(null);
+  const [emailViewerScopedEmails, setEmailViewerScopedEmails] = useState<SourceEmailRecord[] | null>(null);
+  const [emailViewerCycleMonth, setEmailViewerCycleMonth] = useState<string | null>(null);
+
+  const [bannerNotice, setBannerNotice] = useState<{ type: "success" | "error"; message: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const auth = searchParams.get("auth");
+    const authError = searchParams.get("auth_error");
+
+    if (auth === "success") {
+      setBannerNotice({
+        type: "success",
+        message: "Google Gmail OAuth connected successfully! Automated synchronization is ready.",
+      });
+      checkGmailSyncStatus();
+    } else if (authError) {
+      setBannerNotice({
+        type: "error",
+        message: `Google OAuth connection error: ${decodeURIComponent(authError)}`,
+      });
+    }
+  }, [searchParams, checkGmailSyncStatus]);
+
+  const fetchSubscriptions = useCallback(async () => {
+    try {
+      const qUserId = user?.email || user?.uid || userId || "default_user";
+      const res = await fetch(`/api/subscriptions?userId=${encodeURIComponent(qUserId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubscriptions(data.subscriptions || []);
+      }
+    } catch (err) {
+      console.error("Error fetching subscriptions:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, userId]);
+
+  useEffect(() => {
+    fetchSubscriptions();
+  }, [fetchSubscriptions]);
+
+  const handleSaveSubscription = async (subData: Partial<Subscription>) => {
+    const qUserId = user?.email || user?.uid || userId || "default_user";
+    if (editingSubscription) {
+      const res = await fetch(`/api/subscriptions/${editingSubscription.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...subData, userId: qUserId }),
+      });
+      if (!res.ok) throw new Error("Failed to update subscription");
+    } else {
+      const res = await fetch("/api/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...subData, userId: qUserId }),
+      });
+      if (!res.ok) throw new Error("Failed to create subscription");
+    }
+    await fetchSubscriptions();
+  };
+
+  const handleDeleteSubscription = async (id: string) => {
+    try {
+      const res = await fetch(`/api/subscriptions/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete subscription:", err);
+    }
+  };
+
+  const handleSaveOverride = async (overrideData: any) => {
+    if (!overrideSubscription) return;
+    const res = await fetch(`/api/subscriptions/${overrideSubscription.id}/override`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(overrideData),
+    });
+    if (!res.ok) throw new Error("Failed to override subscription");
+    await fetchSubscriptions();
+  };
+
+  const handleQuickMarkPaid = async (sub: Subscription) => {
+    const total = sub.currentCycle.statementTotal || sub.defaultAmount || 0;
+    try {
+      await handleSaveOverride({
+        statementTotal: total,
+        paidAmount: total,
+        dueDate: sub.currentCycle.dueDate,
+        status: "FULLY_PAID",
+      });
+    } catch (err) {
+      console.error("Failed to mark as paid:", err);
+    }
+  };
+
+  const handleTriggerSync = async () => {
+    setIsSyncing(true);
+    setSyncSummary(null);
+    try {
+      const qUserId = user?.email || user?.uid || userId || "default_user";
+      const res = await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: qUserId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gmail synchronization failed");
+      }
+
+      setSyncSummary(
+        `Synced ${data.syncedCount} of ${data.totalSubscriptions} subscriptions. Found ${data.totalNewMessages} new statements & payment receipts. Copies saved to Storage.`,
+      );
+      await fetchSubscriptions();
+    } catch (err) {
+      setSyncSummary(`⚠️ Scan Error: ${(err as Error).message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleTriggerDeepHistoricalSync = async () => {
+    setIsHistoricalSyncing(true);
+    setSyncSummary(null);
+    try {
+      const qUserId = user?.email || user?.uid || userId || "default_user";
+      const res = await fetch("/api/sync/historical", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: qUserId, maxStatements: 100 }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Historical synchronization failed");
+      }
+
+      setSyncSummary(
+        `Deep scan completed: Found ${data.cyclesFound || 0} historical statement cycles across ${
+          data.messagesScanned || 0
+        } emails. Source emails archived in Storage.`,
+      );
+      await fetchSubscriptions();
+    } catch (err) {
+      setSyncSummary(`⚠️ Historical Scan Error: ${(err as Error).message}`);
+    } finally {
+      setIsHistoricalSyncing(false);
+    }
+  };
+
+  const handleOpenSourceEmailViewer = (
+    sub: Subscription,
+    initialRecord?: SourceEmailRecord,
+    scopedEmails?: SourceEmailRecord[],
+    cycleMonth?: string,
+  ) => {
+    setEmailViewerSubscription(sub);
+    setEmailViewerInitialRecord(initialRecord || null);
+    setEmailViewerScopedEmails(scopedEmails || null);
+    setEmailViewerCycleMonth(cycleMonth || null);
+    setIsEmailViewerOpen(true);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-slate-950 font-sans pb-24">
+      {/* App Top Bar */}
+      <FinanceTopBar />
+
+      <main className="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8">
+        {/* Banner Notice (OAuth / System Alerts) */}
+        {bannerNotice && (
+          <div
+            className={`rounded-2xl border p-4 text-xs sm:text-sm font-medium flex items-center justify-between shadow-lg backdrop-blur-md ${
+              bannerNotice.type === "success"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+            }`}
+          >
+            <span>{bannerNotice.message}</span>
+            <button
+              type="button"
+              onClick={() => setBannerNotice(null)}
+              className="text-slate-400 hover:text-white ml-2 p-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Sync Summary Alert */}
+        {syncSummary && (
+          <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/40 p-4 text-xs sm:text-sm text-cyan-200 shadow-xl flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🔄</span>
+              <span>{syncSummary}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSyncSummary(null)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Hero Section & Actions */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight text-white">
+                Subscriptions & Recurring Commitments
+              </h1>
+              <span className="rounded-full bg-cyan-400/10 border border-cyan-400/20 px-2.5 py-0.5 text-xs font-bold text-cyan-400">
+                {subscriptions.length} active
+              </span>
+            </div>
+            <p className="mt-1 text-xs sm:text-sm text-slate-400 max-w-2xl">
+              Track statement-based credit cards and fixed bills with deterministic Gmail parsing, automatic payment reconciliation, and Firebase Storage source email archival.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSubscription(null);
+                setIsSubscriptionModalOpen(true);
+              }}
+              className="min-h-[42px] flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-indigo-500 px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-950 shadow-lg shadow-cyan-400/20 hover:opacity-95 transition active:scale-95 cursor-pointer"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add Subscription</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSandboxModule("AxisCardParser");
+                setSandboxRegex(null);
+                setIsSandboxModalOpen(true);
+              }}
+              className="min-h-[42px] flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 hover:bg-white/10 hover:border-cyan-400/50 transition cursor-pointer"
+              title="Test Regex on raw email text"
+            >
+              <span>🧪</span>
+              <span>Sandbox</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Gmail Sync Status Banner */}
+        <GmailSyncBanner
+          isConnected={isGmailSynced}
+          lastSyncAt={lastSyncAt}
+          userEmail={userEmail}
+          isSyncing={isSyncing}
+          isHistoricalSyncing={isHistoricalSyncing}
+          onTriggerSync={handleTriggerSync}
+          onTriggerHistoricalSync={handleTriggerDeepHistoricalSync}
+          onConnect={() => signInWithGoogle("/subscriptions")}
+          onDisconnect={signOut}
+        />
+
+        {/* Financial Summary Aggregator Cards */}
+        <FinancialSummaryCards subscriptions={subscriptions} />
+
+        {/* View Switcher: Subscriptions List vs Outflows Timeline vs Split */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveView("subscriptions")}
+              className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                activeView === "subscriptions"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              📋 All Commitments
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("timeline")}
+              className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                activeView === "timeline"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              📅 Outflows Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("split")}
+              className={`hidden lg:inline-flex min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                activeView === "split"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              ⚡ Split Overview
+            </button>
+          </div>
+
+          <span className="text-xs text-slate-400 hidden sm:inline">
+            Deterministic Sync Engine v2.0
+          </span>
+        </div>
+
+        {/* Main View Area */}
+        {isLoading ? (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-12 text-center backdrop-blur-md">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-cyan-400 border-r-transparent mb-3" />
+            <p className="text-sm font-medium text-slate-300">Loading recurring commitments...</p>
+          </div>
+        ) : activeView === "split" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="lg:col-span-4 sticky top-6">
+              <OutflowsTimeline
+                subscriptions={subscriptions}
+                onOpenOverride={(sub) => {
+                  setOverrideSubscription(sub);
+                  setIsOverrideModalOpen(true);
+                }}
+              />
+            </div>
+            <div className="lg:col-span-8">
+              <SubscriptionList
+                subscriptions={subscriptions}
+                onEdit={(sub) => {
+                  setEditingSubscription(sub);
+                  setIsSubscriptionModalOpen(true);
+                }}
+                onOverride={(sub) => {
+                  setOverrideSubscription(sub);
+                  setIsOverrideModalOpen(true);
+                }}
+                onDelete={handleDeleteSubscription}
+                onQuickMarkPaid={handleQuickMarkPaid}
+                onTestParser={(sub) => {
+                  setSandboxModule(sub.emailConfig?.parserModule || "AxisCardParser");
+                  setSandboxRegex(sub.emailConfig?.customRegex);
+                  setIsSandboxModalOpen(true);
+                }}
+                onViewHistory={(sub) => {
+                  setHistorySubscription(sub);
+                  setIsHistoryModalOpen(true);
+                }}
+                onViewSourceEmail={handleOpenSourceEmailViewer}
+              />
+            </div>
+          </div>
+        ) : activeView === "timeline" ? (
+          <OutflowsTimeline
+            subscriptions={subscriptions}
+            onOpenOverride={(sub) => {
+              setOverrideSubscription(sub);
+              setIsOverrideModalOpen(true);
+            }}
+          />
+        ) : (
+          <SubscriptionList
+            subscriptions={subscriptions}
+            onEdit={(sub) => {
+              setEditingSubscription(sub);
+              setIsSubscriptionModalOpen(true);
+            }}
+            onOverride={(sub) => {
+              setOverrideSubscription(sub);
+              setIsOverrideModalOpen(true);
+            }}
+            onDelete={handleDeleteSubscription}
+            onQuickMarkPaid={handleQuickMarkPaid}
+            onTestParser={(sub) => {
+              setSandboxModule(sub.emailConfig?.parserModule || "AxisCardParser");
+              setSandboxRegex(sub.emailConfig?.customRegex);
+              setIsSandboxModalOpen(true);
+            }}
+            onViewHistory={(sub) => {
+              setHistorySubscription(sub);
+              setIsHistoryModalOpen(true);
+            }}
+            onViewSourceEmail={handleOpenSourceEmailViewer}
+          />
+        )}
+      </main>
+
+      {/* Modals */}
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => {
+          setIsSubscriptionModalOpen(false);
+          setEditingSubscription(null);
+        }}
+        onSave={handleSaveSubscription}
+        initialData={editingSubscription}
+        onOpenTestSandbox={() => {
+          setIsSandboxModalOpen(true);
+        }}
+      />
+
+      <ManualOverrideModal
+        isOpen={isOverrideModalOpen}
+        onClose={() => {
+          setIsOverrideModalOpen(false);
+          setOverrideSubscription(null);
+        }}
+        subscription={overrideSubscription}
+        onSaveOverride={handleSaveOverride}
+      />
+
+      <ParserSandboxModal
+        isOpen={isSandboxModalOpen}
+        onClose={() => setIsSandboxModalOpen(false)}
+        initialModule={sandboxModule}
+        initialCustomRegex={sandboxRegex}
+      />
+
+      <HistoricalCyclesModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => {
+          setIsHistoryModalOpen(false);
+          setHistorySubscription(null);
+        }}
+        subscription={historySubscription}
+        onCyclesUpdated={fetchSubscriptions}
+        onViewSourceEmail={handleOpenSourceEmailViewer}
+      />
+
+      {/* Source Email Viewer Modal */}
+      <SourceEmailViewerModal
+        isOpen={isEmailViewerOpen}
+        onClose={() => {
+          setIsEmailViewerOpen(false);
+          setEmailViewerSubscription(null);
+          setEmailViewerInitialRecord(null);
+          setEmailViewerScopedEmails(null);
+          setEmailViewerCycleMonth(null);
+        }}
+        subscription={emailViewerSubscription}
+        initialEmail={emailViewerInitialRecord}
+        scopedEmails={emailViewerScopedEmails}
+        cycleMonth={emailViewerCycleMonth}
+      />
+    </div>
+  );
+}
+
+export default function SubscriptionsPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-r-transparent" />
+            <span className="text-sm font-medium">Loading Subscriptions...</span>
+          </div>
+        </div>
+      }
+    >
+      <SubscriptionsPageContent />
+    </React.Suspense>
+  );
+}

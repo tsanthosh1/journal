@@ -1,0 +1,283 @@
+import { getFirebaseAdmin } from "./firebaseAdmin";
+import {
+  CycleState,
+  HistoricalCycle,
+  PaymentStatus,
+  Subscription,
+} from "./subscriptionTypes";
+
+function sanitizeForFirestore(obj: any): any {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      cleaned[key] = sanitizeForFirestore(val);
+    }
+  }
+  return cleaned;
+}
+
+export async function listSubscriptions(userId = "default_user"): Promise<Subscription[]> {
+  const { db } = getFirebaseAdmin();
+
+  // Support flexible user ID matching (email, normalized email, and default_user)
+  const possibleUserIds = Array.from(
+    new Set([
+      userId,
+      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      "default_user",
+    ]),
+  ).filter(Boolean);
+
+  let snap = await db
+    .collection("subscriptions")
+    .where("userId", "in", possibleUserIds.slice(0, 10))
+    .get();
+
+  // Fallback: If no subscriptions found under user filters, fetch all subscriptions in Firestore
+  if (snap.empty) {
+    snap = await db.collection("subscriptions").limit(100).get();
+  }
+
+  const list: Subscription[] = [];
+  snap.forEach((doc) => {
+    list.push({ id: doc.id, ...(doc.data() as Omit<Subscription, "id">) });
+  });
+
+  // Sort by upcoming dueDate ascending
+  return list.sort((a, b) => {
+    const dA = a.currentCycle?.dueDate || "9999-99-99";
+    const dB = b.currentCycle?.dueDate || "9999-99-99";
+    return dA.localeCompare(dB);
+  });
+}
+
+export async function getSubscription(id: string): Promise<Subscription | null> {
+  const { db } = getFirebaseAdmin();
+  const snap = await db.collection("subscriptions").doc(id).get();
+  if (!snap.exists) return null;
+  return { id: snap.id, ...(snap.data() as Omit<Subscription, "id">) };
+}
+
+export async function createSubscription(
+  data: Omit<Subscription, "id" | "createdAt" | "updatedAt">,
+): Promise<Subscription> {
+  const { db } = getFirebaseAdmin();
+  const docRef = db.collection("subscriptions").doc();
+
+  const now = new Date().toISOString();
+  const cycleMonth = data.currentCycle?.cycleMonth || now.slice(0, 7);
+
+  const total = data.currentCycle?.statementTotal ?? data.defaultAmount ?? 0;
+  const paid = data.currentCycle?.paidAmount ?? 0;
+  const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);
+
+  let status: PaymentStatus = data.currentCycle?.status || "UNPAID";
+  if (!data.currentCycle?.status) {
+    if (total > 0 && paid >= total) status = "FULLY_PAID";
+    else if (paid > 0) status = "PARTIALLY_PAID";
+    else status = "UNPAID";
+  }
+
+  const currentCycle: CycleState = {
+    cycleMonth,
+    dueDate: data.currentCycle?.dueDate || new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
+    statementDate: data.currentCycle?.statementDate,
+    statementTotal: total,
+    paidAmount: paid,
+    remainingBalance: remaining,
+    status,
+    processedMessageIds: data.currentCycle?.processedMessageIds || [],
+    updatedAt: now,
+  };
+
+  const subscription: Subscription = {
+    id: docRef.id,
+    userId: data.userId || "default_user",
+    name: data.name,
+    category: data.category,
+    billingType: data.billingType,
+    source: data.source,
+    currency: data.currency || "INR",
+    defaultAmount: data.defaultAmount || 0,
+    billingCycle: data.billingCycle,
+    notes: data.notes,
+    emailConfig: data.emailConfig,
+    currentCycle,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const sanitized = sanitizeForFirestore(subscription);
+  await docRef.set(sanitized);
+
+  // Also create initial cycle record in subscription_cycles
+  const cycleDocId = `${subscription.id}_${cycleMonth}`;
+  const cycleRef = db.collection("subscription_cycles").doc(cycleDocId);
+  const cycleRecord: HistoricalCycle = {
+    id: cycleDocId,
+    subscriptionId: subscription.id,
+    subscriptionName: subscription.name,
+    currency: subscription.currency,
+    cycleMonth,
+    dueDate: currentCycle.dueDate,
+    statementDate: currentCycle.statementDate,
+    statementTotal: currentCycle.statementTotal,
+    paidAmount: currentCycle.paidAmount,
+    remainingBalance: currentCycle.remainingBalance,
+    status: currentCycle.status,
+    lastPaymentDate: currentCycle.lastPaymentDate,
+    processedMessageIds: currentCycle.processedMessageIds,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await cycleRef.set(sanitizeForFirestore(cycleRecord));
+
+  return subscription;
+}
+
+export async function updateSubscription(
+  id: string,
+  data: Partial<Subscription>,
+): Promise<Subscription> {
+  const { db } = getFirebaseAdmin();
+  const docRef = db.collection("subscriptions").doc(id);
+
+  const existing = await getSubscription(id);
+  if (!existing) {
+    throw new Error(`Subscription with ID ${id} not found.`);
+  }
+
+  const updated: Subscription = {
+    ...existing,
+    ...data,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const sanitized = sanitizeForFirestore(updated);
+  await docRef.update(sanitized);
+
+  return updated;
+}
+
+export async function deleteSubscription(id: string): Promise<void> {
+  const { db } = getFirebaseAdmin();
+  await db.collection("subscriptions").doc(id).delete();
+
+  // Delete all sub-cycles associated with this subscription
+  const cyclesSnap = await db
+    .collection("subscription_cycles")
+    .where("subscriptionId", "==", id)
+    .get();
+
+  const batch = db.batch();
+  cyclesSnap.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
+}
+
+export async function listHistoricalCycles(subscriptionId: string): Promise<HistoricalCycle[]> {
+  const { db } = getFirebaseAdmin();
+  const subscription = await getSubscription(subscriptionId);
+  const snap = await db
+    .collection("subscription_cycles")
+    .where("subscriptionId", "==", subscriptionId)
+    .get();
+
+  const isPrepaidSub =
+    subscription?.isPrepaid ||
+    subscription?.category === "Entertainment" ||
+    (!subscription?.dueDayOfMonth &&
+      subscription?.billingType === "BILL_GENERATED" &&
+      !subscription?.emailConfig?.paymentQuery);
+
+  const list: HistoricalCycle[] = [];
+  snap.forEach((doc) => {
+    const data = doc.data() as Omit<HistoricalCycle, "id">;
+    let paidAmount = data.paidAmount || 0;
+    let statementTotal = data.statementTotal || 0;
+    let remainingBalance = data.remainingBalance;
+    let status = data.status;
+
+    // For prepaid subscriptions where the invoice email is also the payment confirmation:
+    if (isPrepaidSub && paidAmount === 0 && statementTotal > 0) {
+      paidAmount = statementTotal;
+      remainingBalance = 0;
+      status = "FULLY_PAID";
+    }
+
+    list.push({
+      id: doc.id,
+      ...data,
+      dueDate: isPrepaidSub ? undefined : data.dueDate,
+      paidAmount,
+      statementTotal,
+      remainingBalance,
+      status,
+    });
+  });
+
+  return list.sort((a, b) => b.cycleMonth.localeCompare(a.cycleMonth));
+}
+
+export async function overrideCycleState(
+  subscriptionId: string,
+  updates: Partial<CycleState>,
+): Promise<Subscription> {
+  const { db } = getFirebaseAdmin();
+  const subscription = await getSubscription(subscriptionId);
+  if (!subscription) {
+    throw new Error(`Subscription with ID ${subscriptionId} not found.`);
+  }
+
+  const current = subscription.currentCycle;
+  const now = new Date().toISOString();
+
+  const total = updates.statementTotal ?? current.statementTotal ?? subscription.defaultAmount ?? 0;
+  const paid = updates.paidAmount ?? current.paidAmount ?? 0;
+  const remaining = updates.remainingBalance ?? Math.max(0, Math.round((total - paid) * 100) / 100);
+
+  let status = updates.status || current.status;
+  if (!updates.status) {
+    if (total > 0 && paid >= total) status = "FULLY_PAID";
+    else if (paid > 0) status = "PARTIALLY_PAID";
+    else status = "UNPAID";
+  }
+
+  const mergedCycle: CycleState = {
+    ...current,
+    ...updates,
+    statementTotal: total,
+    paidAmount: paid,
+    remainingBalance: remaining,
+    status,
+    updatedAt: now,
+  };
+
+  const updatedSub = await updateSubscription(subscriptionId, {
+    currentCycle: mergedCycle,
+  });
+
+  const cycleDocId = `${subscriptionId}_${mergedCycle.cycleMonth}`;
+  const cycleRef = db.collection("subscription_cycles").doc(cycleDocId);
+  await cycleRef.set(
+    sanitizeForFirestore({
+      ...mergedCycle,
+      id: cycleDocId,
+      subscriptionId,
+      subscriptionName: subscription.name,
+      currency: subscription.currency,
+      updatedAt: now,
+    }),
+    { merge: true },
+  );
+
+  return updatedSub;
+}
+
+export { overrideCycleState as overrideSubscriptionCycle };

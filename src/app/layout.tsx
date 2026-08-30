@@ -1,20 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "Track Everything AI",
-  description: "AI-assisted personal finance and life tracking.",
+  title: "Track Everything AI - Finance & Subscriptions",
+  description: "Personal finance, credit card statements, and automated subscription tracker.",
 };
 
 export default function RootLayout({
@@ -23,11 +13,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className="h-full antialiased dark">
+      <body className="min-h-full flex flex-col font-sans bg-slate-950 text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }
