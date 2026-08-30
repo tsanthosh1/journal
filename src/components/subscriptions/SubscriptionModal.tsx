@@ -293,11 +293,6 @@ export function SubscriptionModal({
       return;
     }
 
-    if (statementSource === "MANUAL" && (!defaultAmount || defaultAmount <= 0)) {
-      setErrorMessage("Please enter an estimated or default amount (₹) since no statement email is being synced.");
-      return;
-    }
-
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -515,13 +510,13 @@ export function SubscriptionModal({
                 <label className="block text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400">
                   {statementSource === "EMAIL"
                     ? "Estimated Amount (₹) (Optional)"
-                    : "Amount per Cycle (₹) *"}
+                    : "Amount per Cycle (₹) (Optional)"}
                 </label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="0.00"
+                  placeholder="0.00 (Optional if variable)"
                   value={defaultAmount || ""}
                   onChange={(e) => setDefaultAmount(parseFloat(e.target.value) || 0)}
                   className="mt-1 w-full min-h-[42px] rounded-xl border border-white/10 bg-slate-800 px-3.5 py-2 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none"
@@ -529,7 +524,7 @@ export function SubscriptionModal({
                 <span className="text-[10px] text-slate-400 mt-1 block">
                   {statementSource === "EMAIL"
                     ? "Updated automatically when bill/invoice email is synced."
-                    : "Fixed or default installment amount expected each cycle."}
+                    : "Default or estimated installment. Leave blank if amount varies and resolves upon receipt."}
                 </span>
               </div>
 

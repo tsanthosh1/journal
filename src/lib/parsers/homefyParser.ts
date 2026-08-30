@@ -1,6 +1,20 @@
 import { IStatementParser } from "./base";
 import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
 
+function cleanHtmlAndQuotedPrintable(raw: string): string {
+  return raw
+    .replace(/=3D/g, "=")
+    .replace(/=\r?\n/g, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#\d+;/g, " ")
+    .replace(/=[0-9A-Fa-f]{2}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export class HomefyParser implements IStatementParser {
   id = "HomefyParser";
   name = "Homefy Community (Water & Maintenance)";
@@ -21,54 +35,59 @@ export class HomefyParser implements IStatementParser {
 
   parseStatement(content: string, subject = ""): ParsedStatement {
     const rawMatches: Record<string, string> = {};
-    const text = (content + " " + subject).replace(/\r\n/g, " ").replace(/\n/g, " ");
+    const text = cleanHtmlAndQuotedPrintable(content + " " + subject);
 
-    // Amount extraction:
-    // "Total Amount Received Rs 1200" or "Actual Amount: 1200" or "Amount(Rs) ... 1200"
+    // 1. Amount Extraction (Prioritize Total Amount Received / Actual Amount)
     let statementTotal: number | undefined;
-    const amountMatch =
-      text.match(/Total\s*Amount\s*(?:Received|Due|Billed)?\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i) ||
-      text.match(/Actual\s*Amount[:\s]*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i) ||
-      text.match(/(?:Water\s*Bill|Maintenance).*?(\d{2,6})/i);
+    const totalReceivedMatch = text.match(/Total\s*Amount\s*(?:Received|Due|Billed)?\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+    const actualAmountMatch = text.match(/Actual\s*Amount[:\s]*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+    const waterRowMatch = text.match(/(?:Water\s*Bill|Maintenance)\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*([A-Za-z0-9-]+)\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*([\d,]+(?:\.\d{1,2})?)/i);
 
-    if (amountMatch && amountMatch[1]) {
-      const parsed = parseFloat(amountMatch[1].replace(/,/g, ""));
-      if (!isNaN(parsed) && parsed > 0) {
-        statementTotal = parsed;
-        rawMatches.statementTotal = amountMatch[0];
-      }
+    if (totalReceivedMatch && totalReceivedMatch[1]) {
+      statementTotal = parseFloat(totalReceivedMatch[1].replace(/,/g, ""));
+      rawMatches.statementTotal = totalReceivedMatch[0];
+    } else if (actualAmountMatch && actualAmountMatch[1]) {
+      statementTotal = parseFloat(actualAmountMatch[1].replace(/,/g, ""));
+      rawMatches.statementTotal = actualAmountMatch[0];
+    } else if (waterRowMatch && waterRowMatch[4]) {
+      statementTotal = parseFloat(waterRowMatch[4].replace(/,/g, ""));
+      rawMatches.statementTotal = waterRowMatch[0];
     }
 
-    // Due Date extraction: "Due on: 09-08-2026" or "Due on ... 09-08-2026"
+    // 2. Due Date
     let dueDate: string | undefined;
-    const dueMatch =
-      text.match(/Due\s*(?:on|Date)?[:\s]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i) ||
-      text.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/);
-
+    const dueMatch = text.match(/Due\s*on[:\s]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i);
     if (dueMatch && dueMatch[1]) {
       dueDate = parseDateToIso(dueMatch[1]) || undefined;
       if (dueDate) rawMatches.dueDate = dueMatch[0];
+    } else if (waterRowMatch && waterRowMatch[3]) {
+      dueDate = parseDateToIso(waterRowMatch[3]) || undefined;
+      if (dueDate) rawMatches.dueDate = waterRowMatch[0];
     }
 
-    // Statement / Created on Date: "Created on: 02-08-2026"
+    // 3. Statement / Created on Date
     let statementDate: string | undefined;
-    const createdMatch = text.match(/Created\s*(?:on|Date)?[:\s]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i);
+    const createdMatch = text.match(/Created\s*on[:\s]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i);
     if (createdMatch && createdMatch[1]) {
       statementDate = parseDateToIso(createdMatch[1]) || undefined;
       if (statementDate) rawMatches.statementDate = createdMatch[0];
+    } else if (waterRowMatch && waterRowMatch[1]) {
+      statementDate = parseDateToIso(waterRowMatch[1]) || undefined;
+      if (statementDate) rawMatches.statementDate = waterRowMatch[0];
     }
 
-    // Bill Number: "Bill No. BI-STO-1273" or "Receipt Number: REC-BI-STO-1273"
+    // 4. Bill Number / Receipt Number
     let billNo: string | undefined;
-    const billMatch =
-      text.match(/Bill\s*No\.?[:\s]*([a-zA-Z0-9-]+)/i) ||
-      text.match(/Receipt\s*Number[:\s]*([a-zA-Z0-9-]+)/i);
-    if (billMatch && billMatch[1]) {
-      billNo = billMatch[1];
-      rawMatches.billNo = billMatch[0];
+    const receiptNoMatch = text.match(/Receipt\s*Number[:\s]*([A-Za-z0-9-]+)/i);
+    if (receiptNoMatch && receiptNoMatch[1]) {
+      billNo = receiptNoMatch[1];
+      rawMatches.billNo = receiptNoMatch[0];
+    } else if (waterRowMatch && waterRowMatch[2]) {
+      billNo = waterRowMatch[2];
+      rawMatches.billNo = waterRowMatch[0];
     }
 
-    if (statementTotal === undefined) {
+    if (statementTotal === undefined || isNaN(statementTotal) || statementTotal <= 0) {
       return {
         success: false,
         error: "Could not extract Homefy statement amount.",
@@ -88,24 +107,26 @@ export class HomefyParser implements IStatementParser {
 
   parsePayment(content: string, subject = ""): ParsedPayment {
     const rawMatches: Record<string, string> = {};
-    const text = (content + " " + subject).replace(/\r\n/g, " ").replace(/\n/g, " ");
+    const text = cleanHtmlAndQuotedPrintable(content + " " + subject);
 
-    // Amount Paid: "Total Amount Received Rs 1200" or "Actual Amount: 1200"
+    // 1. Amount Paid
     let paidAmount: number | undefined;
-    const amountMatch =
-      text.match(/Total\s*Amount\s*Received\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i) ||
-      text.match(/Actual\s*Amount[:\s]*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i) ||
-      text.match(/Amount\(Rs\).*?(\d{2,6})/i);
+    const totalReceivedMatch = text.match(/Total\s*Amount\s*Received\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+    const actualAmountMatch = text.match(/Actual\s*Amount[:\s]*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+    const waterRowMatch = text.match(/(?:Water\s*Bill|Maintenance)\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*([A-Za-z0-9-]+)\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*([\d,]+(?:\.\d{1,2})?)/i);
 
-    if (amountMatch && amountMatch[1]) {
-      const parsed = parseFloat(amountMatch[1].replace(/,/g, ""));
-      if (!isNaN(parsed) && parsed > 0) {
-        paidAmount = parsed;
-        rawMatches.paidAmount = amountMatch[0];
-      }
+    if (totalReceivedMatch && totalReceivedMatch[1]) {
+      paidAmount = parseFloat(totalReceivedMatch[1].replace(/,/g, ""));
+      rawMatches.paidAmount = totalReceivedMatch[0];
+    } else if (actualAmountMatch && actualAmountMatch[1]) {
+      paidAmount = parseFloat(actualAmountMatch[1].replace(/,/g, ""));
+      rawMatches.paidAmount = actualAmountMatch[0];
+    } else if (waterRowMatch && waterRowMatch[4]) {
+      paidAmount = parseFloat(waterRowMatch[4].replace(/,/g, ""));
+      rawMatches.paidAmount = waterRowMatch[0];
     }
 
-    // Payment / Receipt Date: "Receipt Date: 17-08-2026"
+    // 2. Payment / Receipt Date
     let paymentDate: string | undefined;
     const receiptDateMatch = text.match(/Receipt\s*Date[:\s]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i);
     if (receiptDateMatch && receiptDateMatch[1]) {
@@ -113,15 +134,15 @@ export class HomefyParser implements IStatementParser {
       if (paymentDate) rawMatches.paymentDate = receiptDateMatch[0];
     }
 
-    // Transaction ID: "Transaction ID: 312680429963"
+    // 3. Transaction ID
     let txnId: string | undefined;
-    const txnMatch = text.match(/Transaction\s*ID[:\s]*([a-zA-Z0-9]+)/i);
+    const txnMatch = text.match(/Transaction\s*ID[:\s]*([A-Za-z0-9]+)/i);
     if (txnMatch && txnMatch[1]) {
       txnId = txnMatch[1];
       rawMatches.transactionId = txnMatch[0];
     }
 
-    if (paidAmount === undefined) {
+    if (paidAmount === undefined || isNaN(paidAmount) || paidAmount <= 0) {
       return {
         success: false,
         error: "Could not extract Homefy receipt amount.",
@@ -149,7 +170,6 @@ function parseDateToIso(dateStr: string): string | null {
     if (day.length === 1) day = "0" + day;
     if (month.length === 1) month = "0" + month;
 
-    // Check if format is YYYY-MM-DD or DD-MM-YYYY
     if (parts[0].length === 4) {
       return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
     }
