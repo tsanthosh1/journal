@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     await saveGmailTokens(targetUserId, tokens);
 
-    // Create Firebase Auth custom token if possible so user is automatically signed into Firebase Auth client
+    // Create Firebase Auth custom token if possible
     try {
       if (tokens.email) {
         const { auth: adminAuth } = getFirebaseAdmin();
@@ -67,9 +67,6 @@ export async function GET(request: NextRequest) {
       console.warn("Could not generate Firebase custom token:", adminErr);
     }
 
-    if (tokens.email) {
-      baseRedirectUrl.searchParams.set("email", tokens.email);
-    }
     baseRedirectUrl.searchParams.set("auth", "success");
     return NextResponse.redirect(baseRedirectUrl);
   } catch (err) {
