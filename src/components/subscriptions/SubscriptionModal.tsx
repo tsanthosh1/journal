@@ -258,6 +258,13 @@ export function SubscriptionModal({
     } else if (presetId === "SBI_DIRECT") {
       setPaymentQuery('from:feedback@sbicard.com subject:"Payment Confirmation"');
       setImageUrl("https://logo.clearbit.com/sbicard.com");
+    } else if (presetId === "HOMEFY_WATER") {
+      setPaymentQuery('from:contact@homefy.co.in subject:"bill/receipt"');
+      setCategory("Utilities");
+      setDueDayOfMonth(9);
+      setDefaultAmount((curr) => curr || 1200);
+      setName((curr) => curr || "Apartment Water Bill (Homefy)");
+      setImageUrl("https://logo.clearbit.com/homefy.co.in");
     } else if (presetId === "UTILITY_RECEIPT") {
       setPaymentQuery('from:(airtel OR jio OR bescom OR electricity) subject:("Receipt" OR "Payment")');
     }
@@ -933,6 +940,7 @@ export function SubscriptionModal({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
                   {[
+                    { id: "HOMEFY_WATER", label: "🏠 Homefy Water Bill" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
                     { id: "TANISHQ_GOLD", label: "Tanishq Golden Harvest" },
                     { id: "AMAZON_PAY", label: "Amazon Pay" },

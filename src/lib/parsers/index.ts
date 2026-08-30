@@ -7,6 +7,7 @@ import { ICICICardParser } from "./iciciParser";
 import { SBICardParser } from "./sbiParser";
 import { UPIPaymentParser } from "./upiParser";
 import { UniversalAutoParser } from "./universalParser";
+import { HomefyParser } from "./homefyParser";
 
 export * from "./base";
 export * from "./axisParser";
@@ -16,9 +17,11 @@ export * from "./iciciParser";
 export * from "./sbiParser";
 export * from "./upiParser";
 export * from "./universalParser";
+export * from "./homefyParser";
 
 export const BUILT_IN_PARSERS: Record<string, () => IStatementParser> = {
   UniversalAutoParser: () => new UniversalAutoParser(),
+  HomefyParser: () => new HomefyParser(),
   HDFCCardParser: () => new HDFCCardParser(),
   UPIPaymentParser: () => new UPIPaymentParser(),
   ICICICardParser: () => new ICICICardParser(),
