@@ -72,6 +72,38 @@ export function HistoricalCyclesModal({
       subscription.billingType === "BILL_GENERATED" &&
       !subscription.emailConfig?.paymentQuery);
 
+  const handleTriggerSmsReconciliation = async () => {
+    setIsScanningHistorical(true);
+    setScanResultNotice(null);
+
+    try {
+      const qUserId = user?.email || user?.uid || userId;
+      if (!qUserId) return;
+      const res = await fetch("/api/sync/sms/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: qUserId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "SMS reconciliation failed");
+      }
+
+      setScanResultNotice(
+        `✅ SMS Reconciliation completed: ${data.summaryText || "Reconciled all matching loan debits across past cycles."}`,
+      );
+
+      await fetchCycles();
+      if (onCyclesUpdated) onCyclesUpdated();
+      if (onRefreshSubscription) onRefreshSubscription();
+    } catch (err) {
+      setScanResultNotice(`⚠️ SMS Reconciliation Error: ${(err as Error).message}`);
+    } finally {
+      setIsScanningHistorical(false);
+    }
+  };
+
   const handleTriggerHistoricalScan = async () => {
     setIsScanningHistorical(true);
     setScanResultNotice(null);
@@ -119,6 +151,13 @@ export function HistoricalCyclesModal({
     : cycles.reduce((sum, c) => sum + (c.remainingBalance || 0), 0);
   const avgMonthly = cycles.length > 0 ? Math.round(totalBilled / cycles.length) : 0;
 
+  const isLoanOrSmsSub =
+    subscription.source === "SMS_AUTOMATED" ||
+    subscription.category === "Loans & EMIs" ||
+    subscription.name.toLowerCase().includes("loan") ||
+    subscription.name.toLowerCase().includes("emi") ||
+    Boolean(subscription.smsConfig?.enabled);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 backdrop-blur-sm">
       <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-white/15 bg-slate-900 shadow-2xl">
@@ -149,7 +188,7 @@ export function HistoricalCyclesModal({
               <p className="text-xs text-slate-400 mt-0.5">
                 {isPrepaidSub
                   ? "Prepaid service: Invoices are settled immediately upon arrival. Each record is confirmed as paid."
-                  : "Multi-month statement dues reconciled against automated Gmail payment confirmations."}
+                  : "Multi-month statement dues reconciled against automated payment confirmations."}
               </p>
             </div>
           </div>
@@ -167,7 +206,37 @@ export function HistoricalCyclesModal({
         {/* Body Container */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5 flex-1">
           {/* Deep Scan Trigger Card */}
-          {subscription.source === "EMAIL_AUTOMATED" && (
+          {isLoanOrSmsSub ? (
+            <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 to-slate-900/90 p-4 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 block">
+                  Reconcile Stored Loan Debits & SMS History
+                </span>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Evaluate all historical bank SMS against this loan commitment and backfill past monthly payments.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={isScanningHistorical}
+                onClick={handleTriggerSmsReconciliation}
+                className="min-h-[36px] flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-md hover:bg-emerald-400 disabled:opacity-50 transition cursor-pointer self-end sm:self-auto shrink-0"
+              >
+                {isScanningHistorical ? (
+                  <>
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-950 border-r-transparent" />
+                    <span>Reconciling...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>💬</span>
+                    <span>Reconcile Past Loan SMS</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : subscription.source === "EMAIL_AUTOMATED" ? (
             <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 to-slate-900/90 p-4 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 block">
@@ -213,7 +282,7 @@ export function HistoricalCyclesModal({
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Scan Notice */}
           {scanResultNotice && (

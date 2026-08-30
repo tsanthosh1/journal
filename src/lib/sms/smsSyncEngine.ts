@@ -56,7 +56,12 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
   }));
 
   const smsSubscriptions = subscriptions.filter(
-    (s) => s.source === "SMS_AUTOMATED" || s.smsConfig?.enabled,
+    (s) =>
+      s.source === "SMS_AUTOMATED" ||
+      s.smsConfig?.enabled ||
+      s.category === "Loans & EMIs" ||
+      s.name.toLowerCase().includes("loan") ||
+      s.name.toLowerCase().includes("emi"),
   );
 
   let matchedSmsCount = 0;
@@ -66,8 +71,38 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
   for (const sub of smsSubscriptions) {
     let subModified = false;
     const config = sub.smsConfig;
-    const senderQuery = config?.senderQuery?.toLowerCase().trim() || "";
-    const filterKeywords = config?.filterKeywords || ["loan", "emi", "recovery"];
+    let senderQuery = config?.senderQuery?.toLowerCase().trim() || "";
+
+    // Auto-infer bank sender from name if not explicitly configured
+    if (!senderQuery) {
+      const subNameLower = sub.name.toLowerCase();
+      if (subNameLower.includes("boi") || subNameLower.includes("bank of india")) {
+        senderQuery = "boi";
+      } else if (subNameLower.includes("hdfc")) {
+        senderQuery = "hdfc";
+      } else if (subNameLower.includes("sbi")) {
+        senderQuery = "sbi";
+      } else if (subNameLower.includes("icici")) {
+        senderQuery = "icici";
+      } else if (subNameLower.includes("canara") || subNameLower.includes("canbnk")) {
+        senderQuery = "can";
+      } else if (subNameLower.includes("axis")) {
+        senderQuery = "axis";
+      } else if (subNameLower.includes("kotak")) {
+        senderQuery = "kotak";
+      } else if (subNameLower.includes("bajaj")) {
+        senderQuery = "bajaj";
+      }
+    }
+
+    const filterKeywords = config?.filterKeywords || [
+      "loan",
+      "emi",
+      "recovery",
+      "loan rec",
+      "debited(trf)",
+      "debited",
+    ];
     const loanDigits = config?.accountOrLoanDigits?.trim() || "";
 
     // Find SMS that matches this subscription
@@ -75,8 +110,8 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
       const sender = sms.sender.toLowerCase();
       const body = sms.body.toLowerCase();
 
-      // Check sender match if senderQuery is defined
-      if (senderQuery && !sender.includes(senderQuery)) {
+      // Check sender match if senderQuery is defined (or in body prefix like "BOI -")
+      if (senderQuery && !sender.includes(senderQuery) && !body.includes(`${senderQuery} -`) && !body.includes(`${senderQuery}:`)) {
         return false;
       }
 
