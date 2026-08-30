@@ -96,28 +96,33 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
     }
 
     const filterKeywords = config?.filterKeywords || [
+      "loan rec",
+      "loan recovery",
+      "loan a/c",
       "loan",
       "emi",
-      "recovery",
-      "loan rec",
-      "debited(trf)",
-      "debited",
+      "ln recovery",
+      "nach",
+      "ecs",
+      "auto-debit",
     ];
     const loanDigits = config?.accountOrLoanDigits?.trim() || "";
 
     // Find SMS that matches this subscription
-    const matchingSms = smsRecords.filter((sms) => {
+    const matchingSms: { sms: RawSmsRecord; parsed: ReturnType<typeof parseLoanSms> }[] = [];
+
+    for (const sms of smsRecords) {
       const sender = sms.sender.toLowerCase();
       const body = sms.body.toLowerCase();
 
       // Check sender match if senderQuery is defined (or in body prefix like "BOI -")
       if (senderQuery && !sender.includes(senderQuery) && !body.includes(`${senderQuery} -`) && !body.includes(`${senderQuery}:`)) {
-        return false;
+        continue;
       }
 
       // Check loan account digits if defined
       if (loanDigits && !body.includes(loanDigits)) {
-        return false;
+        continue;
       }
 
       // Check keywords
@@ -125,24 +130,29 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
         body.includes(kw.toLowerCase().trim()),
       );
 
-      return hasKeyword;
-    });
+      if (!hasKeyword) continue;
+
+      // Deterministic loan SMS parser validation
+      const parsed = parseLoanSms(sms.body, sms.sender, sms.timestamp);
+      if (!parsed.isMatch || !parsed.amount || !parsed.cycleMonth) {
+        continue;
+      }
+
+      matchingSms.push({ sms, parsed });
+    }
 
     if (matchingSms.length === 0) continue;
 
     // Group matching SMS by cycle month YYYY-MM
     const cyclesMap = new Map<string, { sms: RawSmsRecord; parsed: ReturnType<typeof parseLoanSms> }[]>();
 
-    for (const sms of matchingSms) {
-      const parsed = parseLoanSms(sms.body, sms.sender, sms.timestamp);
-      if (!parsed.isMatch || !parsed.amount || !parsed.cycleMonth) continue;
-
+    for (const item of matchingSms) {
       matchedSmsCount++;
-      const month = parsed.cycleMonth;
+      const month = item.parsed.cycleMonth!;
       if (!cyclesMap.has(month)) {
         cyclesMap.set(month, []);
       }
-      cyclesMap.get(month)!.push({ sms, parsed });
+      cyclesMap.get(month)!.push(item);
     }
 
     // Process each cycle month

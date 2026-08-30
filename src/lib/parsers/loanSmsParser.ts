@@ -69,12 +69,48 @@ export function parseLoanSms(
   const body = smsBody.replace(/\r\n/g, " ").replace(/\n/g, " ").trim();
   const lower = body.toLowerCase();
 
-  // Check if this looks like a loan or EMI debit
+  // Exclude non-loan funds transfers (e.g. "To RTGS ...", "To NEFT ...", "To UPI ...", "ATM WDL")
+  // unless explicitly marked as a loan recovery (e.g. "Loan Rec")
+  const isGenericTransfer =
+    (lower.includes("to rtgs") ||
+      lower.includes("to neft") ||
+      lower.includes("to upi") ||
+      lower.includes("upi/") ||
+      lower.includes("atm wdl") ||
+      lower.includes("pos ")) &&
+    !lower.includes("loan rec") &&
+    !lower.includes("loan recovery") &&
+    !lower.includes("loan a/c") &&
+    !lower.includes("home loan");
+
+  if (isGenericTransfer) {
+    return {
+      isMatch: false,
+      amount: null,
+      date: null,
+      cycleMonth: null,
+      loanAccount: null,
+      debitAccount: null,
+      referenceId: null,
+      bankName: detectBankFromSender(sender, body),
+      isDebit: false,
+      rawText: body,
+    };
+  }
+
+  // Check for explicit loan recovery, loan debit, or EMI keywords
   const isLoanOrEmi =
-    lower.includes("loan") ||
-    lower.includes("emi") ||
-    lower.includes("recovery") ||
     lower.includes("loan rec") ||
+    lower.includes("loan recovery") ||
+    lower.includes("loan a/c") ||
+    lower.includes("home loan") ||
+    lower.includes("ln rec") ||
+    lower.includes("ln recovery") ||
+    lower.includes("transferred to loan") ||
+    lower.includes("towards loan") ||
+    lower.includes("towards emi") ||
+    lower.includes("loan account") ||
+    lower.includes("emi") ||
     lower.includes("nach") ||
     lower.includes("ecs") ||
     lower.includes("auto-debit") ||
@@ -89,12 +125,6 @@ export function parseLoanSms(
     lower.includes("debited(trf)");
 
   // 1. Amount Extraction
-  // Patterns:
-  // Rs 34550.21 Debited
-  // INR 38,450.00 debited
-  // Rs. 42,100.00
-  // debited by Rs.28,500.00
-  // with INR 35,000.00
   let amount: number | null = null;
   const amountPatterns = [
     /(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:has been debited|debited\(trf\)|debited|deducted|paid|towards)/i,
@@ -115,7 +145,6 @@ export function parseLoanSms(
   }
 
   // 2. Date Extraction
-  // Patterns: "on 07-07-2026", "on 05-AUG-26", "on 05/08/2026", "on 10Aug26", "on 2026-08-05"
   let extractedDate: string | null = null;
   const datePatterns = [
     /on\s*(\d{1,2}[-/](?:[a-zA-Z]{3}|\d{1,2})[-/]\d{2,4})/i,
@@ -148,11 +177,6 @@ export function parseLoanSms(
   const cycleMonth = extractedDate ? extractedDate.slice(0, 7) : null;
 
   // 3. Loan Account Extraction
-  // Patterns:
-  // "Loan Rec/2575510000033/SANTHOS" -> "2575510000033"
-  // "Home Loan A/C **7890" -> "7890"
-  // "Loan A/c 50100492819" -> "50100492819"
-  // "LOAN A/C 38291048201" -> "38291048201"
   let loanAccount: string | null = null;
   const loanPatterns = [
     /(?:Loan\s*Rec(?:overy)?|LN\s*REC)[/:\s]+([a-zA-Z0-9]+)/i,
@@ -195,7 +219,8 @@ export function parseLoanSms(
 
   const bankName = detectBankFromSender(sender, body);
 
-  const isMatch = (isLoanOrEmi || isDebit) && amount !== null;
+  // Both isLoanOrEmi AND isDebit MUST be true, along with a valid parsed amount!
+  const isMatch = isLoanOrEmi && isDebit && amount !== null;
 
   return {
     isMatch,
