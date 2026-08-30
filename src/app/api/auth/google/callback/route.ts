@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeCodeForTokens, saveGmailTokens } from "@/lib/gmail/oauth";
+import {
+  exchangeCodeForTokens,
+  getRequestOrigin,
+  saveGmailTokens,
+} from "@/lib/gmail/oauth";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -20,7 +24,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const baseRedirectUrl = new URL(returnTo, request.url);
+  const origin = getRequestOrigin(request);
+  const baseRedirectUrl = new URL(returnTo, origin);
 
   if (error) {
     baseRedirectUrl.searchParams.set("auth_error", error);
@@ -33,7 +38,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const origin = request.nextUrl.origin || new URL(request.url).origin;
     const tokens = await exchangeCodeForTokens(code, origin);
     await saveGmailTokens(userId, tokens);
 

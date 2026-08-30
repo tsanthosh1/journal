@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getGoogleAuthUrl } from "@/lib/gmail/oauth";
+import { getGoogleAuthUrl, getRequestOrigin } from "@/lib/gmail/oauth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       JSON.stringify({ userId, returnTo }),
     ).toString("base64url");
 
-    const origin = request.nextUrl.origin || new URL(request.url).origin;
+    const origin = getRequestOrigin(request);
     const authUrl = getGoogleAuthUrl(statePayload, origin);
     return NextResponse.redirect(authUrl);
   } catch (error) {

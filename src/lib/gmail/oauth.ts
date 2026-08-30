@@ -6,6 +6,39 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const GMAIL_READONLY_SCOPE =
   "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email openid";
 
+export function resolveBaseUrl(customOrigin?: string): string {
+  if (
+    customOrigin &&
+    !customOrigin.includes("0.0.0.0") &&
+    !customOrigin.includes("localhost:8080")
+  ) {
+    return customOrigin;
+  }
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://track-everything-ai.web.app";
+  }
+  return "http://localhost:3000";
+}
+
+export function getRequestOrigin(request: Request): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const host = forwardedHost || request.headers.get("host") || "";
+
+  if (
+    host &&
+    !host.startsWith("0.0.0.0") &&
+    !host.includes("localhost:8080")
+  ) {
+    return `${forwardedProto}://${host}`;
+  }
+
+  return resolveBaseUrl();
+}
+
 export function getGoogleOAuthCredentials(customOrigin?: string) {
   const clientId =
     process.env.GOOGLE_CLIENT_ID ??
@@ -13,12 +46,7 @@ export function getGoogleOAuthCredentials(customOrigin?: string) {
     "";
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
 
-  const baseUrl =
-    customOrigin ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.NODE_ENV === "production"
-      ? "https://track-everything-ai.web.app"
-      : "http://localhost:3000");
+  const baseUrl = resolveBaseUrl(customOrigin);
 
   const redirectUri =
     process.env.GOOGLE_REDIRECT_URI ??
