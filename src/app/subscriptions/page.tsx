@@ -422,22 +422,6 @@ function SubscriptionsPageContent() {
           </div>
         </div>
 
-        {/* Gmail & SMS Sync Status Banner */}
-        <GmailSyncBanner
-          isLoading={isAuthLoading}
-          isConnected={isGmailSynced}
-          lastSyncAt={lastSyncAt}
-          userEmail={userEmail}
-          isSyncing={isSyncing}
-          isHistoricalSyncing={isHistoricalSyncing}
-          isSmsSyncing={isSmsSyncing}
-          onTriggerSync={handleTriggerSync}
-          onTriggerHistoricalSync={handleTriggerDeepHistoricalSync}
-          onTriggerSmsSync={handleTriggerSmsSync}
-          onConnect={() => signInWithGoogle("/subscriptions")}
-          onDisconnect={signOut}
-        />
-
         {/* If loading initial data, render full glassmorphic shimmer skeleton */}
         {isAuthLoading || isLoading ? (
           <SubscriptionsSkeleton />
@@ -460,9 +444,6 @@ function SubscriptionsPageContent() {
           />
         ) : (
           <>
-            {/* Financial Summary Aggregator Cards */}
-            <FinancialSummaryCards subscriptions={subscriptions} />
-
             {/* View Switcher: Action Hub vs Subscriptions List vs Outflows Timeline vs Split */}
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto">
@@ -471,7 +452,7 @@ function SubscriptionsPageContent() {
                   onClick={() => handleSwitchTab("action-hub")}
                   className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                     activeView === "action-hub"
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
@@ -482,7 +463,7 @@ function SubscriptionsPageContent() {
                   onClick={() => handleSwitchTab("subscriptions")}
                   className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                     activeView === "subscriptions"
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
@@ -493,7 +474,7 @@ function SubscriptionsPageContent() {
                   onClick={() => handleSwitchTab("timeline")}
                   className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                     activeView === "timeline"
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
@@ -504,7 +485,7 @@ function SubscriptionsPageContent() {
                   onClick={() => handleSwitchTab("split")}
                   className={`hidden lg:inline-flex min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                     activeView === "split"
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
@@ -517,7 +498,7 @@ function SubscriptionsPageContent() {
               </span>
             </div>
 
-            {/* Main View Area */}
+            {/* Main View Area (Primary Focus: Due This Month / All Commitments List) */}
             {activeView === "action-hub" ? (
               <CurrentMonthActionHub
                 subscriptions={subscriptions}
@@ -604,6 +585,39 @@ function SubscriptionsPageContent() {
                 onViewSourceEmail={handleOpenSourceEmailViewer}
               />
             )}
+
+            {/* Bottom Section: Summary & Automation Tools */}
+            <div className="mt-10 pt-8 border-t border-white/10 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+                    Financial Summary & Burn Rate
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Aggregated metrics and spending breakdown across active commitments.
+                  </p>
+                </div>
+              </div>
+
+              {/* Financial Summary Aggregator Cards */}
+              <FinancialSummaryCards subscriptions={subscriptions} />
+
+              {/* Gmail & SMS Sync Status Banner */}
+              <GmailSyncBanner
+                isLoading={isAuthLoading}
+                isConnected={isGmailSynced}
+                lastSyncAt={lastSyncAt}
+                userEmail={userEmail}
+                isSyncing={isSyncing}
+                isHistoricalSyncing={isHistoricalSyncing}
+                isSmsSyncing={isSmsSyncing}
+                onTriggerSync={handleTriggerSync}
+                onTriggerHistoricalSync={handleTriggerDeepHistoricalSync}
+                onTriggerSmsSync={handleTriggerSmsSync}
+                onConnect={() => signInWithGoogle("/subscriptions")}
+                onDisconnect={signOut}
+              />
+            </div>
           </>
         )}
       </main>

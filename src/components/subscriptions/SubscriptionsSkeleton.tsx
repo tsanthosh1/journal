@@ -5,29 +5,7 @@ import React from "react";
 export function SubscriptionsSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      {/* 1. Summary Cards Shimmer */}
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/5 bg-slate-900/60 p-4.5 sm:p-6 shadow-xl backdrop-blur-md"
-          >
-            <div className="flex items-center justify-between">
-              <div className="h-3 w-24 rounded bg-slate-800/80" />
-              <div className="h-8 w-8 rounded-xl bg-slate-800/80" />
-            </div>
-            <div className="mt-3 h-7 w-32 rounded-lg bg-slate-800/90" />
-            <div className="mt-2.5 flex items-center gap-2">
-              <div className="h-3 w-16 rounded bg-slate-800/60" />
-              <div className="h-3 w-20 rounded bg-slate-800/40" />
-            </div>
-            {/* Shimmer sweep effect */}
-            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/[0.04] to-transparent animate-[shimmer_2s_infinite]" />
-          </div>
-        ))}
-      </div>
-
-      {/* 2. Action Hub Header Banner Shimmer */}
+      {/* 1. Action Hub Header Banner Shimmer */}
       <div className="rounded-3xl border border-white/5 bg-slate-900/60 p-5 sm:p-6 backdrop-blur-md">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -51,7 +29,7 @@ export function SubscriptionsSkeleton() {
         </div>
       </div>
 
-      {/* 3. Cards Shimmer List */}
+      {/* 2. Cards Shimmer List */}
       <div className="space-y-3">
         {[1, 2, 3, 4].map((i) => (
           <div
@@ -96,6 +74,30 @@ export function SubscriptionsSkeleton() {
             <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/[0.03] to-transparent animate-[shimmer_2s_infinite]" />
           </div>
         ))}
+      </div>
+
+      {/* 3. Summary Cards Shimmer at Bottom */}
+      <div className="pt-6 border-t border-white/5 space-y-4">
+        <div className="h-4 w-44 rounded bg-slate-800/60" />
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/5 bg-slate-900/60 p-4.5 sm:p-6 shadow-xl backdrop-blur-md"
+            >
+              <div className="flex items-center justify-between">
+                <div className="h-3 w-24 rounded bg-slate-800/80" />
+                <div className="h-8 w-8 rounded-xl bg-slate-800/80" />
+              </div>
+              <div className="mt-3 h-7 w-32 rounded-lg bg-slate-800/90" />
+              <div className="mt-2.5 flex items-center gap-2">
+                <div className="h-3 w-16 rounded bg-slate-800/60" />
+                <div className="h-3 w-20 rounded bg-slate-800/40" />
+              </div>
+              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/[0.04] to-transparent animate-[shimmer_2s_infinite]" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
