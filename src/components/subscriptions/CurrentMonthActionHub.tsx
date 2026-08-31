@@ -45,15 +45,20 @@ export function CurrentMonthActionHub({
     let totalPaidAmount = 0;
 
     const prioritized: PrioritizedItem[] = subscriptions.map((sub) => {
-      const cycle = sub.currentCycle;
-      const isPaid = cycle.status === "FULLY_PAID";
-      const isSkipped = cycle.status === "SKIPPED" || cycle.status === "PAUSED";
-      const isPartiallyPaid = cycle.status === "PARTIALLY_PAID";
-      const isUnpaid = cycle.status === "UNPAID" || cycle.status === "MISMATCH_REVIEW";
+      const isPrepaid =
+        Boolean(sub.isPrepaid) ||
+        sub.category === "Entertainment" ||
+        (!sub.dueDayOfMonth &&
+          sub.billingType === "BILL_GENERATED" &&
+          !sub.emailConfig?.paymentQuery);
 
-      const total = cycle.statementTotal || sub.defaultAmount || 0;
-      const paid = cycle.paidAmount || 0;
-      const remaining = cycle.remainingBalance !== undefined ? cycle.remainingBalance : Math.max(0, total - paid);
+      const cycle = sub.currentCycle;
+      const total = (cycle.statementTotal && cycle.statementTotal > 0) ? cycle.statementTotal : (sub.defaultAmount || 0);
+      const paid = isPrepaid ? (cycle.paidAmount || total) : (cycle.paidAmount || 0);
+      const isPaid = isPrepaid || cycle.status === "FULLY_PAID" || (total > 0 && paid >= total);
+      const isSkipped = cycle.status === "SKIPPED" || cycle.status === "PAUSED";
+      const isPartiallyPaid = !isPrepaid && cycle.status === "PARTIALLY_PAID";
+      const remaining = isPaid || isSkipped ? 0 : (cycle.remainingBalance !== undefined ? cycle.remainingBalance : Math.max(0, total - paid));
 
       totalPaidAmount += paid;
       if (!isPaid && !isSkipped) {
@@ -61,8 +66,8 @@ export function CurrentMonthActionHub({
       }
 
       // Calculate Due date & difference
-      let dueDate = cycle.dueDate;
-      if (!dueDate && sub.dueDayOfMonth) {
+      let dueDate = isPrepaid ? undefined : cycle.dueDate;
+      if (!isPrepaid && !dueDate && sub.dueDayOfMonth) {
         const [yStr, mStr] = currentMonthStr.split("-");
         const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
         const validDay = Math.min(sub.dueDayOfMonth, maxDays);
