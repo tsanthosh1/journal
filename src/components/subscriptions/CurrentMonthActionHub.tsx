@@ -262,8 +262,8 @@ export function CurrentMonthActionHub({
         </div>
       </div>
 
-      {/* Action Item Cards */}
-      <div className="space-y-3">
+      {/* Action Item Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
         {filteredItems.map(({ subscription: sub, group, daysDiff, displayAmount, remainingAmount }) => {
           const isSettled = group === "SETTLED" || group === "SKIPPED";
           const isOverdue = group === "OVERDUE";
@@ -274,7 +274,7 @@ export function CurrentMonthActionHub({
             <div
               key={sub.id}
               onClick={() => onSelectSubscription(sub)}
-              className={`group relative rounded-2xl border p-4 sm:p-5 transition-all duration-200 cursor-pointer ${
+              className={`group relative flex flex-col justify-between rounded-2xl border p-4 sm:p-5 transition-all duration-200 cursor-pointer ${
                 isOverdue
                   ? "bg-rose-950/20 border-rose-500/40 hover:border-rose-500/60 hover:bg-rose-950/30 shadow-lg shadow-rose-950/20"
                   : isDueSoon

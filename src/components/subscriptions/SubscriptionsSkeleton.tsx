@@ -29,12 +29,12 @@ export function SubscriptionsSkeleton() {
         </div>
       </div>
 
-      {/* 2. Cards Shimmer List */}
-      <div className="space-y-3">
-        {[1, 2, 3, 4].map((i) => (
+      {/* 2. Cards Shimmer Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
           <div
             key={i}
-            className="relative overflow-hidden rounded-2xl border border-white/5 bg-slate-900/50 p-4 sm:p-5 shadow-lg backdrop-blur-md"
+            className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-slate-900/50 p-4 sm:p-5 shadow-lg backdrop-blur-md"
           >
             <div className="flex items-start justify-between gap-3">
               {/* Left: Avatar + Title */}
