@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 import {
   cleanCurrencyAmount,
   IStatementParser,
@@ -16,7 +16,17 @@ export class ICICICardParser implements IStatementParser {
   readonly samplePaymentQuery =
     'from:(no-reply@amazonpay.in OR alerts@icicibank.com) "credit card"';
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "cardLast4",
+      label: "Credit Card Last 4 Digits",
+      type: "text",
+      placeholder: "e.g. 5678",
+      description: "Optional: Only match statements or payments for this specific card",
+    },
+  ];
+
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
@@ -116,6 +126,13 @@ export class ICICICardParser implements IStatementParser {
       };
     }
 
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `ICICI statement is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
+      };
+    }
+
     return {
       success: true,
       statementTotal,
@@ -126,7 +143,7 @@ export class ICICICardParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
@@ -203,6 +220,13 @@ export class ICICICardParser implements IStatementParser {
         success: false,
         error: "Could not extract Payment Amount from ICICI / Amazon Pay payment email.",
         rawMatches: matches,
+      };
+    }
+
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `ICICI payment is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
       };
     }
 

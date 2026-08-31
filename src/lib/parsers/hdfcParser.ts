@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 import {
   cleanCurrencyAmount,
   IStatementParser,
@@ -8,7 +8,7 @@ import {
 
 export class HDFCCardParser implements IStatementParser {
   readonly id = "HDFCCardParser";
-  readonly name = "HDFC Bank Credit Card Parser";
+  readonly name = "HDFC Bank Credit Card & Payments";
   readonly description =
     "Extracts Total Amount Due, Due Date, Statement Date, and Payment confirmations (including UPI & NetBanking) for HDFC Bank.";
   readonly sampleStatementQuery =
@@ -16,7 +16,24 @@ export class HDFCCardParser implements IStatementParser {
   readonly samplePaymentQuery =
     'from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"';
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "cardLast4",
+      label: "Credit Card Last 4 Digits",
+      type: "text",
+      placeholder: "e.g. 6013",
+      description: "Optional: Only match statements or payments for this specific card",
+    },
+    {
+      key: "vpaFilter",
+      label: "UPI VPA / Beneficiary Handle",
+      type: "text",
+      placeholder: "e.g. gpay-creditcard@okpayaxis",
+      description: "Optional: Filter UPI debit alerts to this specific beneficiary VPA",
+    },
+  ];
+
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
 
@@ -93,6 +110,13 @@ export class HDFCCardParser implements IStatementParser {
       };
     }
 
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `HDFC card statement is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
+      };
+    }
+
     return {
       success: true,
       statementTotal,
@@ -103,7 +127,7 @@ export class HDFCCardParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
 
@@ -180,6 +204,20 @@ export class HDFCCardParser implements IStatementParser {
         success: false,
         error: "Could not extract Payment Amount from HDFC payment/UPI email.",
         rawMatches: matches,
+      };
+    }
+
+    if (config?.vpaFilter && !cleanText.toLowerCase().includes(config.vpaFilter.toLowerCase())) {
+      return {
+        success: false,
+        error: `HDFC payment did not match VPA filter "${config.vpaFilter}".`,
+      };
+    }
+
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `HDFC payment is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
       };
     }
 

@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 import {
   cleanCurrencyAmount,
   IStatementParser,
@@ -8,7 +8,7 @@ import {
 
 export class GenericUtilityParser implements IStatementParser {
   readonly id = "GenericUtilityParser";
-  readonly name = "Generic Utility, OTT & Bill Parser";
+  readonly name = "Generic Utility, Telecom & OTT Parser";
   readonly description =
     "Extracts Total Bill Amount, Due Date, and Payment confirmation receipts for electricity, broadband, OTT streaming (Airtel Xstream, Netflix, Prime), mobile, water, and insurance.";
   readonly sampleStatementQuery =
@@ -16,10 +16,27 @@ export class GenericUtilityParser implements IStatementParser {
   readonly samplePaymentQuery =
     'from:(airtel OR jio OR bescom OR electricity) subject:("Payment Successful" OR "Receipt" OR "Received" OR "Invoice Generated")';
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "billerKeyword",
+      label: "Biller / Provider Name Filter",
+      type: "text",
+      placeholder: "e.g. BESCOM, Jio, Netflix",
+      description: "Optional: Only match bills or receipts mentioning this keyword",
+    },
+  ];
+
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
+
+    if (config?.billerKeyword && !cleanText.toLowerCase().includes(config.billerKeyword.toLowerCase())) {
+      return {
+        success: false,
+        error: `Bill did not match biller keyword "${config.billerKeyword}".`,
+      };
+    }
 
     const amountRegexes = [
       /(?:subscription\s+of|subscription\s+amount|purchasing\s+a\s+subscription\s+of)\s*[:\-]?\s*(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
@@ -69,24 +86,35 @@ export class GenericUtilityParser implements IStatementParser {
     return {
       success: true,
       statementTotal,
-      dueDate,
+      dueDate: dueDate ?? new Date().toISOString().split("T")[0],
       referenceId: matches.rawReferenceId,
       rawMatches: matches,
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
 
-    const paymentAmountRegexes = [
-      /(?:subscription\s+of|purchasing\s+a\s+subscription\s+of|subscription\s+amount)\s*[:\-]?\s*(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /(?:Payment\s+of|Received\s+payment\s+of|Payment\s+received\s+of|Amount\s+paid|Paid\s+amount|Transaction\s+amount)\s*[:\-]?\s*(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /(?:Rs\.?|INR|₹|\$|€|£)\s*([0-9,]+(?:\.[0-9]{2})?)\s+(?:received\s+successfully|paid\s+successfully|has\s+been\s+received|debited)/i,
+    if (config?.billerKeyword && !cleanText.toLowerCase().includes(config.billerKeyword.toLowerCase())) {
+      return {
+        success: false,
+        error: `Receipt did not match biller keyword "${config.billerKeyword}".`,
+      };
+    }
+
+    // Direct Payment & Invoice Generation Receipt Regexes
+    const paymentRegexes = [
+      /received\s+(?:a\s+)?payment\s+of\s+(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /payment\s+of\s+(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)\s+(?:has\s+been\s+received|received|successful|completed)/i,
+      /paid\s+amount\s*[:\-]?\s*(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /amount\s+paid\s*[:\-]?\s*(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /(?:Rs\.?|INR|₹|\$|€|£)\s*([0-9,]+(?:\.[0-9]{2})?)\s+(?:has\s+been\s+paid|paid\s+successfully|debited)/i,
+      /invoice\s+(?:amount|total|value)\s*[:\-]?\s*(?:Rs\.?|INR|₹|\$|€|£)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
     ];
 
-    for (const rx of paymentAmountRegexes) {
+    for (const rx of paymentRegexes) {
       const match = cleanText.match(rx);
       if (match && match[1]) {
         matches.rawPaidAmount = match[1];
@@ -94,8 +122,10 @@ export class GenericUtilityParser implements IStatementParser {
       }
     }
 
+    // Payment Date
     const paymentDateRegexes = [
-      /(?:on|dated|at)\s+(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /(?:on|dated)\s+(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /payment\s+date\s*[:\-]?\s*(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
     ];
 
     for (const rx of paymentDateRegexes) {
@@ -106,8 +136,8 @@ export class GenericUtilityParser implements IStatementParser {
       }
     }
 
-    // Ref / Invoice ID
-    const refMatch = raw.match(/filename=([A-Za-z0-9_]+)\.pdf/i) || cleanText.match(/(?:Receipt\s*No\.?|Transaction\s*ID|Invoice\s*No\.?)\s*[:\-]?\s*([A-Za-z0-9_\-]+)/i);
+    // Transaction ID / Reference
+    const refMatch = cleanText.match(/(?:receipt|transaction|txn|order|reference|invoice)\s*(?:no\.?|id|number)?\s*[:\-]?\s*([A-Za-z0-9_\-]+)/i);
     if (refMatch && refMatch[1]) {
       matches.rawReferenceId = refMatch[1];
     }
@@ -118,7 +148,7 @@ export class GenericUtilityParser implements IStatementParser {
     if (paidAmount === undefined) {
       return {
         success: false,
-        error: "Could not extract Payment Amount from receipt email.",
+        error: "Could not extract Payment Amount from utility receipt email.",
         rawMatches: matches,
       };
     }
@@ -126,7 +156,7 @@ export class GenericUtilityParser implements IStatementParser {
     return {
       success: true,
       paidAmount,
-      paymentDate,
+      paymentDate: paymentDate ?? new Date().toISOString().split("T")[0],
       referenceId: matches.rawReferenceId,
       rawMatches: matches,
     };
@@ -138,11 +168,35 @@ export class GenericUtilityParser implements IStatementParser {
  */
 export class CustomRegexParser implements IStatementParser {
   readonly id = "CustomRegexParser";
-  readonly name = "Custom Regex Parser";
+  readonly name = "Custom Regex Pattern Parser";
   readonly description =
-    "Executes user-defined custom regex patterns for statement amounts, due dates, and payment amounts.";
-  readonly sampleStatementQuery = 'from:billing@provider.com subject:"Invoice"';
-  readonly samplePaymentQuery = 'from:billing@provider.com subject:"Payment"';
+    "Applies user-defined regular expressions to extract amounts and due dates directly from arbitrary email layouts.";
+  readonly sampleStatementQuery = "from:billing@example.com";
+  readonly samplePaymentQuery = "from:payments@example.com";
+
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "statementAmountPattern",
+      label: "Statement Amount Regex (with 1 capturing group)",
+      type: "text",
+      placeholder: 'e.g. Total Due:\\s*(?:Rs\\.?|₹)?\\s*([\\d,]+(?:\\.\\d{2})?)',
+      description: "Captures statement bill amount",
+    },
+    {
+      key: "statementDueDatePattern",
+      label: "Statement Due Date Regex (with 1 capturing group)",
+      type: "text",
+      placeholder: 'e.g. Due Date:\\s*(\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})',
+      description: "Captures payment due date",
+    },
+    {
+      key: "paymentAmountPattern",
+      label: "Payment Amount Regex (with 1 capturing group)",
+      type: "text",
+      placeholder: 'e.g. Paid amount:\\s*(?:Rs\\.?|₹)?\\s*([\\d,]+(?:\\.\\d{2})?)',
+      description: "Captures receipt paid amount",
+    },
+  ];
 
   customPatterns?: {
     statementAmountPattern?: string;
@@ -158,14 +212,17 @@ export class CustomRegexParser implements IStatementParser {
     this.customPatterns = customPatterns;
   }
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
 
-    if (this.customPatterns?.statementAmountPattern) {
+    const amountPattern = config?.statementAmountPattern || this.customPatterns?.statementAmountPattern;
+    const dueDatePattern = config?.statementDueDatePattern || this.customPatterns?.statementDueDatePattern;
+
+    if (amountPattern) {
       try {
-        const rx = new RegExp(this.customPatterns.statementAmountPattern, "i");
+        const rx = new RegExp(amountPattern, "i");
         const m = cleanText.match(rx);
         if (m && m[1]) matches.rawAmount = m[1];
       } catch {
@@ -173,9 +230,9 @@ export class CustomRegexParser implements IStatementParser {
       }
     }
 
-    if (this.customPatterns?.statementDueDatePattern) {
+    if (dueDatePattern) {
       try {
-        const rx = new RegExp(this.customPatterns.statementDueDatePattern, "i");
+        const rx = new RegExp(dueDatePattern, "i");
         const m = cleanText.match(rx);
         if (m && m[1]) matches.rawDueDate = m[1];
       } catch {
@@ -202,14 +259,16 @@ export class CustomRegexParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
 
-    if (this.customPatterns?.paymentAmountPattern) {
+    const payPattern = config?.paymentAmountPattern || this.customPatterns?.paymentAmountPattern;
+
+    if (payPattern) {
       try {
-        const rx = new RegExp(this.customPatterns.paymentAmountPattern, "i");
+        const rx = new RegExp(payPattern, "i");
         const m = cleanText.match(rx);
         if (m && m[1]) matches.rawPaidAmount = m[1];
       } catch {

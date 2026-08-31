@@ -1,5 +1,5 @@
 import { IStatementParser, parseFlexibleDate, stripHtmlAndCleanText } from "./base";
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 
 function decodeBase64IfPresent(raw: string): string {
   // If raw body contains base64 encoded text part
@@ -24,6 +24,16 @@ export class AirtelPostpaidParser implements IStatementParser {
   readonly sampleStatementQuery = 'subject:("New bill from Airtel Postpaid Mobile" OR "Airtel Mobile Postpaid" OR "Invoice Generated")';
   readonly samplePaymentQuery = 'from:update@airtel.com subject:("payment receipt" OR "Payment Confirmation")';
 
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "accountOrMobile",
+      label: "Mobile Number / Account No",
+      type: "text",
+      placeholder: "e.g. 9876543210",
+      description: "Optional: Only match bills or receipts mentioning this number",
+    },
+  ];
+
   canParse(from: string, subject: string, bodyText: string): boolean {
     const combined = `${from} ${subject} ${bodyText}`.toLowerCase();
     return (
@@ -35,7 +45,7 @@ export class AirtelPostpaidParser implements IStatementParser {
     );
   }
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const rawMatches: Record<string, string> = {};
     const fullText = decodeBase64IfPresent(content);
     const text = stripHtmlAndCleanText(`${subject} ${fullText}`);
@@ -109,7 +119,7 @@ export class AirtelPostpaidParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const rawMatches: Record<string, string> = {};
     const fullText = decodeBase64IfPresent(content);
     const text = stripHtmlAndCleanText(`${subject} ${fullText}`);

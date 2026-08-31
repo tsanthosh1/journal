@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 import {
   cleanCurrencyAmount,
   IStatementParser,
@@ -16,7 +16,17 @@ export class SBICardParser implements IStatementParser {
   readonly samplePaymentQuery =
     'from:feedback@sbicard.com subject:"Payment Confirmation"';
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "cardLast4",
+      label: "Credit Card Last 4 Digits",
+      type: "text",
+      placeholder: "e.g. 1234",
+      description: "Optional: Only match statements or payments for this specific card",
+    },
+  ];
+
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
@@ -70,6 +80,13 @@ export class SBICardParser implements IStatementParser {
       };
     }
 
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `SBI Card statement is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
+      };
+    }
+
     return {
       success: true,
       statementTotal,
@@ -79,7 +96,7 @@ export class SBICardParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
@@ -130,6 +147,13 @@ export class SBICardParser implements IStatementParser {
         success: false,
         error: "Could not extract Payment Amount from SBI payment confirmation email.",
         rawMatches: matches,
+      };
+    }
+
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `SBI payment is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
       };
     }
 

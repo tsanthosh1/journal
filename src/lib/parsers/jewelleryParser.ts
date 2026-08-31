@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 import { IStatementParser } from "./base";
 
 /**
@@ -13,7 +13,7 @@ import { IStatementParser } from "./base";
  */
 export class JewellerySchemeParser implements IStatementParser {
   readonly id = "JewellerySchemeParser";
-  readonly name = "Jewellery & Savings Scheme Parser";
+  readonly name = "Jewellery & Savings Scheme Parser (GRT / Tanishq)";
   readonly description =
     "Extracts monthly installment amounts, membership IDs, and advance payment receipts for GRT JPS, Tanishq Golden Harvest, and gold schemes.";
   readonly sampleStatementQuery =
@@ -21,9 +21,19 @@ export class JewellerySchemeParser implements IStatementParser {
   readonly samplePaymentQuery =
     'from:(mail@grtjewels.com OR tanishq OR kalyanjewellers OR joyalukkas) subject:("Advance payment" OR "Receipt" OR "Confirmation")';
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "membershipNumber",
+      label: "Membership / Scheme Account Number",
+      type: "text",
+      placeholder: "e.g. 123456",
+      description: "Optional: Only match payments for this specific scheme account",
+    },
+  ];
+
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     // For voluntary / advance schemes, the advance payment receipt is often the primary record
-    const payResult = this.parsePayment(content, subject);
+    const payResult = this.parsePayment(content, subject, config);
     if (payResult.success) {
       return {
         success: true,
@@ -41,7 +51,7 @@ export class JewellerySchemeParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const rawMatches: Record<string, string> = {};
 
     // 1. Check Subject & Brand Signatures

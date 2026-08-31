@@ -130,6 +130,38 @@ Group Code : EGU,
 Branch : GAX,
 Scheme Amount : 30000.`,
   },
+  AirtelPostpaid_Bill: {
+    label: "📱 Airtel Postpaid Bill (Google Pay BBPS)",
+    subject: "New bill from Airtel Postpaid Mobile. Pay now on Google Pay.",
+    content: `Airtel Postpaid Mobile
+Total amount
+₹529.82
+Due date
+24 Aug 2026
+
+Bill details
+Customer name: SANTHOSH T
+Mobile number: 9876543210
+Bill date: 05 Aug 2026
+Bill number: DEL-123456789`,
+  },
+  AirtelPostpaid_Receipt: {
+    label: "📱 Airtel Payment Receipt",
+    subject: "Here’s your Airtel payment receipt!",
+    content: `Dear Customer,
+We have received a payment of Rs 529.82 for your Bill payment for Airtel mobile 9876543210 on 24-Aug-2026.
+Payment Mode: Google Pay / UPI
+Transaction ID: AIRTEL891238912`,
+  },
+  Homefy_Water: {
+    label: "🏠 Homefy Water Bill",
+    subject: "Your Apartment Water bill/receipt for Flat A-302",
+    content: `Dear Resident,
+Here is your Monthly Water Consumption bill for Flat A-302.
+Total Amount: Rs 1,450.00
+Due Date: 09/09/2026
+Paid status: Payment Received of Rs 1,450.00 on 08-09-2026.`,
+  },
   GenericUtilityParser: {
     label: "Airtel Broadband",
     subject: "Airtel Broadband Bill for 08041234567",
@@ -148,6 +180,7 @@ export function ParserSandboxModal({
   onClose,
   initialModule = "UniversalAutoParser",
 }: ParserSandboxModalProps) {
+  const [selectedModule, setSelectedModule] = useState<string>(initialModule);
   const [subject, setSubject] = useState(SAMPLE_TEMPLATES.AxisCardParser?.subject || "");
   const [content, setContent] = useState(SAMPLE_TEMPLATES.AxisCardParser?.content || "");
 
@@ -162,6 +195,15 @@ export function ParserSandboxModal({
     if (t) {
       setSubject(t.subject);
       setContent(t.content);
+      if (key.startsWith("AirtelPostpaid")) {
+        setSelectedModule("AirtelPostpaidParser");
+      } else if (key.startsWith("Homefy")) {
+        setSelectedModule("HomefyParser");
+      } else if (key === "GRTJewels") {
+        setSelectedModule("JewellerySchemeParser");
+      } else if (SAMPLE_TEMPLATES[key]) {
+        setSelectedModule(key in SAMPLE_TEMPLATES && key.endsWith("Parser") ? key : "UniversalAutoParser");
+      }
     }
   };
 
@@ -175,7 +217,7 @@ export function ParserSandboxModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          parserModule: "UniversalAutoParser",
+          parserModule: selectedModule || "UniversalAutoParser",
           subject,
           content,
         }),
@@ -243,6 +285,30 @@ export function ParserSandboxModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Parser Selection */}
+          <div>
+            <label className="block text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              Testing Parser
+            </label>
+            <select
+              value={selectedModule}
+              onChange={(e) => setSelectedModule(e.target.value)}
+              className="w-full min-h-[40px] rounded-xl border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
+            >
+              <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Fallback Cascade)</option>
+              <option value="AirtelPostpaidParser">📱 Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
+              <option value="HDFCCardParser">💳 HDFC Bank Credit Card & Payments (HDFCCardParser)</option>
+              <option value="UPIPaymentParser">⚡ UPI Payment Alert Parser (UPIPaymentParser)</option>
+              <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
+              <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
+              <option value="SBICardParser">💳 SBI Credit Card (SBICardParser)</option>
+              <option value="HomefyParser">🏠 Homefy Community Water & Maintenance (HomefyParser)</option>
+              <option value="JewellerySchemeParser">💍 Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
+              <option value="GenericUtilityParser">🛠️ Generic Utility, Telecom & OTT (GenericUtilityParser)</option>
+              <option value="CustomRegexParser">🧪 Custom Regex Pattern (CustomRegexParser)</option>
+            </select>
           </div>
 
           {/* Subject */}

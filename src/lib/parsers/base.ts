@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 
 export interface IStatementParser {
   readonly id: string;
@@ -6,9 +6,10 @@ export interface IStatementParser {
   readonly description: string;
   readonly sampleStatementQuery: string;
   readonly samplePaymentQuery: string;
+  readonly configFields?: ParserConfigField[];
 
-  parseStatement(content: string, subject?: string): ParsedStatement;
-  parsePayment(content: string, subject?: string): ParsedPayment;
+  parseStatement(content: string, subject?: string, config?: Record<string, any>): ParsedStatement;
+  parsePayment(content: string, subject?: string, config?: Record<string, any>): ParsedPayment;
 }
 
 /**

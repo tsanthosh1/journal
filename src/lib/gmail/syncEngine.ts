@@ -82,7 +82,7 @@ export async function syncSubscriptionWithGmail(
         const msgDetail = await getGmailMessageDetails(accessToken, latestMsgSummary.id);
 
         const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-        const stmtParsed = parser.parseStatement(content, msgDetail.subject);
+        const stmtParsed = parser.parseStatement(content, msgDetail.subject, emailConfig.parserConfig);
 
         if (stmtParsed.success && stmtParsed.statementTotal !== undefined) {
           cycle.statementTotal = stmtParsed.statementTotal;
@@ -172,7 +172,7 @@ export async function syncSubscriptionWithGmail(
 
         const msgDetail = await getGmailMessageDetails(accessToken, pMsg.id);
         const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-        const payParsed = parser.parsePayment(content, msgDetail.subject);
+        const payParsed = parser.parsePayment(content, msgDetail.subject, emailConfig.parserConfig);
 
         if (payParsed.success && payParsed.paidAmount !== undefined) {
           const pDate =
@@ -447,7 +447,7 @@ export async function syncHistoricalSubscriptionWithGmail(
     try {
       const msgDetail = await getGmailMessageDetails(accessToken, pMsg.id);
       const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-      const payParsed = parser.parsePayment(content, msgDetail.subject);
+      const payParsed = parser.parsePayment(content, msgDetail.subject, subscription.emailConfig?.parserConfig);
 
       if (payParsed.success && payParsed.paidAmount !== undefined) {
         const pDate =
@@ -543,7 +543,7 @@ export async function syncHistoricalSubscriptionWithGmail(
       try {
         const msgDetail = await getGmailMessageDetails(accessToken, sMsg.id);
         const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-        const stmtParsed = parser.parseStatement(content, msgDetail.subject);
+        const stmtParsed = parser.parseStatement(content, msgDetail.subject, subscription.emailConfig?.parserConfig);
 
         if (stmtParsed.success && stmtParsed.statementTotal !== undefined) {
           const actualMsgDate = msgDetail.internalDate

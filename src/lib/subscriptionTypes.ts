@@ -29,12 +29,24 @@ export type DedupStrategy =
   | "SINGLE_PAYMENT_PER_CYCLE"
   | "ALLOW_MULTIPLE";
 
+export interface ParserConfigField {
+  key: string;
+  label: string;
+  type: "text" | "number" | "select";
+  placeholder?: string;
+  description?: string;
+  required?: boolean;
+  options?: { label: string; value: string }[];
+  defaultValue?: string | number;
+}
+
 export interface EmailConfig {
   enabled: boolean;
   statementQuery: string;
   paymentQuery: string;
   dedupStrategy?: DedupStrategy;
-  parserModule?: string; // Optional: defaults to Universal Auto-Detect cascade
+  parserModule?: string; // Specialized Parser ID e.g. "HDFCCardParser", "AirtelPostpaidParser", "UPIPaymentParser", etc.
+  parserConfig?: Record<string, any>; // Specific inputs for the selected parser (e.g. vpaFilter, cardLast4, etc.)
   customRegex?: {
     statementAmountPattern?: string;
     statementDueDatePattern?: string;

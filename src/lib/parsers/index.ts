@@ -1,4 +1,4 @@
-import { EmailConfig, ParserTestResult } from "../subscriptionTypes";
+import { EmailConfig, ParserConfigField, ParserTestResult } from "../subscriptionTypes";
 import { AxisCardParser } from "./axisParser";
 import { IStatementParser } from "./base";
 import { CustomRegexParser, GenericUtilityParser } from "./genericParser";
@@ -9,6 +9,7 @@ import { UPIPaymentParser } from "./upiParser";
 import { UniversalAutoParser } from "./universalParser";
 import { HomefyParser } from "./homefyParser";
 import { AirtelPostpaidParser } from "./airtelPostpaidParser";
+import { JewellerySchemeParser } from "./jewelleryParser";
 
 export * from "./base";
 export * from "./axisParser";
@@ -20,16 +21,18 @@ export * from "./upiParser";
 export * from "./universalParser";
 export * from "./homefyParser";
 export * from "./airtelPostpaidParser";
+export * from "./jewelleryParser";
 
 export const BUILT_IN_PARSERS: Record<string, () => IStatementParser> = {
   UniversalAutoParser: () => new UniversalAutoParser(),
   AirtelPostpaidParser: () => new AirtelPostpaidParser(),
-  HomefyParser: () => new HomefyParser(),
   HDFCCardParser: () => new HDFCCardParser(),
   UPIPaymentParser: () => new UPIPaymentParser(),
   ICICICardParser: () => new ICICICardParser(),
-  SBICardParser: () => new SBICardParser(),
   AxisCardParser: () => new AxisCardParser(),
+  SBICardParser: () => new SBICardParser(),
+  HomefyParser: () => new HomefyParser(),
+  JewellerySchemeParser: () => new JewellerySchemeParser(),
   GenericUtilityParser: () => new GenericUtilityParser(),
 };
 
@@ -39,6 +42,7 @@ export interface ParserMetadata {
   description: string;
   sampleStatementQuery: string;
   samplePaymentQuery: string;
+  configFields?: ParserConfigField[];
 }
 
 export function getAvailableParsers(): ParserMetadata[] {
@@ -50,6 +54,7 @@ export function getAvailableParsers(): ParserMetadata[] {
       description: p.description,
       sampleStatementQuery: p.sampleStatementQuery,
       samplePaymentQuery: p.samplePaymentQuery,
+      configFields: p.configFields,
     };
   });
 
@@ -59,6 +64,7 @@ export function getAvailableParsers(): ParserMetadata[] {
     description: "Specify your own regular expressions with capture groups for custom providers.",
     sampleStatementQuery: 'from:billing@provider.com subject:"Invoice"',
     samplePaymentQuery: 'from:billing@provider.com subject:"Receipt"',
+    configFields: new CustomRegexParser().configFields,
   });
 
   return list;
@@ -90,10 +96,14 @@ export function testParserOnContent(
     statementDueDatePattern?: string;
     paymentAmountPattern?: string;
   },
+  parserConfig?: Record<string, any>,
 ): ParserTestResult {
   const logs: string[] = [];
   logs.push(`[Sandbox] Testing parser module: "${parserModule || "UniversalAutoParser"}"`);
   logs.push(`[Sandbox] Subject length: ${subject.length}, Content length: ${content.length}`);
+  if (parserConfig && Object.keys(parserConfig).length > 0) {
+    logs.push(`[Sandbox] Parser Config: ${JSON.stringify(parserConfig)}`);
+  }
 
   let parser: IStatementParser;
   if (parserModule === "CustomRegexParser") {
@@ -103,13 +113,13 @@ export function testParserOnContent(
     );
   } else if (parserModule && BUILT_IN_PARSERS[parserModule]) {
     parser = BUILT_IN_PARSERS[parserModule]();
-    logs.push(`[Sandbox] Loaded built-in parser: ${parser.name}`);
+    logs.push(`[Sandbox] Loaded specialized parser: ${parser.name}`);
   } else {
     parser = new UniversalAutoParser();
     logs.push(`[Sandbox] Running Universal Auto-Detect Cascade Parser`);
   }
 
-  const statementResult = parser.parseStatement(content, subject);
+  const statementResult = parser.parseStatement(content, subject, parserConfig);
   logs.push(
     `[Sandbox] Statement Parse Result: ${
       statementResult.success
@@ -118,7 +128,7 @@ export function testParserOnContent(
     }`,
   );
 
-  const paymentResult = parser.parsePayment(content, subject);
+  const paymentResult = parser.parsePayment(content, subject, parserConfig);
   logs.push(
     `[Sandbox] Payment Parse Result: ${
       paymentResult.success

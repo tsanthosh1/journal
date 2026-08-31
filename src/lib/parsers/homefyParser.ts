@@ -1,5 +1,5 @@
-import { IStatementParser } from "./base";
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { IStatementParser, parseFlexibleDate } from "./base";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 
 function cleanHtmlAndQuotedPrintable(raw: string): string {
   return raw
@@ -22,6 +22,16 @@ export class HomefyParser implements IStatementParser {
   sampleStatementQuery = 'from:contact@homefy.co.in "Water Bill"';
   samplePaymentQuery = 'from:contact@homefy.co.in subject:"bill/receipt"';
 
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "flatNumber",
+      label: "Flat / Unit Number",
+      type: "text",
+      placeholder: "e.g. A-302 or 302",
+      description: "Optional: Only match bills for this specific flat number",
+    },
+  ];
+
   canParse(from: string, subject: string, bodyText: string): boolean {
     const combined = `${from} ${subject} ${bodyText}`.toLowerCase();
     return (
@@ -33,7 +43,7 @@ export class HomefyParser implements IStatementParser {
     );
   }
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const rawMatches: Record<string, string> = {};
     const text = cleanHtmlAndQuotedPrintable(content + " " + subject);
 
@@ -105,7 +115,7 @@ export class HomefyParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const rawMatches: Record<string, string> = {};
     const text = cleanHtmlAndQuotedPrintable(content + " " + subject);
 

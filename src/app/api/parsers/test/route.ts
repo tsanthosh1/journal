@@ -8,7 +8,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { parserModule, content, subject, customRegex } = body;
+    const { parserModule, content, subject, customRegex, parserConfig } = body;
 
     if (!parserModule || !content) {
       return NextResponse.json(
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       content,
       subject || "",
       customRegex,
+      parserConfig,
     );
 
     return NextResponse.json({ testResult });

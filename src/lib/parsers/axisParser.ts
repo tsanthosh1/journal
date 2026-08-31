@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 import {
   cleanCurrencyAmount,
   IStatementParser,
@@ -16,7 +16,17 @@ export class AxisCardParser implements IStatementParser {
   readonly samplePaymentQuery =
     'from:alerts@axisbank.com subject:"Payment received"';
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "cardLast4",
+      label: "Credit Card Last 4 Digits",
+      type: "text",
+      placeholder: "e.g. 1234",
+      description: "Optional: Only match statements or payments for this specific card",
+    },
+  ];
+
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
@@ -98,6 +108,13 @@ export class AxisCardParser implements IStatementParser {
       };
     }
 
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `Axis statement is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
+      };
+    }
+
     return {
       success: true,
       statementTotal,
@@ -108,7 +125,7 @@ export class AxisCardParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
     const matches: Record<string, string> = {};
@@ -129,21 +146,10 @@ export class AxisCardParser implements IStatementParser {
       }
     }
 
-    const paymentDateRegexes = [
-      /on\s+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-      /(?:on|dated)\s+(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-    ];
-
-    for (const rx of paymentDateRegexes) {
-      const match = cleanText.match(rx);
-      if (match && match[1]) {
-        matches.rawPaymentDate = match[1];
-        break;
-      }
-    }
-
+    // Extract Card Digits
     const cardRegexes = [
-      /(?:Axis\s+Card|card|ending|account\s+ending)\s*(?:no\.?|XXXX|XX)?\s*[:\-]?\s*(?:[X*]*\s*)?(\d{2,4})/i,
+      /Credit\s+Card\s+ending\s+(\d{4})/i,
+      /Card\s+(?:no\.?|ending)?\s*[:\-]?\s*(?:[X*]*\s*)?(\d{4})/i,
     ];
 
     for (const rx of cardRegexes) {
@@ -154,14 +160,35 @@ export class AxisCardParser implements IStatementParser {
       }
     }
 
+    // Extract Date
+    const paymentDateRegexes = [
+      /on\s+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /date\s*[:\-]?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+    ];
+
+    for (const rx of paymentDateRegexes) {
+      const match = cleanText.match(rx);
+      if (match && match[1]) {
+        matches.rawPaymentDate = match[1];
+        break;
+      }
+    }
+
     const paidAmount = cleanCurrencyAmount(matches.rawPaidAmount);
     const paymentDate = parseFlexibleDate(matches.rawPaymentDate);
 
     if (paidAmount === undefined) {
       return {
         success: false,
-        error: "Could not extract Payment Amount from Axis payment email.",
+        error: "Could not extract Paid Amount from Axis Bank payment email.",
         rawMatches: matches,
+      };
+    }
+
+    if (config?.cardLast4 && matches.rawCardDigits && matches.rawCardDigits !== config.cardLast4) {
+      return {
+        success: false,
+        error: `Axis payment is for card ending ${matches.rawCardDigits}, expected ${config.cardLast4}.`,
       };
     }
 

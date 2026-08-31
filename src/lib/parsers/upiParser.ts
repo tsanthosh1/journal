@@ -1,4 +1,4 @@
-import { ParsedPayment, ParsedStatement } from "../subscriptionTypes";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 import {
   cleanCurrencyAmount,
   IStatementParser,
@@ -8,15 +8,32 @@ import {
 
 export class UPIPaymentParser implements IStatementParser {
   readonly id = "UPIPaymentParser";
-  readonly name = "UPI Credit Card Payment Parser";
+  readonly name = "UPI Payment Alert Parser (HDFC / GPay / CRED)";
   readonly description =
-    "Extracts payments made via UPI (GPay, CRED, PhonePe, Paytm, BBPS) towards credit cards or utilities.";
+    "Extracts bank debited alerts for UPI transfers (GPay, PhonePe, Paytm, CRED) towards specific credit cards, utilities, or beneficiaries.";
   readonly sampleStatementQuery =
     'from:statements@hdfcbank.net subject:"Statement"';
   readonly samplePaymentQuery =
     'from:alerts@hdfcbank.bank.in "VPA" "gpay-creditcard@okpayaxis"';
 
-  parseStatement(content: string, subject = ""): ParsedStatement {
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "vpaFilter",
+      label: "Target UPI VPA / Merchant Handle",
+      type: "text",
+      placeholder: "e.g. gpay-creditcard@okpayaxis or airtel@icici",
+      description: "Required/Recommended: Matches only payments sent to this specific VPA",
+    },
+    {
+      key: "accountLast4",
+      label: "Debit Account Last 4 Digits",
+      type: "text",
+      placeholder: "e.g. 6013",
+      description: "Optional: Matches debit transactions from this specific bank account",
+    },
+  ];
+
+  parseStatement(content: string, subject = "", config?: Record<string, any>): ParsedStatement {
     // UPI alerts are payment alerts. If used for statement, fallback to base extraction
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
@@ -36,7 +53,7 @@ export class UPIPaymentParser implements IStatementParser {
     };
   }
 
-  parsePayment(content: string, subject = ""): ParsedPayment {
+  parsePayment(content: string, subject = "", config?: Record<string, any>): ParsedPayment {
     const raw = `${subject}\n${content}`;
     const cleanText = stripHtmlAndCleanText(raw);
 
@@ -126,6 +143,28 @@ export class UPIPaymentParser implements IStatementParser {
       return {
         success: false,
         error: "Could not extract debited UPI payment amount.",
+        rawMatches: matches,
+      };
+    }
+
+    // Config Filter 1: Target VPA handle check
+    if (config?.vpaFilter) {
+      const targetVpa = config.vpaFilter.toLowerCase().trim();
+      const combinedText = cleanText.toLowerCase();
+      if (!combinedText.includes(targetVpa)) {
+        return {
+          success: false,
+          error: `UPI payment does not match target VPA filter "${config.vpaFilter}".`,
+          rawMatches: matches,
+        };
+      }
+    }
+
+    // Config Filter 2: Debit account digits check
+    if (config?.accountLast4 && matches.rawAccountDigits && matches.rawAccountDigits !== config.accountLast4) {
+      return {
+        success: false,
+        error: `Debit account ending ${matches.rawAccountDigits} did not match expected ${config.accountLast4}.`,
         rawMatches: matches,
       };
     }
