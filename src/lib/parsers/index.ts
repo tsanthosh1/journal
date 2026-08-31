@@ -8,6 +8,7 @@ import { SBICardParser } from "./sbiParser";
 import { UPIPaymentParser } from "./upiParser";
 import { UniversalAutoParser } from "./universalParser";
 import { HomefyParser } from "./homefyParser";
+import { AirtelPostpaidParser } from "./airtelPostpaidParser";
 
 export * from "./base";
 export * from "./axisParser";
@@ -18,9 +19,11 @@ export * from "./sbiParser";
 export * from "./upiParser";
 export * from "./universalParser";
 export * from "./homefyParser";
+export * from "./airtelPostpaidParser";
 
 export const BUILT_IN_PARSERS: Record<string, () => IStatementParser> = {
   UniversalAutoParser: () => new UniversalAutoParser(),
+  AirtelPostpaidParser: () => new AirtelPostpaidParser(),
   HomefyParser: () => new HomefyParser(),
   HDFCCardParser: () => new HDFCCardParser(),
   UPIPaymentParser: () => new UPIPaymentParser(),

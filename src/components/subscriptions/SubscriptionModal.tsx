@@ -187,6 +187,12 @@ export function SubscriptionModal({
       setAllowSkip(true);
       setDedupStrategy("SAME_DAY_SAME_AMOUNT");
       handleTimingModelChange(false);
+    } else if (presetId === "AIRTEL_POSTPAID") {
+      setStatementQuery('from:(google-pay-noreply@google.com OR ebill@airtel.com) subject:("Airtel Postpaid" OR "New bill from Airtel")');
+      setCategory("Utilities");
+      setName((n) => n || "Airtel Postpaid");
+      setImageUrl("https://logo.clearbit.com/airtel.in");
+      handleTimingModelChange(false);
     } else if (presetId === "AIRTEL_OTT") {
       setStatementQuery('from:ebill@airtel.com subject:"Invoice Generated"');
       setCategory("Entertainment");
@@ -234,6 +240,11 @@ export function SubscriptionModal({
       setIsEndOfMonthDue(true);
       setAllowSkip(true);
       setDedupStrategy("SAME_DAY_SAME_AMOUNT");
+    } else if (presetId === "AIRTEL_RECEIPT") {
+      setPaymentQuery('from:update@airtel.com subject:"payment receipt"');
+      setCategory("Utilities");
+      setName((n) => n || "Airtel Postpaid");
+      setImageUrl("https://logo.clearbit.com/airtel.in");
     } else if (presetId === "AIRTEL_OTT") {
       setPaymentQuery('from:ebill@airtel.com subject:"Invoice Generated"');
       setImageUrl("https://logo.clearbit.com/airtel.in");
@@ -657,6 +668,7 @@ export function SubscriptionModal({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
                   {[
+                    { id: "AIRTEL_POSTPAID", label: "📱 Airtel Postpaid" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
                     { id: "TANISHQ_GOLD", label: "Tanishq Golden Harvest" },
                     { id: "AIRTEL_OTT", label: "Airtel OTT" },
@@ -935,6 +947,7 @@ export function SubscriptionModal({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
                   {[
+                    { id: "AIRTEL_RECEIPT", label: "📱 Airtel Receipt" },
                     { id: "HOMEFY_WATER", label: "🏠 Homefy Water Bill" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
                     { id: "TANISHQ_GOLD", label: "Tanishq Golden Harvest" },
