@@ -45,8 +45,16 @@ export interface EmailConfig {
   statementQuery: string;
   paymentQuery: string;
   dedupStrategy?: DedupStrategy;
-  parserModule?: string; // Specialized Parser ID e.g. "HDFCCardParser", "AirtelPostpaidParser", "UPIPaymentParser", etc.
-  parserConfig?: Record<string, any>; // Specific inputs for the selected parser (e.g. vpaFilter, cardLast4, etc.)
+
+  // Independent parser selection for Statements & Payments
+  statementParserModule?: string;
+  statementParserConfig?: Record<string, any>;
+  paymentParserModule?: string;
+  paymentParserConfig?: Record<string, any>;
+
+  // Backward compatibility fallback
+  parserModule?: string;
+  parserConfig?: Record<string, any>;
   customRegex?: {
     statementAmountPattern?: string;
     statementDueDatePattern?: string;

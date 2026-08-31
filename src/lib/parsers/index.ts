@@ -70,21 +70,24 @@ export function getAvailableParsers(): ParserMetadata[] {
   return list;
 }
 
+export function getParserForModule(moduleName?: string, customRegex?: any): IStatementParser {
+  if (moduleName === "CustomRegexParser" && customRegex) {
+    return new CustomRegexParser(customRegex);
+  }
+
+  if (moduleName && moduleName !== "UniversalAutoParser" && BUILT_IN_PARSERS[moduleName]) {
+    return BUILT_IN_PARSERS[moduleName]();
+  }
+
+  return new UniversalAutoParser();
+}
+
 export function getParserForConfig(config?: EmailConfig): IStatementParser {
   if (!config) {
     return new UniversalAutoParser();
   }
 
-  if (config.parserModule === "CustomRegexParser" && config.customRegex) {
-    return new CustomRegexParser(config.customRegex);
-  }
-
-  if (config.parserModule && config.parserModule !== "UniversalAutoParser" && BUILT_IN_PARSERS[config.parserModule]) {
-    return BUILT_IN_PARSERS[config.parserModule]();
-  }
-
-  // Default to UniversalAutoParser which automatically cascades across all built-in parsers
-  return new UniversalAutoParser();
+  return getParserForModule(config.parserModule, config.customRegex);
 }
 
 export function testParserOnContent(

@@ -1,6 +1,6 @@
 import { getFirebaseAdmin } from "../firebaseAdmin";
 import { sanitizeForFirestore, saveEmailSnapshot } from "../emailStorage";
-import { getParserForConfig } from "../parsers";
+import { getParserForConfig, getParserForModule } from "../parsers";
 import {
   CycleState,
   HistoricalCycle,
@@ -47,7 +47,14 @@ export async function syncSubscriptionWithGmail(
     };
   }
 
-  const parser = getParserForConfig(emailConfig);
+  const statementParserModule = emailConfig.statementParserModule || emailConfig.parserModule;
+  const statementParser = getParserForModule(statementParserModule, emailConfig.customRegex);
+  const statementConfig = emailConfig.statementParserConfig || emailConfig.parserConfig;
+
+  const paymentParserModule = emailConfig.paymentParserModule || emailConfig.parserModule;
+  const paymentParser = getParserForModule(paymentParserModule, emailConfig.customRegex);
+  const paymentConfig = emailConfig.paymentParserConfig || emailConfig.parserConfig;
+
   const cycle: CycleState = {
     ...subscription.currentCycle,
     processedMessageIds: [...(subscription.currentCycle.processedMessageIds || [])],
@@ -82,7 +89,7 @@ export async function syncSubscriptionWithGmail(
         const msgDetail = await getGmailMessageDetails(accessToken, latestMsgSummary.id);
 
         const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-        const stmtParsed = parser.parseStatement(content, msgDetail.subject, emailConfig.parserConfig);
+        const stmtParsed = statementParser.parseStatement(content, msgDetail.subject, statementConfig);
 
         if (stmtParsed.success && stmtParsed.statementTotal !== undefined) {
           cycle.statementTotal = stmtParsed.statementTotal;
@@ -172,7 +179,7 @@ export async function syncSubscriptionWithGmail(
 
         const msgDetail = await getGmailMessageDetails(accessToken, pMsg.id);
         const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-        const payParsed = parser.parsePayment(content, msgDetail.subject, emailConfig.parserConfig);
+        const payParsed = paymentParser.parsePayment(content, msgDetail.subject, paymentConfig);
 
         if (payParsed.success && payParsed.paidAmount !== undefined) {
           const pDate =
@@ -409,7 +416,14 @@ export async function syncHistoricalSubscriptionWithGmail(
     };
   }
 
-  const parser = getParserForConfig(emailConfig);
+  const statementParserModule = emailConfig.statementParserModule || emailConfig.parserModule;
+  const statementParser = getParserForModule(statementParserModule, emailConfig.customRegex);
+  const statementConfig = emailConfig.statementParserConfig || emailConfig.parserConfig;
+
+  const paymentParserModule = emailConfig.paymentParserModule || emailConfig.parserModule;
+  const paymentParser = getParserForModule(paymentParserModule, emailConfig.customRegex);
+  const paymentConfig = emailConfig.paymentParserConfig || emailConfig.parserConfig;
+
   const { db } = getFirebaseAdmin();
   const warnings: string[] = [];
   let totalMessagesScanned = 0;
@@ -447,7 +461,7 @@ export async function syncHistoricalSubscriptionWithGmail(
     try {
       const msgDetail = await getGmailMessageDetails(accessToken, pMsg.id);
       const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-      const payParsed = parser.parsePayment(content, msgDetail.subject, subscription.emailConfig?.parserConfig);
+      const payParsed = paymentParser.parsePayment(content, msgDetail.subject, paymentConfig);
 
       if (payParsed.success && payParsed.paidAmount !== undefined) {
         const pDate =
@@ -543,7 +557,7 @@ export async function syncHistoricalSubscriptionWithGmail(
       try {
         const msgDetail = await getGmailMessageDetails(accessToken, sMsg.id);
         const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-        const stmtParsed = parser.parseStatement(content, msgDetail.subject, subscription.emailConfig?.parserConfig);
+        const stmtParsed = statementParser.parseStatement(content, msgDetail.subject, statementConfig);
 
         if (stmtParsed.success && stmtParsed.statementTotal !== undefined) {
           const actualMsgDate = msgDetail.internalDate

@@ -48,9 +48,14 @@ export function SubscriptionModal({
   const [currency, setCurrency] = useState("INR");
   const [notes, setNotes] = useState("");
 
-  // Specialized Parser Selection & Additional Configuration
-  const [parserModule, setParserModule] = useState<string>("UniversalAutoParser");
-  const [parserConfig, setParserConfig] = useState<Record<string, any>>({});
+  // Independent Statement Parser Selection & Config
+  const [statementParserModule, setStatementParserModule] = useState<string>("UniversalAutoParser");
+  const [statementParserConfig, setStatementParserConfig] = useState<Record<string, any>>({});
+
+  // Independent Payment Parser Selection & Config
+  const [paymentParserModule, setPaymentParserModule] = useState<string>("UniversalAutoParser");
+  const [paymentParserConfig, setPaymentParserConfig] = useState<Record<string, any>>({});
+
   const [customRegex, setCustomRegex] = useState<{
     statementAmountPattern?: string;
     statementDueDatePattern?: string;
@@ -99,16 +104,36 @@ export function SubscriptionModal({
       const ec = initialData.emailConfig;
       const sc = initialData.smsConfig;
 
-      if (ec?.parserModule) {
-        setParserModule(ec.parserModule);
+      if (ec?.statementParserModule) {
+        setStatementParserModule(ec.statementParserModule);
+      } else if (ec?.parserModule) {
+        setStatementParserModule(ec.parserModule);
       } else {
-        setParserModule("UniversalAutoParser");
+        setStatementParserModule("UniversalAutoParser");
       }
 
-      if (ec?.parserConfig) {
-        setParserConfig(ec.parserConfig);
+      if (ec?.statementParserConfig) {
+        setStatementParserConfig(ec.statementParserConfig);
+      } else if (ec?.parserConfig) {
+        setStatementParserConfig(ec.parserConfig);
       } else {
-        setParserConfig({});
+        setStatementParserConfig({});
+      }
+
+      if (ec?.paymentParserModule) {
+        setPaymentParserModule(ec.paymentParserModule);
+      } else if (ec?.parserModule) {
+        setPaymentParserModule(ec.parserModule);
+      } else {
+        setPaymentParserModule("UniversalAutoParser");
+      }
+
+      if (ec?.paymentParserConfig) {
+        setPaymentParserConfig(ec.paymentParserConfig);
+      } else if (ec?.parserConfig) {
+        setPaymentParserConfig(ec.parserConfig);
+      } else {
+        setPaymentParserConfig({});
       }
 
       if (ec?.customRegex) {
@@ -162,8 +187,10 @@ export function SubscriptionModal({
       setCurrency("INR");
       setNotes("");
 
-      setParserModule("UniversalAutoParser");
-      setParserConfig({});
+      setStatementParserModule("UniversalAutoParser");
+      setStatementParserConfig({});
+      setPaymentParserModule("UniversalAutoParser");
+      setPaymentParserConfig({});
       setCustomRegex({});
 
       setStatementSource("EMAIL");
@@ -203,16 +230,19 @@ export function SubscriptionModal({
     }
   };
 
-  const handleSelectParser = (parserId: string) => {
-    setParserModule(parserId);
+  const handleSelectStatementParser = (parserId: string) => {
+    setStatementParserModule(parserId);
     const pMeta = availableParsers.find((p) => p.id === parserId);
-    if (pMeta) {
-      if (pMeta.sampleStatementQuery && statementSource === "EMAIL") {
-        setStatementQuery(pMeta.sampleStatementQuery);
-      }
-      if (pMeta.samplePaymentQuery && paymentSource === "EMAIL") {
-        setPaymentQuery(pMeta.samplePaymentQuery);
-      }
+    if (pMeta?.sampleStatementQuery && statementSource === "EMAIL") {
+      setStatementQuery(pMeta.sampleStatementQuery);
+    }
+  };
+
+  const handleSelectPaymentParser = (parserId: string) => {
+    setPaymentParserModule(parserId);
+    const pMeta = availableParsers.find((p) => p.id === parserId);
+    if (pMeta?.samplePaymentQuery && paymentSource === "EMAIL") {
+      setPaymentQuery(pMeta.samplePaymentQuery);
     }
   };
 
@@ -220,7 +250,7 @@ export function SubscriptionModal({
   const applyStatementPreset = (presetId: string) => {
     setStatementSource("EMAIL");
     if (presetId === "GRT_JEWELS") {
-      setParserModule("JewellerySchemeParser");
+      setStatementParserModule("JewellerySchemeParser");
       setStatementQuery('from:mail@grtjewels.com subject:"GRT JPS Advance payment"');
       setCategory("Savings & Schemes");
       setImageUrl("https://logo.clearbit.com/grtjewels.com");
@@ -229,7 +259,7 @@ export function SubscriptionModal({
       setDedupStrategy("SAME_DAY_SAME_AMOUNT");
       handleTimingModelChange(false);
     } else if (presetId === "TANISHQ_GOLD") {
-      setParserModule("JewellerySchemeParser");
+      setStatementParserModule("JewellerySchemeParser");
       setStatementQuery('from:tanishq.co.in subject:"Golden Harvest"');
       setCategory("Savings & Schemes");
       setImageUrl("https://logo.clearbit.com/tanishq.co.in");
@@ -238,45 +268,53 @@ export function SubscriptionModal({
       setDedupStrategy("SAME_DAY_SAME_AMOUNT");
       handleTimingModelChange(false);
     } else if (presetId === "AIRTEL_POSTPAID") {
-      setParserModule("AirtelPostpaidParser");
+      setStatementParserModule("AirtelPostpaidParser");
       setStatementQuery('from:(google-pay-noreply@google.com OR ebill@airtel.com) subject:("Airtel Postpaid" OR "New bill from Airtel")');
       setCategory("Utilities");
       setName((n) => n || "Airtel Postpaid");
       setImageUrl("https://logo.clearbit.com/airtel.in");
       handleTimingModelChange(false);
     } else if (presetId === "AIRTEL_OTT") {
-      setParserModule("GenericUtilityParser");
+      setStatementParserModule("GenericUtilityParser");
       setStatementQuery('from:ebill@airtel.com subject:"Invoice Generated"');
       setCategory("Entertainment");
       setImageUrl("https://logo.clearbit.com/airtel.in");
       handleTimingModelChange(true);
     } else if (presetId === "AXIS") {
-      setParserModule("AxisCardParser");
+      setStatementParserModule("AxisCardParser");
       setStatementQuery('from:cc.statements@axis.bank.in subject:"Credit Card"');
       setImageUrl("https://logo.clearbit.com/axisbank.com");
       handleTimingModelChange(false);
     } else if (presetId === "AMAZON_PAY_ICICI") {
-      setParserModule("ICICICardParser");
+      setStatementParserModule("ICICICardParser");
       setStatementQuery('from:credit_cards@icici.bank.in subject:"Amazon Pay ICICI Bank Credit Card Statement"');
       setImageUrl("https://logo.clearbit.com/amazon.in");
       handleTimingModelChange(false);
     } else if (presetId === "HDFC") {
-      setParserModule("HDFCCardParser");
+      setStatementParserModule("HDFCCardParser");
       setStatementQuery('from:statements@hdfcbank.net subject:"Statement"');
       setImageUrl("https://logo.clearbit.com/hdfcbank.com");
       handleTimingModelChange(false);
     } else if (presetId === "ICICI") {
-      setParserModule("ICICICardParser");
+      setStatementParserModule("ICICICardParser");
       setStatementQuery('from:(credit_cards@icici.bank.in OR credit_cards@icicibank.com) subject:"Statement"');
       setImageUrl("https://logo.clearbit.com/icicibank.com");
       handleTimingModelChange(false);
     } else if (presetId === "SBI") {
-      setParserModule("SBICardParser");
+      setStatementParserModule("SBICardParser");
       setStatementQuery('from:estatement@sbicard.com subject:"SBI Card e-Statement"');
       setImageUrl("https://logo.clearbit.com/sbicard.com");
       handleTimingModelChange(false);
+    } else if (presetId === "HOMEFY_WATER") {
+      setStatementParserModule("HomefyParser");
+      setStatementQuery('from:contact@homefy.co.in subject:"bill/receipt"');
+      setCategory("Utilities");
+      setDueDayOfMonth(9);
+      setDefaultAmount((curr) => curr || 1200);
+      setName((curr) => curr || "Apartment Water Bill (Homefy)");
+      setImageUrl("https://logo.clearbit.com/homefy.co.in");
     } else if (presetId === "UTILITY") {
-      setParserModule("GenericUtilityParser");
+      setStatementParserModule("GenericUtilityParser");
       setStatementQuery('from:(airtel OR jio OR bescom OR electricity) subject:("Bill" OR "Invoice")');
     }
   };
@@ -285,7 +323,7 @@ export function SubscriptionModal({
   const applyPaymentPreset = (presetId: string) => {
     setPaymentSource("EMAIL");
     if (presetId === "GRT_JEWELS") {
-      setParserModule("JewellerySchemeParser");
+      setPaymentParserModule("JewellerySchemeParser");
       setPaymentQuery('from:mail@grtjewels.com subject:"GRT JPS Advance payment"');
       setCategory("Savings & Schemes");
       setImageUrl("https://logo.clearbit.com/grtjewels.com");
@@ -293,7 +331,7 @@ export function SubscriptionModal({
       setAllowSkip(true);
       setDedupStrategy("SAME_DAY_SAME_AMOUNT");
     } else if (presetId === "TANISHQ_GOLD") {
-      setParserModule("JewellerySchemeParser");
+      setPaymentParserModule("JewellerySchemeParser");
       setPaymentQuery('from:tanishq.co.in subject:"Golden Harvest"');
       setCategory("Savings & Schemes");
       setImageUrl("https://logo.clearbit.com/tanishq.co.in");
@@ -301,46 +339,46 @@ export function SubscriptionModal({
       setAllowSkip(true);
       setDedupStrategy("SAME_DAY_SAME_AMOUNT");
     } else if (presetId === "AIRTEL_RECEIPT") {
-      setParserModule("AirtelPostpaidParser");
+      setPaymentParserModule("AirtelPostpaidParser");
       setPaymentQuery('from:update@airtel.com subject:"payment receipt"');
       setCategory("Utilities");
       setName((n) => n || "Airtel Postpaid");
       setImageUrl("https://logo.clearbit.com/airtel.in");
     } else if (presetId === "AIRTEL_OTT") {
-      setParserModule("GenericUtilityParser");
+      setPaymentParserModule("GenericUtilityParser");
       setPaymentQuery('from:ebill@airtel.com subject:"Invoice Generated"');
       setImageUrl("https://logo.clearbit.com/airtel.in");
     } else if (presetId === "AMAZON_PAY") {
-      setParserModule("ICICICardParser");
+      setPaymentParserModule("ICICICardParser");
       setPaymentQuery('from:no-reply@amazonpay.in subject:"Bill payment"');
       setImageUrl("https://logo.clearbit.com/amazon.in");
     } else if (presetId === "HDFC_UPI_GPAY") {
-      setParserModule("UPIPaymentParser");
-      setParserConfig((prev) => ({ ...prev, vpaFilter: "gpay-creditcard@okpayaxis" }));
+      setPaymentParserModule("UPIPaymentParser");
+      setPaymentParserConfig((prev) => ({ ...prev, vpaFilter: "gpay-creditcard@okpayaxis" }));
       setPaymentQuery('from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"');
       setImageUrl("https://logo.clearbit.com/hdfcbank.com");
     } else if (presetId === "HDFC_UPI_VPA") {
-      setParserModule("UPIPaymentParser");
+      setPaymentParserModule("UPIPaymentParser");
       setPaymentQuery('from:alerts@hdfcbank.bank.in "VPA"');
       setImageUrl("https://logo.clearbit.com/hdfcbank.com");
     } else if (presetId === "HDFC_DIRECT") {
-      setParserModule("HDFCCardParser");
+      setPaymentParserModule("HDFCCardParser");
       setPaymentQuery('from:alerts@hdfcbank.net subject:"Payment Received"');
       setImageUrl("https://logo.clearbit.com/hdfcbank.com");
     } else if (presetId === "AXIS_DIRECT") {
-      setParserModule("AxisCardParser");
+      setPaymentParserModule("AxisCardParser");
       setPaymentQuery('from:alerts@axisbank.com subject:"Payment received"');
       setImageUrl("https://logo.clearbit.com/axisbank.com");
     } else if (presetId === "ICICI_DIRECT") {
-      setParserModule("ICICICardParser");
+      setPaymentParserModule("ICICICardParser");
       setPaymentQuery('from:alerts@icicibank.com subject:"Payment received"');
       setImageUrl("https://logo.clearbit.com/icicibank.com");
     } else if (presetId === "SBI_DIRECT") {
-      setParserModule("SBICardParser");
+      setPaymentParserModule("SBICardParser");
       setPaymentQuery('from:feedback@sbicard.com subject:"Payment Confirmation"');
       setImageUrl("https://logo.clearbit.com/sbicard.com");
     } else if (presetId === "HOMEFY_WATER") {
-      setParserModule("HomefyParser");
+      setPaymentParserModule("HomefyParser");
       setPaymentQuery('from:contact@homefy.co.in subject:"bill/receipt"');
       setCategory("Utilities");
       setDueDayOfMonth(9);
@@ -348,7 +386,7 @@ export function SubscriptionModal({
       setName((curr) => curr || "Apartment Water Bill (Homefy)");
       setImageUrl("https://logo.clearbit.com/homefy.co.in");
     } else if (presetId === "UTILITY_RECEIPT") {
-      setParserModule("GenericUtilityParser");
+      setPaymentParserModule("GenericUtilityParser");
       setPaymentQuery('from:(airtel OR jio OR bescom OR electricity) subject:("Receipt" OR "Payment")');
     }
   };
@@ -400,9 +438,22 @@ export function SubscriptionModal({
             statementQuery: statementSource === "EMAIL" ? statementQuery.trim() : "",
             paymentQuery: paymentSource === "EMAIL" ? paymentQuery.trim() : "",
             dedupStrategy,
-            parserModule: parserModule || "UniversalAutoParser",
-            parserConfig: Object.keys(parserConfig).length > 0 ? parserConfig : undefined,
-            customRegex: parserModule === "CustomRegexParser" ? customRegex : undefined,
+            statementParserModule: statementSource === "EMAIL" ? statementParserModule : undefined,
+            statementParserConfig:
+              statementSource === "EMAIL" && Object.keys(statementParserConfig).length > 0
+                ? statementParserConfig
+                : undefined,
+            paymentParserModule: paymentSource === "EMAIL" ? paymentParserModule : undefined,
+            paymentParserConfig:
+              paymentSource === "EMAIL" && Object.keys(paymentParserConfig).length > 0
+                ? paymentParserConfig
+                : undefined,
+            // Fallback for legacy
+            parserModule: statementParserModule || paymentParserModule || "UniversalAutoParser",
+            customRegex:
+              statementParserModule === "CustomRegexParser" || paymentParserModule === "CustomRegexParser"
+                ? customRegex
+                : undefined,
           }
         : undefined;
 
@@ -695,181 +746,15 @@ export function SubscriptionModal({
 
           <hr className="border-white/10" />
 
-          {/* Section 2: Specialized Email Parser & Extraction Configuration */}
-          {(statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE") && (
-            <div className="rounded-2xl border border-purple-500/25 bg-gradient-to-b from-purple-950/30 to-slate-900/60 p-4 sm:p-5 space-y-4 shadow-lg shadow-purple-950/20">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
-                    <span>🧩</span> Specialized Email Parser Engine
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    Select the dedicated parser tuned for this provider or bank format
-                  </span>
-                </div>
-
-                {onOpenTestSandbox && (
-                  <button
-                    type="button"
-                    onClick={onOpenTestSandbox}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-300 hover:text-purple-200 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 px-2.5 py-1 rounded-lg transition cursor-pointer self-start sm:self-auto"
-                  >
-                    <span>🧪</span> Test Parser Sandbox
-                  </button>
-                )}
-              </div>
-
-              {/* Parser Selector Dropdown */}
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-1">
-                  Active Parser Module
-                </label>
-                <select
-                  value={parserModule}
-                  onChange={(e) => handleSelectParser(e.target.value)}
-                  className="w-full min-h-[42px] rounded-xl border border-white/15 bg-slate-900 px-3.5 py-2 text-xs font-medium text-white focus:border-purple-400 focus:outline-none cursor-pointer"
-                >
-                  <option value="AirtelPostpaidParser">📱 Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
-                  <option value="HDFCCardParser">💳 HDFC Bank Credit Card & Payments (HDFCCardParser)</option>
-                  <option value="UPIPaymentParser">⚡ UPI Payment Alert Parser - GPay/CRED/HDFC (UPIPaymentParser)</option>
-                  <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
-                  <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
-                  <option value="SBICardParser">💳 SBI Credit Card (SBICardParser)</option>
-                  <option value="HomefyParser">🏠 Homefy Community Water & Maintenance (HomefyParser)</option>
-                  <option value="JewellerySchemeParser">💍 Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
-                  <option value="GenericUtilityParser">🛠️ Generic Utility, Telecom & OTT (GenericUtilityParser)</option>
-                  <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
-                  <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Fallback Cascade)</option>
-                </select>
-
-                {/* Parser Description & Suggested Query Button */}
-                {(() => {
-                  const selected = availableParsers.find((p) => p.id === parserModule) || availableParsers[0];
-                  return selected ? (
-                    <div className="mt-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
-                      <p className="text-[11px] text-slate-300 leading-relaxed flex-1">
-                        {selected.description}
-                      </p>
-                      {(selected.sampleStatementQuery || selected.samplePaymentQuery) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (selected.sampleStatementQuery && statementSource === "EMAIL") {
-                              setStatementQuery(selected.sampleStatementQuery);
-                            }
-                            if (selected.samplePaymentQuery && paymentSource === "EMAIL") {
-                              setPaymentQuery(selected.samplePaymentQuery);
-                            }
-                          }}
-                          className="text-[11px] font-semibold text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-1 rounded-lg transition cursor-pointer shrink-0 self-start sm:self-auto"
-                        >
-                          ⚡ Use Suggested Queries
-                        </button>
-                      )}
-                    </div>
-                  ) : null;
-                })()}
-              </div>
-
-              {/* Dynamic Additional Config for Selected Parser */}
-              {(() => {
-                const selected = availableParsers.find((p) => p.id === parserModule);
-                if (!selected?.configFields || selected.configFields.length === 0) return null;
-                return (
-                  <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-purple-200 flex items-center gap-1">
-                        <span>⚙️</span> Additional Parser Configuration & Filters
-                      </span>
-                      <span className="text-[10px] text-purple-300 font-medium">Target accounts & VPA keywords</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {selected.configFields.map((field) => (
-                        <div key={field.key} className="space-y-1">
-                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300">
-                            {field.label}
-                          </label>
-                          <input
-                            type="text"
-                            placeholder={field.placeholder || ""}
-                            value={parserConfig[field.key] || ""}
-                            onChange={(e) =>
-                              setParserConfig((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            className="w-full min-h-[38px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-white placeholder-slate-500 focus:border-purple-400 focus:outline-none"
-                          />
-                          {field.description && (
-                            <span className="text-[10px] text-slate-400 block">{field.description}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Custom Regex Pattern inputs if CustomRegexParser */}
-              {parserModule === "CustomRegexParser" && (
-                <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3.5 space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-300 block">
-                    🧪 Custom Regular Expressions
-                  </span>
-                  <div className="space-y-2.5">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-300">
-                        Statement Amount Regex Pattern (1 capture group)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder='e.g. Total Due:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
-                        value={customRegex.statementAmountPattern || ""}
-                        onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementAmountPattern: e.target.value }))}
-                        className="w-full font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-300">
-                        Statement Due Date Regex Pattern (1 capture group)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder='e.g. Due Date:\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})'
-                        value={customRegex.statementDueDatePattern || ""}
-                        onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementDueDatePattern: e.target.value }))}
-                        className="w-full font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-300">
-                        Payment Amount Regex Pattern (1 capture group)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder='e.g. Paid amount:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
-                        value={customRegex.paymentAmountPattern || ""}
-                        onChange={(e) => setCustomRegex((prev) => ({ ...prev, paymentAmountPattern: e.target.value }))}
-                        className="w-full font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Section 2: Statement / Bill Dues Source */}
-          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-4 space-y-3">
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 block">
-                  Statement / Invoice Search Query
+                  2. Statement / Invoice Source
                 </span>
                 <span className="text-[11px] text-slate-400">
-                  Gmail search filter used to discover new bill statements
+                  Where does the billing invoice or statement come from?
                 </span>
               </div>
 
@@ -904,14 +789,134 @@ export function SubscriptionModal({
             </div>
 
             {statementSource === "EMAIL" ? (
-              <div className="space-y-2.5 pt-1">
+              <div className="space-y-3.5 pt-1">
+                {/* Statement Parser Selector */}
+                <div className="rounded-xl border border-cyan-500/20 bg-slate-900/80 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-cyan-200">
+                      🧩 Statement Parser Engine
+                    </label>
+                    {onOpenTestSandbox && (
+                      <button
+                        type="button"
+                        onClick={onOpenTestSandbox}
+                        className="text-[10px] font-medium text-cyan-300 hover:text-cyan-200 cursor-pointer"
+                      >
+                        🧪 Test Sandbox
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={statementParserModule}
+                    onChange={(e) => handleSelectStatementParser(e.target.value)}
+                    className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-950 px-3 py-1.5 text-xs font-medium text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
+                  >
+                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Fallback Cascade)</option>
+                    <option value="AirtelPostpaidParser">📱 Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
+                    <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
+                    <option value="HDFCCardParser">💳 HDFC Bank Credit Card (HDFCCardParser)</option>
+                    <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
+                    <option value="SBICardParser">💳 SBI Credit Card (SBICardParser)</option>
+                    <option value="HomefyParser">🏠 Homefy Community Water & Maintenance (HomefyParser)</option>
+                    <option value="JewellerySchemeParser">💍 Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
+                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility (GenericUtilityParser)</option>
+                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
+                  </select>
+
+                  {/* Statement Parser Info & Suggested Query */}
+                  {(() => {
+                    const selected = availableParsers.find((p) => p.id === statementParserModule) || availableParsers[0];
+                    return selected ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-xs">
+                        <span className="text-[11px] text-slate-300 flex-1">{selected.description}</span>
+                        {selected.sampleStatementQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setStatementQuery(selected.sampleStatementQuery)}
+                            className="text-[10px] font-semibold text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
+                          >
+                            ⚡ Set Sample Query
+                          </button>
+                        )}
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Dynamic Statement Parser Config Fields */}
+                  {(() => {
+                    const selected = availableParsers.find((p) => p.id === statementParserModule);
+                    if (!selected?.configFields || selected.configFields.length === 0) return null;
+                    return (
+                      <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/40 p-2.5 space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block">
+                          ⚙️ Statement Filters & Config
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {selected.configFields.map((field) => (
+                            <div key={field.key} className="space-y-0.5">
+                              <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                                {field.label}
+                              </label>
+                              <input
+                                type="text"
+                                placeholder={field.placeholder || ""}
+                                value={statementParserConfig[field.key] || ""}
+                                onChange={(e) =>
+                                  setStatementParserConfig((prev) => ({
+                                    ...prev,
+                                    [field.key]: e.target.value,
+                                  }))
+                                }
+                                className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Custom Regex Pattern for Statement */}
+                  {statementParserModule === "CustomRegexParser" && (
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
+                        🧪 Custom Regex (Statement)
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-300">Statement Amount Pattern</label>
+                          <input
+                            type="text"
+                            placeholder='e.g. Total Due:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
+                            value={customRegex.statementAmountPattern || ""}
+                            onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementAmountPattern: e.target.value }))}
+                            className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-300">Statement Due Date Pattern</label>
+                          <input
+                            type="text"
+                            placeholder='e.g. Due Date:\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})'
+                            value={customRegex.statementDueDatePattern || ""}
+                            onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementDueDatePattern: e.target.value }))}
+                            className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Statement Presets */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
+                  <span className="text-[10px] text-slate-400 mr-1">Quick Presets:</span>
                   {[
                     { id: "AIRTEL_POSTPAID", label: "📱 Airtel Postpaid" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
                     { id: "TANISHQ_GOLD", label: "Tanishq Golden Harvest" },
+                    { id: "HOMEFY_WATER", label: "🏠 Homefy Water" },
                     { id: "AIRTEL_OTT", label: "Airtel OTT" },
                     { id: "AMAZON_PAY_ICICI", label: "Amazon Pay ICICI" },
                     { id: "AXIS", label: "Axis Card" },
@@ -931,13 +936,18 @@ export function SubscriptionModal({
                   ))}
                 </div>
 
-                <input
-                  type="text"
-                  placeholder='from:mail@grtjewels.com subject:"GRT JPS Advance payment"'
-                  value={statementQuery}
-                  onChange={(e) => setStatementQuery(e.target.value)}
-                  className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
-                />
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-1">
+                    Gmail Search Query for Statement Emails
+                  </label>
+                  <input
+                    type="text"
+                    placeholder='from:mail@grtjewels.com subject:"GRT JPS Advance payment"'
+                    value={statementQuery}
+                    onChange={(e) => setStatementQuery(e.target.value)}
+                    className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                  />
+                </div>
               </div>
             ) : (
               <p className="text-[11px] text-slate-400 bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
@@ -947,7 +957,7 @@ export function SubscriptionModal({
           </div>
 
           {/* Section 3: Payment Confirmation Source */}
-          <div className="rounded-2xl border border-indigo-500/20 bg-indigo-950/20 p-4 space-y-3">
+          <div className="rounded-2xl border border-indigo-500/20 bg-indigo-950/20 p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 block">
@@ -1183,10 +1193,121 @@ export function SubscriptionModal({
                 </div>
               </div>
             ) : paymentSource === "EMAIL" ? (
-              <div className="space-y-2.5 pt-1">
+              <div className="space-y-3.5 pt-1">
+                {/* Payment Parser Selector */}
+                <div className="rounded-xl border border-indigo-500/20 bg-slate-900/80 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-200">
+                      🧩 Payment Parser Engine
+                    </label>
+                    {onOpenTestSandbox && (
+                      <button
+                        type="button"
+                        onClick={onOpenTestSandbox}
+                        className="text-[10px] font-medium text-indigo-300 hover:text-indigo-200 cursor-pointer"
+                      >
+                        🧪 Test Sandbox
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={paymentParserModule}
+                    onChange={(e) => handleSelectPaymentParser(e.target.value)}
+                    className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-950 px-3 py-1.5 text-xs font-medium text-white focus:border-indigo-400 focus:outline-none cursor-pointer"
+                  >
+                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Fallback Cascade)</option>
+                    <option value="UPIPaymentParser">⚡ UPI Payment Alert Parser - GPay/CRED/HDFC (UPIPaymentParser)</option>
+                    <option value="HDFCCardParser">💳 HDFC Bank Card & Alert (HDFCCardParser)</option>
+                    <option value="AirtelPostpaidParser">📱 Airtel Payment Receipt (AirtelPostpaidParser)</option>
+                    <option value="ICICICardParser">💳 ICICI Bank Payment Receipt (ICICICardParser)</option>
+                    <option value="AxisCardParser">💳 Axis Bank Payment Alert (AxisCardParser)</option>
+                    <option value="SBICardParser">💳 SBI Card Payment Confirmation (SBICardParser)</option>
+                    <option value="HomefyParser">🏠 Homefy Water Payment Receipt (HomefyParser)</option>
+                    <option value="JewellerySchemeParser">💍 Jewellery Scheme Receipt - GRT / Tanishq (JewellerySchemeParser)</option>
+                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility Receipt (GenericUtilityParser)</option>
+                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
+                  </select>
+
+                  {/* Payment Parser Info & Suggested Query */}
+                  {(() => {
+                    const selected = availableParsers.find((p) => p.id === paymentParserModule) || availableParsers[0];
+                    return selected ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-xs">
+                        <span className="text-[11px] text-slate-300 flex-1">{selected.description}</span>
+                        {selected.samplePaymentQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setPaymentQuery(selected.samplePaymentQuery)}
+                            className="text-[10px] font-semibold text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
+                          >
+                            ⚡ Set Sample Query
+                          </button>
+                        )}
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Dynamic Payment Parser Config Fields */}
+                  {(() => {
+                    const selected = availableParsers.find((p) => p.id === paymentParserModule);
+                    if (!selected?.configFields || selected.configFields.length === 0) return null;
+                    return (
+                      <div className="rounded-lg border border-indigo-500/20 bg-indigo-950/40 p-2.5 space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 block">
+                          ⚙️ Payment Filters, VPA Handles & Account Digits
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {selected.configFields.map((field) => (
+                            <div key={field.key} className="space-y-0.5">
+                              <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                                {field.label}
+                              </label>
+                              <input
+                                type="text"
+                                placeholder={field.placeholder || ""}
+                                value={paymentParserConfig[field.key] || ""}
+                                onChange={(e) =>
+                                  setPaymentParserConfig((prev) => ({
+                                    ...prev,
+                                    [field.key]: e.target.value,
+                                  }))
+                                }
+                                className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
+                              />
+                              {field.description && (
+                                <span className="text-[9px] text-slate-400 block">{field.description}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Custom Regex Pattern for Payment */}
+                  {paymentParserModule === "CustomRegexParser" && (
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
+                        🧪 Custom Regex (Payment)
+                      </span>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-300">Payment Amount Pattern</label>
+                        <input
+                          type="text"
+                          placeholder='e.g. Paid amount:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
+                          value={customRegex.paymentAmountPattern || ""}
+                          onChange={(e) => setCustomRegex((prev) => ({ ...prev, paymentAmountPattern: e.target.value }))}
+                          className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Payment Presets */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
+                  <span className="text-[10px] text-slate-400 mr-1">Quick Presets:</span>
                   {[
                     { id: "AIRTEL_RECEIPT", label: "📱 Airtel Receipt" },
                     { id: "HOMEFY_WATER", label: "🏠 Homefy Water Bill" },
@@ -1212,16 +1333,21 @@ export function SubscriptionModal({
                   ))}
                 </div>
 
-                <input
-                  type="text"
-                  placeholder='from:mail@grtjewels.com subject:"GRT JPS Advance payment"'
-                  value={paymentQuery}
-                  onChange={(e) => setPaymentQuery(e.target.value)}
-                  className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
-                />
-                <span className="text-[10px] text-slate-400 block">
-                  Example: <code className="text-indigo-300 font-mono">from:mail@grtjewels.com subject:"GRT JPS Advance payment"</code>
-                </span>
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-1">
+                    Gmail Search Query for Payment / Debit Alerts
+                  </label>
+                  <input
+                    type="text"
+                    placeholder='from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"'
+                    value={paymentQuery}
+                    onChange={(e) => setPaymentQuery(e.target.value)}
+                    className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-1">
+                    Example: <code className="text-indigo-300 font-mono">from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"</code>
+                  </span>
+                </div>
 
                 {/* Duplicate Prevention Setting */}
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2 mt-2">
