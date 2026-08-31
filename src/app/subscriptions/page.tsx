@@ -14,6 +14,7 @@ import { ParserSandboxModal } from "@/components/subscriptions/ParserSandboxModa
 import { HistoricalCyclesModal } from "@/components/subscriptions/HistoricalCyclesModal";
 import { SourceEmailViewerModal } from "@/components/subscriptions/SourceEmailViewerModal";
 import { GmailSyncBanner } from "@/components/subscriptions/GmailSyncBanner";
+import { SubscriptionsSkeleton } from "@/components/subscriptions/SubscriptionsSkeleton";
 import { SourceEmailRecord, Subscription } from "@/lib/subscriptionTypes";
 import { useAuth } from "@/context/AuthContext";
 
@@ -435,11 +436,11 @@ function SubscriptionsPageContent() {
           onDisconnect={signOut}
         />
 
-        {/* Financial Summary Aggregator Cards */}
-        <FinancialSummaryCards subscriptions={subscriptions} />
-
-        {/* If a subscription is selected, render deep Detail View with back navigation */}
-        {activeSelectedSubscription ? (
+        {/* If loading initial data, render full glassmorphic shimmer skeleton */}
+        {isLoading ? (
+          <SubscriptionsSkeleton />
+        ) : activeSelectedSubscription ? (
+          /* If a subscription is selected, render deep Detail View with back navigation */
           <SubscriptionDetailView
             subscription={activeSelectedSubscription}
             onBack={handleBackFromDetail}
@@ -457,6 +458,9 @@ function SubscriptionsPageContent() {
           />
         ) : (
           <>
+            {/* Financial Summary Aggregator Cards */}
+            <FinancialSummaryCards subscriptions={subscriptions} />
+
             {/* View Switcher: Action Hub vs Subscriptions List vs Outflows Timeline vs Split */}
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto">
@@ -512,12 +516,7 @@ function SubscriptionsPageContent() {
             </div>
 
             {/* Main View Area */}
-            {isLoading ? (
-              <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-12 text-center backdrop-blur-md">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-cyan-400 border-r-transparent mb-3" />
-                <p className="text-sm font-medium text-slate-300">Loading recurring commitments...</p>
-              </div>
-            ) : activeView === "action-hub" ? (
+            {activeView === "action-hub" ? (
               <CurrentMonthActionHub
                 subscriptions={subscriptions}
                 onSelectSubscription={handleSelectSubscription}
