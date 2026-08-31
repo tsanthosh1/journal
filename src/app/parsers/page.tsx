@@ -1,9 +1,19 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
-import { getAvailableParsers, testParserOnContent, ParserMetadata } from "@/lib/parsers";
+import {
+  getAvailableParsers,
+  getStatementParsers,
+  getPaymentParsers,
+  getSmsParsers,
+  testParserOnContent,
+  ParserMetadata,
+  ParserType,
+} from "@/lib/parsers";
 import { ParserTestResult } from "@/lib/subscriptionTypes";
+import { parseEmlContent, EmlDocument } from "@/lib/emlParser";
+import { BUNDLED_EMLS, BundledEmlItem } from "@/lib/sampleEmls/bundledEmls";
 
 interface SampleItem {
   id: string;
@@ -13,50 +23,14 @@ interface SampleItem {
   type: "STATEMENT" | "PAYMENT" | "SMS";
   subject: string;
   content: string;
+  isEml?: boolean;
+  filename?: string;
   parserConfig?: Record<string, any>;
   description: string;
 }
 
-const SAMPLE_DATABASE: SampleItem[] = [
-  {
-    id: "airtel-postpaid-bill",
-    name: "Airtel Postpaid Bill (Google Pay BBPS)",
-    category: "Utilities",
-    parserModule: "AirtelPostpaidParser",
-    type: "STATEMENT",
-    subject: "New bill from Airtel Postpaid Mobile. Pay now on Google Pay.",
-    content: `Delivered-To: user@gmail.com
-Subject: New bill from Airtel Postpaid Mobile. Pay now on Google Pay.
-From: Google Pay <googlepay-noreply@google.com>
-
-Hi User,
-Here are your bill details:
-Airtel Mobile Postpaid
-For 9876543210
-Total bill amount: ₹824.82
-Bill date: 28 Aug 2026
-Bill due date: 15 Sep 2026
-Pay your bill instantly with Google Pay.`,
-    description: "Extracts amount (₹824.82), due date (15 Sep 2026), and mobile number from Google Pay BBPS notifications.",
-  },
-  {
-    id: "airtel-payment-receipt",
-    name: "Airtel Official Payment Receipt",
-    category: "Utilities",
-    parserModule: "AirtelPostpaidParser",
-    type: "PAYMENT",
-    subject: "Here’s your Airtel payment receipt!",
-    content: `Delivered-To: user@gmail.com
-From: update@airtel.com
-Subject: Here’s your Airtel payment receipt!
-
-Dear Customer,
-We have received your payment of Rs. 824.82 on 30-Aug-2026 for your Airtel Postpaid mobile number 9876543210.
-Payment Mode: UPI
-Transaction ID: AIRTEL8899112233
-Thank you for choosing Airtel!`,
-    description: "Extracts payment receipt amount (Rs. 824.82), payment date (30-Aug-2026), and transaction ID.",
-  },
+// Synthesized & Bundled Samples
+const STATIC_SAMPLES: SampleItem[] = [
   {
     id: "hdfc-card-statement",
     name: "HDFC Bank Credit Card Statement",
@@ -151,24 +125,6 @@ Total Credit Limit: Rs. 1,50,000.00`,
     description: "Extracts Total Amount Due (Rs. 18,340.00) and Due Date (25-Aug-2026).",
   },
   {
-    id: "homefy-water-bill",
-    name: "Homefy Community Water Bill",
-    category: "Utilities",
-    parserModule: "HomefyParser",
-    type: "STATEMENT",
-    subject: "Homefy Bill for Apartment Tower A - 402",
-    content: `From: billing@homefy.community
-Subject: Homefy Bill for Apartment Tower A - 402
-
-Dear Resident,
-Your monthly water & maintenance bill for Apartment Tower A - 402 has been generated.
-Bill Amount: ₹1,250.00
-Due Date: 09/08/2026
-Meter Reading: 45.2 kL
-Please make the payment before due date to avoid late fee.`,
-    description: "Extracts community water bill amount (₹1,250.00), due date (09/08/2026), and apartment unit.",
-  },
-  {
     id: "grt-jewels-chit-receipt",
     name: "GRT Jewellers Gold Scheme Receipt",
     category: "Gold & Schemes",
@@ -225,16 +181,45 @@ Units Consumed: 218 kWh`,
 
 export default function ParsersPage() {
   const parsers = useMemo(() => getAvailableParsers(), []);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Convert bundled real EMLs into Sample items
+  const allSamples = useMemo<SampleItem[]>(() => {
+    const emlItems: SampleItem[] = BUNDLED_EMLS.map((eml: BundledEmlItem) => {
+      const parsedDoc = parseEmlContent(eml.rawEml, eml.filename);
+      return {
+        id: eml.id,
+        name: eml.name,
+        category: (eml.category as any) || "Utilities",
+        parserModule: eml.parserModule,
+        type: eml.type,
+        subject: parsedDoc.subject || eml.name,
+        content: eml.rawEml,
+        isEml: true,
+        filename: eml.filename,
+        description: eml.description,
+      };
+    });
+
+    return [...emlItems, ...STATIC_SAMPLES];
+  }, []);
+
   const [selectedParserId, setSelectedParserId] = useState<string>("AirtelPostpaidParser");
+  const [parserTypeFilter, setParserTypeFilter] = useState<"ALL" | "STATEMENT" | "PAYMENT_RECEIPT" | "SMS_DEBIT">("ALL");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"PLAYGROUND" | "SAMPLES" | "ARCHITECTURE">("PLAYGROUND");
+  const [activeTab, setActiveTab] = useState<"PLAYGROUND" | "SAMPLES">("PLAYGROUND");
+
+  // View mode for the loaded message: "RENDERED_HTML" | "CLEAN_TEXT" | "RAW_EML"
+  const [viewMode, setViewMode] = useState<"RENDERED_HTML" | "CLEAN_TEXT" | "RAW_EML">("RENDERED_HTML");
 
   // Playground state
-  const [testSubject, setTestSubject] = useState(
-    "New bill from Airtel Postpaid Mobile. Pay now on Google Pay.",
+  const [currentRawContent, setCurrentRawContent] = useState<string>(() => {
+    return BUNDLED_EMLS[0]?.rawEml || STATIC_SAMPLES[0].content;
+  });
+  const [currentFilename, setCurrentFilename] = useState<string | undefined>(
+    BUNDLED_EMLS[0]?.filename || "airtel_bill.eml",
   );
-  const [testContent, setTestContent] = useState(SAMPLE_DATABASE[0].content);
   const [testConfig, setTestConfig] = useState<Record<string, any>>({});
   const [testRegex, setTestRegex] = useState({
     statementAmountPattern: "",
@@ -242,37 +227,83 @@ export default function ParsersPage() {
     paymentAmountPattern: "",
   });
 
-  const [activeTestResult, setActiveTestResult] = useState<ParserTestResult | null>(() => {
-    return testParserOnContent("AirtelPostpaidParser", SAMPLE_DATABASE[0].content, SAMPLE_DATABASE[0].subject);
-  });
+  // Parsed EML Document Representation
+  const parsedDoc = useMemo<EmlDocument>(() => {
+    return parseEmlContent(currentRawContent, currentFilename);
+  }, [currentRawContent, currentFilename]);
+
+  // Active Test Result
+  const [activeTestResult, setActiveTestResult] = useState<ParserTestResult | null>(null);
+
+  // Run parser whenever content, selected parser, or config changes
+  useEffect(() => {
+    const result = testParserOnContent(
+      selectedParserId,
+      currentRawContent,
+      parsedDoc.subject,
+      testRegex,
+      testConfig,
+    );
+    setActiveTestResult(result);
+  }, [selectedParserId, currentRawContent, parsedDoc.subject, testRegex, testConfig]);
 
   const selectedParser = useMemo(() => {
     return parsers.find((p) => p.id === selectedParserId) || parsers[0];
   }, [parsers, selectedParserId]);
 
+  // Separate Statement vs Payment Parsers counts
+  const statementCount = useMemo(() => getStatementParsers().length, []);
+  const paymentCount = useMemo(() => getPaymentParsers().length, []);
+  const smsCount = useMemo(() => getSmsParsers().length, []);
+
   const filteredParsers = useMemo(() => {
     return parsers.filter((p) => {
+      // Type Filter
+      if (parserTypeFilter === "STATEMENT" && p.type !== "STATEMENT" && p.type !== "DUAL") return false;
+      if (parserTypeFilter === "PAYMENT_RECEIPT" && p.type !== "PAYMENT_RECEIPT" && p.type !== "DUAL") return false;
+      if (parserTypeFilter === "SMS_DEBIT" && p.type !== "SMS_DEBIT") return false;
+
       const matchSearch =
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.id.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchSearch) return false;
-      if (selectedCategory === "All") return true;
-      if (selectedCategory === "Cards" && (p.id.includes("Card") || p.id.includes("Axis") || p.id.includes("SBI") || p.id.includes("ICICI") || p.id.includes("HDFC"))) return true;
+      if (selectedCategory === "All" || selectedCategory === "Real EML Files (.eml)") return true;
+      if (
+        selectedCategory === "Cards" &&
+        (p.id.includes("Card") || p.id.includes("Axis") || p.id.includes("SBI") || p.id.includes("ICICI") || p.id.includes("HDFC"))
+      )
+        return true;
       if (selectedCategory === "UPI & Debits" && p.id.includes("UPI")) return true;
-      if (selectedCategory === "Utilities" && (p.id.includes("Airtel") || p.id.includes("Homefy") || p.id.includes("Utility"))) return true;
+      if (
+        selectedCategory === "Utilities" &&
+        (p.id.includes("Airtel") || p.id.includes("Homefy") || p.id.includes("Utility"))
+      )
+        return true;
       if (selectedCategory === "Gold & Schemes" && p.id.includes("Jewellery")) return true;
       if (selectedCategory === "SMS & Loans" && p.id.includes("Loan")) return true;
-      if (selectedCategory === "Advanced" && (p.id.includes("Universal") || p.id.includes("Custom"))) return true;
+      if (selectedCategory === "Advanced" && (p.id.includes("Universal") || p.id.includes("Custom")))
+        return true;
 
       return true;
     });
-  }, [parsers, searchQuery, selectedCategory]);
+  }, [parsers, parserTypeFilter, searchQuery, selectedCategory]);
 
   const filteredSamples = useMemo(() => {
-    return SAMPLE_DATABASE.filter((s) => {
-      if (selectedCategory !== "All" && s.category !== selectedCategory) return false;
+    return allSamples.filter((s) => {
+      if (parserTypeFilter === "STATEMENT" && s.type !== "STATEMENT") return false;
+      if (parserTypeFilter === "PAYMENT_RECEIPT" && s.type !== "PAYMENT") return false;
+      if (parserTypeFilter === "SMS_DEBIT" && s.type !== "SMS") return false;
+
+      if (selectedCategory === "Real EML Files (.eml)" && !s.isEml) return false;
+      if (
+        selectedCategory !== "All" &&
+        selectedCategory !== "Real EML Files (.eml)" &&
+        s.category !== selectedCategory
+      )
+        return false;
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -284,43 +315,101 @@ export default function ParsersPage() {
       }
       return true;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [allSamples, parserTypeFilter, selectedCategory, searchQuery]);
 
   const handleSelectParser = (parser: ParserMetadata) => {
     setSelectedParserId(parser.id);
-    // Find matching sample if any
-    const matchingSample = SAMPLE_DATABASE.find((s) => s.parserModule === parser.id);
-    if (matchingSample) {
-      setTestSubject(matchingSample.subject);
-      setTestContent(matchingSample.content);
-      setTestConfig(matchingSample.parserConfig || {});
-      const result = testParserOnContent(parser.id, matchingSample.content, matchingSample.subject, testRegex, matchingSample.parserConfig);
-      setActiveTestResult(result);
-    } else {
-      const result = testParserOnContent(parser.id, testContent, testSubject, testRegex, testConfig);
-      setActiveTestResult(result);
-    }
   };
 
   const handleLoadSample = (sample: SampleItem) => {
     setSelectedParserId(sample.parserModule);
-    setTestSubject(sample.subject);
-    setTestContent(sample.content);
+    setCurrentRawContent(sample.content);
+    setCurrentFilename(sample.filename || (sample.isEml ? `${sample.id}.eml` : undefined));
     setTestConfig(sample.parserConfig || {});
+    setViewMode(sample.isEml ? "RENDERED_HTML" : "CLEAN_TEXT");
     setActiveTab("PLAYGROUND");
-
-    const result = testParserOnContent(sample.parserModule, sample.content, sample.subject, testRegex, sample.parserConfig);
-    setActiveTestResult(result);
   };
 
-  const handleRunTest = () => {
-    const result = testParserOnContent(selectedParserId, testContent, testSubject, testRegex, testConfig);
-    setActiveTestResult(result);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setCurrentRawContent(content);
+        setCurrentFilename(file.name);
+        setViewMode(file.name.endsWith(".eml") ? "RENDERED_HTML" : "CLEAN_TEXT");
+        setActiveTab("PLAYGROUND");
+
+        // Try to auto-select parser based on content
+        const lower = content.toLowerCase();
+        if (lower.includes("airtel") || lower.includes("google pay")) {
+          setSelectedParserId("AirtelPostpaidParser");
+        } else if (lower.includes("homefy")) {
+          setSelectedParserId("HomefyParser");
+        } else if (lower.includes("hdfc") && (lower.includes("vpa") || lower.includes("upi"))) {
+          setSelectedParserId("UPIPaymentParser");
+        } else if (lower.includes("hdfc") && lower.includes("credit card")) {
+          setSelectedParserId("HDFCCardParser");
+        } else if (lower.includes("icici") || lower.includes("amazon pay")) {
+          setSelectedParserId("ICICICardParser");
+        } else if (lower.includes("axis")) {
+          setSelectedParserId("AxisCardParser");
+        } else if (lower.includes("sbi")) {
+          setSelectedParserId("SBICardParser");
+        } else if (lower.includes("grt") || lower.includes("tanishq")) {
+          setSelectedParserId("JewellerySchemeParser");
+        } else if (lower.includes("loan rec") || lower.includes("loan a/c") || lower.includes("emi")) {
+          setSelectedParserId("LoanSmsParser");
+        } else {
+          setSelectedParserId("UniversalAutoParser");
+        }
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setCurrentRawContent(content);
+        setCurrentFilename(file.name);
+        setViewMode("RENDERED_HTML");
+        setActiveTab("PLAYGROUND");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
       <FinanceTopBar title="Parser Laboratory" />
+
+      {/* Hidden File Input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".eml,.txt,.html,.msg"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
@@ -332,34 +421,169 @@ export default function ParsersPage() {
                 🧩
               </span>
               <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                Specialized Extraction Laboratory
+                Specialized Parsing Engines & EML Viewer
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Statement & Payment Parsers
+              Statement vs Payment Receipt Parsers
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl">
-              Inspect, test, and debug all 12 dedicated parser engines across Indian bank credit cards, UPI alerts, telecom bills, community water meters, and loan recovery SMS messages.
+              Specialized, isolated engines separated by functional type: <strong>Statement / Bill Invoices</strong> (due dates & bill totals) and <strong>Payment Receipts & Alerts</strong> (debit alerts & UTR references).
             </p>
           </div>
 
-          {/* Quick Stats Badges */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/40 px-3.5 py-2 text-center">
-              <span className="text-xs font-medium text-slate-400 block">Engines</span>
-              <span className="text-base font-extrabold text-cyan-300">{parsers.length} Active</span>
-            </div>
-            <div className="rounded-xl border border-indigo-500/20 bg-indigo-950/40 px-3.5 py-2 text-center">
-              <span className="text-xs font-medium text-slate-400 block">Curated Samples</span>
-              <span className="text-base font-extrabold text-indigo-300">{SAMPLE_DATABASE.length} Ready</span>
+          {/* Action Buttons: Upload EML & Stats */}
+          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 px-4 py-2.5 text-xs font-extrabold text-slate-950 shadow-lg shadow-cyan-500/20 transition active:scale-95 cursor-pointer"
+            >
+              <span>📂</span> Upload .EML / TXT File
+            </button>
+            <div className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-center">
+              <span className="text-[10px] font-medium text-slate-400 block">Real EMLs</span>
+              <span className="text-sm font-extrabold text-cyan-300">
+                {BUNDLED_EMLS.length} Bundled
+              </span>
             </div>
           </div>
+        </div>
+
+        {/* Real EML Quick Switcher Bar */}
+        <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 p-3 sm:p-4 space-y-2.5 shadow-md">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+              <span>📧</span> Real EML Files Collection (1-Click Load & Render)
+            </span>
+            <span className="text-[10px] text-slate-400">Actual MIME messages with HTML layouts</span>
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {BUNDLED_EMLS.map((eml) => {
+              const isLoaded = currentFilename === eml.filename;
+              return (
+                <button
+                  key={eml.id}
+                  type="button"
+                  onClick={() => {
+                    setCurrentRawContent(eml.rawEml);
+                    setCurrentFilename(eml.filename);
+                    setSelectedParserId(eml.parserModule);
+                    setViewMode("RENDERED_HTML");
+                    setActiveTab("PLAYGROUND");
+                  }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium whitespace-nowrap transition cursor-pointer ${
+                    isLoaded
+                      ? "border-cyan-400 bg-cyan-500/20 text-cyan-200 shadow-sm"
+                      : "border-white/10 bg-slate-950/80 text-slate-300 hover:bg-slate-800 hover:border-white/20"
+                  }`}
+                >
+                  <span>📄</span>
+                  <span>{eml.name}</span>
+                  <span
+                    className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                      eml.type === "STATEMENT"
+                        ? "bg-cyan-500/20 text-cyan-300"
+                        : "bg-emerald-500/20 text-emerald-300"
+                    }`}
+                  >
+                    {eml.type}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dedicated Type Filter Bar (Statement vs Payment vs SMS) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setParserTypeFilter("ALL")}
+            className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+              parserTypeFilter === "ALL"
+                ? "border-white/40 bg-white/10 shadow-sm"
+                : "border-white/10 bg-slate-900/60 hover:bg-slate-900 hover:border-white/20"
+            }`}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              All Engines
+            </span>
+            <span className="text-sm font-extrabold text-white block mt-0.5">
+              {parsers.length} Engines
+            </span>
+            <span className="text-[10px] text-slate-400">Statement, Receipt & SMS</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setParserTypeFilter("STATEMENT")}
+            className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+              parserTypeFilter === "STATEMENT"
+                ? "border-cyan-500/50 bg-cyan-950/40 shadow-sm"
+                : "border-white/10 bg-slate-900/60 hover:bg-slate-900 hover:border-white/20"
+            }`}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block flex items-center gap-1">
+              <span>📄</span> Statement Parsers
+            </span>
+            <span className="text-sm font-extrabold text-cyan-200 block mt-0.5">
+              {statementCount} Invoices
+            </span>
+            <span className="text-[10px] text-slate-400">Bill Dues & Due Dates</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setParserTypeFilter("PAYMENT_RECEIPT")}
+            className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+              parserTypeFilter === "PAYMENT_RECEIPT"
+                ? "border-emerald-500/50 bg-emerald-950/40 shadow-sm"
+                : "border-white/10 bg-slate-900/60 hover:bg-slate-900 hover:border-white/20"
+            }`}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block flex items-center gap-1">
+              <span>💳</span> Payment Parsers
+            </span>
+            <span className="text-sm font-extrabold text-emerald-200 block mt-0.5">
+              {paymentCount} Receipts
+            </span>
+            <span className="text-[10px] text-slate-400">UPI Alerts & Confirmations</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setParserTypeFilter("SMS_DEBIT")}
+            className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+              parserTypeFilter === "SMS_DEBIT"
+                ? "border-teal-500/50 bg-teal-950/40 shadow-sm"
+                : "border-white/10 bg-slate-900/60 hover:bg-slate-900 hover:border-white/20"
+            }`}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-300 block flex items-center gap-1">
+              <span>💬</span> Bank SMS Parsers
+            </span>
+            <span className="text-sm font-extrabold text-teal-200 block mt-0.5">
+              {smsCount} SMS Engine
+            </span>
+            <span className="text-[10px] text-slate-400">Loan & EMI Recovery SMS</span>
+          </button>
         </div>
 
         {/* Category Filter Pills & Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-white/10 backdrop-blur-sm">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-            {["All", "Cards", "UPI & Debits", "Utilities", "Gold & Schemes", "SMS & Loans", "Advanced"].map((cat) => (
+            {[
+              "All",
+              "Real EML Files (.eml)",
+              "Cards",
+              "UPI & Debits",
+              "Utilities",
+              "Gold & Schemes",
+              "SMS & Loans",
+              "Advanced",
+            ].map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -406,7 +630,7 @@ export default function ParsersPage() {
                 : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
           >
-            <span>⚡</span> Interactive Playground & Live Inspector
+            <span>⚡</span> Interactive EML Playground & Live Inspector
           </button>
           <button
             type="button"
@@ -417,7 +641,7 @@ export default function ParsersPage() {
                 : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
           >
-            <span>📚</span> Sample Library & EML Showcase ({SAMPLE_DATABASE.length})
+            <span>📚</span> Separated Sample Catalog ({filteredSamples.length})
           </button>
         </div>
 
@@ -430,10 +654,10 @@ export default function ParsersPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   Select Engine ({filteredParsers.length})
                 </span>
-                <span className="text-[10px] text-cyan-400 font-medium">Click to inspect</span>
+                <span className="text-[10px] text-cyan-400 font-medium">Click to switch</span>
               </div>
 
-              <div className="space-y-2 max-h-[680px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[760px] overflow-y-auto pr-1">
                 {filteredParsers.map((parser) => {
                   const isSelected = parser.id === selectedParserId;
                   return (
@@ -448,30 +672,47 @@ export default function ParsersPage() {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className={`text-xs font-bold ${isSelected ? "text-cyan-300" : "text-white"}`}>
+                        <span
+                          className={`text-xs font-bold ${isSelected ? "text-cyan-300" : "text-white"}`}
+                        >
                           {parser.name}
                         </span>
-                        {parser.id === "UniversalAutoParser" && (
-                          <span className="rounded-full bg-cyan-500/20 px-1.5 py-0.2 text-[9px] font-extrabold text-cyan-300 shrink-0">
-                            Auto Cascade
+
+                        {/* Separate Type Badges */}
+                        {parser.type === "STATEMENT" && (
+                          <span className="rounded-full bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.2 text-[9px] font-extrabold text-cyan-300 shrink-0">
+                            📄 Statement
                           </span>
                         )}
-                        {parser.id === "LoanSmsParser" && (
-                          <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[9px] font-extrabold text-emerald-300 shrink-0">
-                            SMS
+                        {parser.type === "PAYMENT_RECEIPT" && (
+                          <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.2 text-[9px] font-extrabold text-emerald-300 shrink-0">
+                            💳 Payment Receipt
+                          </span>
+                        )}
+                        {parser.type === "DUAL" && (
+                          <span className="rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.2 text-[9px] font-extrabold text-indigo-300 shrink-0">
+                            🔄 Dual (Stmt+Pay)
+                          </span>
+                        )}
+                        {parser.type === "SMS_DEBIT" && (
+                          <span className="rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.2 text-[9px] font-extrabold text-teal-300 shrink-0">
+                            💬 SMS Loan
                           </span>
                         )}
                       </div>
+
                       <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                         {parser.description}
                       </p>
-                      <div className="mt-2 flex items-center gap-1.5 font-mono text-[9px] text-slate-500">
-                        <span className="bg-white/5 px-1.5 py-0.5 rounded border border-white/5 truncate max-w-[200px]">
+
+                      <div className="mt-2 flex items-center justify-between font-mono text-[9px] text-slate-500">
+                        <span className="bg-white/5 px-1.5 py-0.5 rounded border border-white/5 truncate max-w-[180px]">
                           {parser.id}
                         </span>
                         {parser.configFields && parser.configFields.length > 0 && (
                           <span className="text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                            {parser.configFields.length} config {parser.configFields.length === 1 ? "field" : "fields"}
+                            {parser.configFields.length} config{" "}
+                            {parser.configFields.length === 1 ? "field" : "fields"}
                           </span>
                         )}
                       </div>
@@ -481,56 +722,159 @@ export default function ParsersPage() {
               </div>
             </div>
 
-            {/* Right: Live Playground & Output (8 cols) */}
+            {/* Right: Live Playground & EML Viewer (8 cols) */}
             <div className="lg:col-span-8 space-y-5">
-              {/* Selected Parser Card Header */}
-              <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/30 via-slate-900 to-indigo-950/30 p-4 sm:p-5 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 block">
-                      Active Parser Engine
-                    </span>
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      <span>{selectedParser.name}</span>
-                    </h2>
+              {/* EML Drag & Drop Header Info */}
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                className="rounded-2xl border border-dashed border-cyan-500/30 bg-slate-900/80 p-4 space-y-3 relative group"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📬</span>
+                    <div>
+                      <span className="text-xs font-bold text-white block">
+                        {currentFilename || "Custom Message / Raw Content"}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Drop any .eml or .txt file here to inspect and parse live
+                      </span>
+                    </div>
                   </div>
-                  <span className="self-start sm:self-auto font-mono text-xs text-slate-400 bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl">
-                    {selectedParser.id}
-                  </span>
+
+                  {/* View Mode Switcher Pills */}
+                  <div className="flex items-center rounded-xl bg-slate-950 p-1 border border-white/10 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("RENDERED_HTML")}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        viewMode === "RENDERED_HTML"
+                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <span>🌐</span> Rendered HTML
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("CLEAN_TEXT")}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        viewMode === "CLEAN_TEXT"
+                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <span>📝</span> Clean Text
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("RAW_EML")}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        viewMode === "RAW_EML"
+                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <span>📄</span> Raw MIME Source
+                    </button>
+                  </div>
                 </div>
 
-                <p className="text-xs text-slate-300 leading-relaxed">{selectedParser.description}</p>
+                {/* Email Metadata Card */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-xl border border-white/5 bg-slate-950 p-2.5 truncate">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Subject
+                    </span>
+                    <span
+                      className="font-semibold text-white truncate block text-[11px]"
+                      title={parsedDoc.subject || "No Subject"}
+                    >
+                      {parsedDoc.subject || "No Subject"}
+                    </span>
+                  </div>
 
-                {/* Sample Queries */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
-                  {selectedParser.sampleStatementQuery && (
-                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/40 p-2.5">
-                      <span className="text-[10px] font-bold uppercase text-cyan-300 block mb-0.5">
-                        📄 Statement Query
-                      </span>
-                      <code className="font-mono text-slate-300 break-all text-[10px]">
-                        {selectedParser.sampleStatementQuery}
-                      </code>
-                    </div>
-                  )}
-                  {selectedParser.samplePaymentQuery && (
-                    <div className="rounded-xl border border-indigo-500/20 bg-indigo-950/40 p-2.5">
-                      <span className="text-[10px] font-bold uppercase text-indigo-300 block mb-0.5">
-                        💳 Payment / Alert Query
-                      </span>
-                      <code className="font-mono text-slate-300 break-all text-[10px]">
-                        {selectedParser.samplePaymentQuery}
-                      </code>
-                    </div>
-                  )}
+                  <div className="rounded-xl border border-white/5 bg-slate-950 p-2.5 truncate">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">From</span>
+                    <span
+                      className="font-semibold text-slate-300 truncate block text-[11px]"
+                      title={parsedDoc.from || "Unknown Sender"}
+                    >
+                      {parsedDoc.from || "Unknown Sender"}
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-white/5 bg-slate-950 p-2.5 truncate">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Date / Size
+                    </span>
+                    <span className="font-mono text-slate-300 truncate block text-[11px]">
+                      {parsedDoc.date || "N/A"} ({Math.round(currentRawContent.length / 1024)} KB)
+                    </span>
+                  </div>
                 </div>
+
+                {/* Viewer Body Area */}
+                {viewMode === "RENDERED_HTML" ? (
+                  parsedDoc.htmlBody ? (
+                    <div className="rounded-xl border border-white/10 bg-white overflow-hidden shadow-inner min-h-[380px]">
+                      <div className="bg-slate-100 px-3 py-1 text-[10px] font-mono text-slate-600 border-b border-slate-200 flex justify-between items-center">
+                        <span>HTML Rendering Sandbox</span>
+                        <span>{parsedDoc.htmlBody.length} HTML bytes</span>
+                      </div>
+                      <iframe
+                        title="Email HTML Preview"
+                        srcDoc={parsedDoc.htmlBody}
+                        sandbox="allow-same-origin"
+                        className="w-full h-[420px] border-0"
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-slate-950 p-6 text-center space-y-2">
+                      <span className="text-xl">📄</span>
+                      <p className="text-xs text-slate-400">
+                        This message does not contain rich HTML. Displaying clean plain text content instead:
+                      </p>
+                      <pre className="text-left p-3 rounded-lg bg-slate-900 border border-white/5 font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-60 overflow-y-auto">
+                        {parsedDoc.cleanText || parsedDoc.textBody}
+                      </pre>
+                    </div>
+                  )
+                ) : viewMode === "CLEAN_TEXT" ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Normalized Plain Text (Analyzed by Regex Parsers)</span>
+                      <span className="font-mono">{parsedDoc.cleanText.length} characters</span>
+                    </div>
+                    <textarea
+                      rows={14}
+                      value={parsedDoc.cleanText}
+                      readOnly
+                      className="w-full font-mono text-xs rounded-xl border border-white/10 bg-slate-950 p-3.5 text-slate-200 focus:outline-none resize-y leading-relaxed"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Raw MIME / EML Source Payload</span>
+                      <span className="font-mono">{currentRawContent.length} characters</span>
+                    </div>
+                    <textarea
+                      rows={14}
+                      value={currentRawContent}
+                      onChange={(e) => setCurrentRawContent(e.target.value)}
+                      className="w-full font-mono text-[11px] rounded-xl border border-white/10 bg-slate-950 p-3.5 text-cyan-200/90 focus:border-cyan-400 focus:outline-none resize-y leading-relaxed"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Dynamic Config Fields if applicable */}
               {selectedParser.configFields && selectedParser.configFields.length > 0 && (
                 <div className="rounded-2xl border border-amber-500/20 bg-amber-950/20 p-4 space-y-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <span>⚙️</span> Parser Configuration Options
+                    <span>⚙️</span> {selectedParser.name} Config Options
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {selectedParser.configFields.map((field) => (
@@ -598,72 +942,13 @@ export default function ParsersPage() {
                 </div>
               )}
 
-              {/* Playground Inputs */}
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Input Subject / SMS Sender
-                  </label>
-                  <span className="text-[10px] text-slate-400">Passed as email subject or sender header</span>
-                </div>
-                <input
-                  type="text"
-                  value={testSubject}
-                  onChange={(e) => setTestSubject(e.target.value)}
-                  placeholder="e.g. New bill from Airtel Postpaid Mobile or BOI"
-                  className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
-                />
-
-                <div className="flex items-center justify-between pt-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Email Raw Body / EML Content / SMS Message
-                  </label>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {testContent.length} characters
-                  </span>
-                </div>
-
-                <textarea
-                  rows={8}
-                  value={testContent}
-                  onChange={(e) => setTestContent(e.target.value)}
-                  placeholder="Paste raw email body, MIME/EML, or SMS text here..."
-                  className="w-full font-mono text-xs rounded-xl border border-white/10 bg-slate-950 p-3.5 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none resize-y leading-relaxed"
-                />
-
-                {/* Run Parser Action */}
-                <div className="flex items-center justify-between pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Quick Samples:</span>
-                    {SAMPLE_DATABASE.slice(0, 3).map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => handleLoadSample(s)}
-                        className="text-[10px] text-cyan-300 hover:text-white bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 px-2 py-0.5 rounded-lg transition cursor-pointer"
-                      >
-                        {s.name.split(" ")[0]}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleRunTest}
-                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-5 py-2 text-xs font-extrabold text-slate-950 shadow-lg shadow-cyan-500/20 transition active:scale-95 cursor-pointer"
-                  >
-                    <span>▶</span> Run {selectedParser.name.split(" ")[0]}
-                  </button>
-                </div>
-              </div>
-
-              {/* Live Test Output Cards */}
+              {/* Live Extraction Results */}
               {activeTestResult && (
-                <div className="rounded-2xl border border-white/15 bg-slate-900/80 p-4 sm:p-5 space-y-4 shadow-xl">
+                <div className="rounded-2xl border border-white/15 bg-slate-900/90 p-4 sm:p-5 space-y-4 shadow-xl">
                   <div className="flex items-center justify-between border-b border-white/10 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-extrabold text-white">Extraction Results</span>
-                      <span className="font-mono text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                      <span className="font-mono text-[10px] text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
                         {activeTestResult.parserModule}
                       </span>
                     </div>
@@ -671,19 +956,20 @@ export default function ParsersPage() {
                     <div className="flex items-center gap-2">
                       {activeTestResult.statementResult.success && (
                         <span className="rounded-full bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300">
-                          ✓ Statement Matched
+                          ✓ Statement Dues Matched
                         </span>
                       )}
                       {activeTestResult.paymentResult.success && (
                         <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                          ✓ Payment Matched
+                          ✓ Payment Receipt Matched
                         </span>
                       )}
-                      {!activeTestResult.statementResult.success && !activeTestResult.paymentResult.success && (
-                        <span className="rounded-full bg-rose-500/20 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-bold text-rose-300">
-                          ✕ No Match
-                        </span>
-                      )}
+                      {!activeTestResult.statementResult.success &&
+                        !activeTestResult.paymentResult.success && (
+                          <span className="rounded-full bg-rose-500/20 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-bold text-rose-300">
+                            ✕ No Match
+                          </span>
+                        )}
                     </div>
                   </div>
 
@@ -693,7 +979,7 @@ export default function ParsersPage() {
                     <div
                       className={`p-4 rounded-2xl border transition ${
                         activeTestResult.statementResult.success
-                          ? "border-cyan-500/30 bg-cyan-950/20"
+                          ? "border-cyan-500/40 bg-cyan-950/20"
                           : "border-white/5 bg-white/[0.01]"
                       }`}
                     >
@@ -749,7 +1035,8 @@ export default function ParsersPage() {
                         </div>
                       ) : (
                         <p className="text-[11px] text-slate-500 italic">
-                          {activeTestResult.statementResult.error || "No statement dues detected in this message."}
+                          {activeTestResult.statementResult.error ||
+                            "No statement dues detected in this message."}
                         </p>
                       )}
                     </div>
@@ -758,13 +1045,13 @@ export default function ParsersPage() {
                     <div
                       className={`p-4 rounded-2xl border transition ${
                         activeTestResult.paymentResult.success
-                          ? "border-emerald-500/30 bg-emerald-950/20"
+                          ? "border-emerald-500/40 bg-emerald-950/20"
                           : "border-white/5 bg-white/[0.01]"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
-                          <span>💳</span> Payment Confirmation / Debit
+                          <span>💳</span> Payment Confirmation / Receipt
                         </span>
                         {activeTestResult.paymentResult.success ? (
                           <span className="text-[10px] font-bold text-emerald-400">SUCCESS</span>
@@ -806,7 +1093,8 @@ export default function ParsersPage() {
                         </div>
                       ) : (
                         <p className="text-[11px] text-slate-500 italic">
-                          {activeTestResult.paymentResult.error || "No payment confirmation detected in this message."}
+                          {activeTestResult.paymentResult.error ||
+                            "No payment confirmation detected in this message."}
                         </p>
                       )}
                     </div>
@@ -843,14 +1131,16 @@ export default function ParsersPage() {
           </div>
         )}
 
-        {/* TAB 2: SAMPLES LIBRARY */}
+        {/* TAB 2: SAMPLES LIBRARY (SEPARATED BY STATEMENT & PAYMENT) */}
         {activeTab === "SAMPLES" && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-white">Realistic Curated Sample Messages</h2>
+                <h2 className="text-base font-bold text-white">
+                  Curated EML & Message Showcase Library
+                </h2>
                 <p className="text-xs text-slate-400">
-                  Pre-configured sample emails, BBPS receipts, and bank loan SMS alerts across Indian providers. Click <strong>Load into Playground</strong> to test live.
+                  Full real MIME <code>.eml</code> files and synthesized test cases separated by Statement Invoices and Payment Receipts.
                 </p>
               </div>
             </div>
@@ -863,19 +1153,23 @@ export default function ParsersPage() {
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-bold text-white group-hover:text-cyan-300 transition">
-                        {sample.name}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {sample.isEml ? <span>📧</span> : <span>📝</span>}
+                        <span className="text-xs font-bold text-white group-hover:text-cyan-300 transition">
+                          {sample.name}
+                        </span>
+                      </div>
+
                       <span
                         className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold shrink-0 ${
                           sample.type === "STATEMENT"
-                            ? "bg-cyan-500/20 text-cyan-300"
+                            ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
                             : sample.type === "PAYMENT"
-                            ? "bg-emerald-500/20 text-emerald-300"
-                            : "bg-teal-500/20 text-teal-300"
+                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
                         }`}
                       >
-                        {sample.type}
+                        {sample.type === "STATEMENT" ? "📄 Statement" : sample.type === "PAYMENT" ? "💳 Payment Receipt" : "💬 SMS"}
                       </span>
                     </div>
 
@@ -884,8 +1178,10 @@ export default function ParsersPage() {
                     </p>
 
                     <div className="rounded-xl border border-white/5 bg-slate-950 p-2.5 font-mono text-[10px] text-slate-300 line-clamp-3 leading-relaxed">
-                      <span className="text-slate-500 font-bold block mb-0.5">Subject: {sample.subject}</span>
-                      {sample.content}
+                      <span className="text-slate-500 font-bold block mb-0.5">
+                        Subject: {sample.subject}
+                      </span>
+                      {sample.content.slice(0, 200)}
                     </div>
                   </div>
 
@@ -899,7 +1195,7 @@ export default function ParsersPage() {
                       onClick={() => handleLoadSample(sample)}
                       className="rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:text-cyan-200 transition cursor-pointer"
                     >
-                      ⚡ Test in Playground
+                      ⚡ Load & Render
                     </button>
                   </div>
                 </div>

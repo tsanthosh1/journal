@@ -39,22 +39,101 @@ export const BUILT_IN_PARSERS: Record<string, () => IStatementParser> = {
   LoanSmsParser: () => new LoanSmsParser(),
 };
 
+export type ParserType = "STATEMENT" | "PAYMENT_RECEIPT" | "DUAL" | "SMS_DEBIT";
+
 export interface ParserMetadata {
   id: string;
   name: string;
+  type: ParserType;
+  category: "Cards" | "UPI & Debits" | "Utilities" | "Gold & Schemes" | "SMS & Loans" | "Advanced";
   description: string;
+  statementTitle?: string;
+  paymentTitle?: string;
   sampleStatementQuery: string;
   samplePaymentQuery: string;
   configFields?: ParserConfigField[];
 }
 
+const PARSER_TYPE_MAP: Record<string, { type: ParserType; category: ParserMetadata["category"]; statementTitle?: string; paymentTitle?: string }> = {
+  UniversalAutoParser: {
+    type: "DUAL",
+    category: "Advanced",
+    statementTitle: "Universal Bill Dues Extractor",
+    paymentTitle: "Universal Payment Matcher",
+  },
+  AirtelPostpaidParser: {
+    type: "DUAL",
+    category: "Utilities",
+    statementTitle: "Airtel Postpaid & Broadband Bill",
+    paymentTitle: "Airtel Payment Receipt Confirmation",
+  },
+  HDFCCardParser: {
+    type: "DUAL",
+    category: "Cards",
+    statementTitle: "HDFC Bank Credit Card Statement",
+    paymentTitle: "HDFC Card Payment Received Alert",
+  },
+  UPIPaymentParser: {
+    type: "PAYMENT_RECEIPT",
+    category: "UPI & Debits",
+    paymentTitle: "UPI & NetBanking Debit Alert (GPay/CRED/HDFC)",
+  },
+  ICICICardParser: {
+    type: "DUAL",
+    category: "Cards",
+    statementTitle: "ICICI & Amazon Pay Card Statement",
+    paymentTitle: "ICICI Card Payment Confirmation",
+  },
+  AxisCardParser: {
+    type: "DUAL",
+    category: "Cards",
+    statementTitle: "Axis Bank Credit Card Statement",
+    paymentTitle: "Axis Bank Card Payment Alert",
+  },
+  SBICardParser: {
+    type: "DUAL",
+    category: "Cards",
+    statementTitle: "SBI Credit Card e-Statement",
+    paymentTitle: "SBI Card Payment Confirmation",
+  },
+  HomefyParser: {
+    type: "DUAL",
+    category: "Utilities",
+    statementTitle: "Homefy Water & Maintenance Bill",
+    paymentTitle: "Homefy Water Payment Receipt",
+  },
+  JewellerySchemeParser: {
+    type: "DUAL",
+    category: "Gold & Schemes",
+    statementTitle: "Jewellery Monthly Scheme Statement",
+    paymentTitle: "GRT / Tanishq Chit Payment Receipt",
+  },
+  GenericUtilityParser: {
+    type: "DUAL",
+    category: "Utilities",
+    statementTitle: "Telecom, Electricity & Utility Invoices",
+    paymentTitle: "Generic Utility Payment Receipt",
+  },
+  LoanSmsParser: {
+    type: "SMS_DEBIT",
+    category: "SMS & Loans",
+    statementTitle: "Loan Recovery SMS Dues",
+    paymentTitle: "Bank Home Loan & EMI Debit Alert (SMS)",
+  },
+};
+
 export function getAvailableParsers(): ParserMetadata[] {
   const list: ParserMetadata[] = Object.values(BUILT_IN_PARSERS).map((factory) => {
     const p = factory();
+    const meta = PARSER_TYPE_MAP[p.id] || { type: "DUAL", category: "Advanced" };
     return {
       id: p.id,
       name: p.name,
+      type: meta.type,
+      category: meta.category,
       description: p.description,
+      statementTitle: meta.statementTitle,
+      paymentTitle: meta.paymentTitle,
       sampleStatementQuery: p.sampleStatementQuery,
       samplePaymentQuery: p.samplePaymentQuery,
       configFields: p.configFields,
@@ -64,6 +143,10 @@ export function getAvailableParsers(): ParserMetadata[] {
   list.push({
     id: "CustomRegexParser",
     name: "Custom Regex Pattern (Advanced)",
+    type: "DUAL",
+    category: "Advanced",
+    statementTitle: "Custom Statement Regex Pattern",
+    paymentTitle: "Custom Payment Regex Pattern",
     description: "Specify your own regular expressions with capture groups for custom providers.",
     sampleStatementQuery: 'from:billing@provider.com subject:"Invoice"',
     samplePaymentQuery: 'from:billing@provider.com subject:"Receipt"',
@@ -71,6 +154,18 @@ export function getAvailableParsers(): ParserMetadata[] {
   });
 
   return list;
+}
+
+export function getStatementParsers(): ParserMetadata[] {
+  return getAvailableParsers().filter((p) => p.type === "STATEMENT" || p.type === "DUAL");
+}
+
+export function getPaymentParsers(): ParserMetadata[] {
+  return getAvailableParsers().filter((p) => p.type === "PAYMENT_RECEIPT" || p.type === "DUAL");
+}
+
+export function getSmsParsers(): ParserMetadata[] {
+  return getAvailableParsers().filter((p) => p.type === "SMS_DEBIT");
 }
 
 export function getParserForModule(moduleName?: string, customRegex?: any): IStatementParser {
