@@ -299,6 +299,7 @@ export async function syncSubscriptionWithGmail(
       paid = total;
       cycle.paidAmount = paid;
       cycle.lastPaymentDate = cycle.statementDate || new Date().toISOString().split("T")[0];
+      cycle.dueDate = undefined;
     }
 
     const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);

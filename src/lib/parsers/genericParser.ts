@@ -69,7 +69,7 @@ export class GenericUtilityParser implements IStatementParser {
     return {
       success: true,
       statementTotal,
-      dueDate: dueDate ?? new Date().toISOString().split("T")[0],
+      dueDate,
       referenceId: matches.rawReferenceId,
       rawMatches: matches,
     };
@@ -126,7 +126,7 @@ export class GenericUtilityParser implements IStatementParser {
     return {
       success: true,
       paidAmount,
-      paymentDate: paymentDate ?? new Date().toISOString().split("T")[0],
+      paymentDate,
       referenceId: matches.rawReferenceId,
       rawMatches: matches,
     };
@@ -197,7 +197,7 @@ export class CustomRegexParser implements IStatementParser {
     return {
       success: true,
       statementTotal,
-      dueDate: dueDate ?? new Date().toISOString().split("T")[0],
+      dueDate,
       rawMatches: matches,
     };
   }
@@ -218,6 +218,7 @@ export class CustomRegexParser implements IStatementParser {
     }
 
     const paidAmount = cleanCurrencyAmount(matches.rawPaidAmount);
+    const paymentDate = parseFlexibleDate(matches.rawPaymentDate);
 
     if (paidAmount === undefined) {
       return {
@@ -230,7 +231,7 @@ export class CustomRegexParser implements IStatementParser {
     return {
       success: true,
       paidAmount,
-      paymentDate: new Date().toISOString().split("T")[0],
+      paymentDate,
       rawMatches: matches,
     };
   }
