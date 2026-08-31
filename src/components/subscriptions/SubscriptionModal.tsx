@@ -63,18 +63,19 @@ export function SubscriptionModal({
   }>({});
 
   // Independent Sources
-  // Statement Source: "EMAIL" | "MANUAL"
-  const [statementSource, setStatementSource] = useState<"EMAIL" | "MANUAL">("EMAIL");
+  // Statement Source: "EMAIL" | "SMS" | "MANUAL"
+  const [statementSource, setStatementSource] = useState<"EMAIL" | "SMS" | "MANUAL">("EMAIL");
   const [statementQuery, setStatementQuery] = useState("");
+  const [statementSmsSender, setStatementSmsSender] = useState("");
+  const [statementSmsKeywords, setStatementSmsKeywords] = useState("bill, due, statement");
+  const [statementSmsDigits, setStatementSmsDigits] = useState("");
 
   // Payment Source: "EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL"
   const [paymentSource, setPaymentSource] = useState<"EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL">("EMAIL");
   const [paymentQuery, setPaymentQuery] = useState("");
-
-  // SMS Configuration
-  const [smsSenderQuery, setSmsSenderQuery] = useState("");
-  const [smsKeywords, setSmsKeywords] = useState("loan, emi, recovery");
-  const [smsLoanDigits, setSmsLoanDigits] = useState("");
+  const [paymentSmsSender, setPaymentSmsSender] = useState("");
+  const [paymentSmsKeywords, setPaymentSmsKeywords] = useState("loan, emi, recovery, debited");
+  const [paymentSmsDigits, setPaymentSmsDigits] = useState("");
 
   // Custom Query Builder Helper state
   const [fromDomain, setFromDomain] = useState("");
@@ -144,9 +145,9 @@ export function SubscriptionModal({
 
       if (sc && (sc.enabled || initialData.source === "SMS_AUTOMATED")) {
         setPaymentSource("SMS");
-        setSmsSenderQuery(sc.senderQuery || "");
-        setSmsKeywords(sc.filterKeywords?.join(", ") || "loan, emi, recovery");
-        setSmsLoanDigits(sc.accountOrLoanDigits || "");
+        setPaymentSmsSender(sc.senderQuery || "");
+        setPaymentSmsKeywords(sc.filterKeywords?.join(", ") || "loan, emi, recovery, debited");
+        setPaymentSmsDigits(sc.accountOrLoanDigits || "");
         setStatementSource("MANUAL");
       } else if (ec && ec.enabled) {
         if (ec.statementQuery && ec.statementQuery.trim().length > 0) {
@@ -195,11 +196,15 @@ export function SubscriptionModal({
 
       setStatementSource("EMAIL");
       setStatementQuery('from:cc.statements@axis.bank.in subject:"Credit Card"');
+      setStatementSmsSender("");
+      setStatementSmsKeywords("bill, due, statement");
+      setStatementSmsDigits("");
+
       setPaymentSource("EMAIL");
       setPaymentQuery('from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"');
-      setSmsSenderQuery("HDFCBK");
-      setSmsKeywords("loan, emi, recovery");
-      setSmsLoanDigits("");
+      setPaymentSmsSender("HDFCBK");
+      setPaymentSmsKeywords("loan, emi, recovery, debited");
+      setPaymentSmsDigits("");
     }
   }, [initialData, isOpen]);
 
@@ -418,19 +423,21 @@ export function SubscriptionModal({
     setErrorMessage("");
 
     try {
-      const isSmsAutomated = paymentSource === "SMS";
+      const isSmsAutomated = statementSource === "SMS" || paymentSource === "SMS";
       const isEmailAutomated =
-        !isSmsAutomated &&
-        (statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE");
+        statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE";
 
       const billingType: BillingType =
-        statementSource === "EMAIL" ? "BILL_GENERATED" : "FIXED_TENURE";
+        statementSource === "EMAIL" || statementSource === "SMS" ? "BILL_GENERATED" : "FIXED_TENURE";
 
-      const source: SourceType = isSmsAutomated
-        ? "SMS_AUTOMATED"
-        : isEmailAutomated
-        ? "EMAIL_AUTOMATED"
-        : "MANUAL";
+      const source: SourceType =
+        isEmailAutomated && isSmsAutomated
+          ? "EMAIL_AUTOMATED"
+          : isSmsAutomated
+          ? "SMS_AUTOMATED"
+          : isEmailAutomated
+          ? "EMAIL_AUTOMATED"
+          : "MANUAL";
 
       const emailConfig: EmailConfig | undefined = isEmailAutomated
         ? {
@@ -438,14 +445,18 @@ export function SubscriptionModal({
             statementQuery: statementSource === "EMAIL" ? statementQuery.trim() : "",
             paymentQuery: paymentSource === "EMAIL" ? paymentQuery.trim() : "",
             dedupStrategy,
-            statementParserModule: statementSource === "EMAIL" ? statementParserModule : undefined,
+            statementParserModule:
+              statementSource === "EMAIL" || statementSource === "SMS" ? statementParserModule : undefined,
             statementParserConfig:
-              statementSource === "EMAIL" && Object.keys(statementParserConfig).length > 0
+              (statementSource === "EMAIL" || statementSource === "SMS") &&
+              Object.keys(statementParserConfig).length > 0
                 ? statementParserConfig
                 : undefined,
-            paymentParserModule: paymentSource === "EMAIL" ? paymentParserModule : undefined,
+            paymentParserModule:
+              paymentSource === "EMAIL" || paymentSource === "SMS" ? paymentParserModule : undefined,
             paymentParserConfig:
-              paymentSource === "EMAIL" && Object.keys(paymentParserConfig).length > 0
+              (paymentSource === "EMAIL" || paymentSource === "SMS") &&
+              Object.keys(paymentParserConfig).length > 0
                 ? paymentParserConfig
                 : undefined,
             // Fallback for legacy
@@ -460,12 +471,13 @@ export function SubscriptionModal({
       const smsConfig = isSmsAutomated
         ? {
             enabled: true,
-            senderQuery: smsSenderQuery.trim(),
-            filterKeywords: smsKeywords
+            senderQuery: (paymentSource === "SMS" ? paymentSmsSender : statementSmsSender).trim(),
+            filterKeywords: (paymentSource === "SMS" ? paymentSmsKeywords : statementSmsKeywords)
               .split(",")
               .map((k) => k.trim())
               .filter(Boolean),
-            accountOrLoanDigits: smsLoanDigits.trim() || undefined,
+            accountOrLoanDigits:
+              (paymentSource === "SMS" ? paymentSmsDigits : statementSmsDigits).trim() || undefined,
             dedupStrategy,
           }
         : undefined;
@@ -746,30 +758,42 @@ export function SubscriptionModal({
 
           <hr className="border-white/10" />
 
-          {/* Section 2: Statement / Bill Dues Source */}
-          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-4 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+          {/* Section 2: Statement / Bill Invoice */}
+          <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-b from-cyan-950/30 to-slate-900/50 p-4 sm:p-5 space-y-4">
+            {/* Header with Step 1: Source */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-white/10 pb-3">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 block">
-                  2. Statement / Invoice Source
+                <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                  <span>📄</span> 2. Statement / Bill Invoice
                 </span>
                 <span className="text-[11px] text-slate-400">
                   Where does the billing invoice or statement come from?
                 </span>
               </div>
 
-              {/* Source Toggle */}
-              <div className="flex items-center rounded-xl bg-slate-900/80 p-1 border border-white/10">
+              {/* 1. Source Pills */}
+              <div className="flex items-center rounded-xl bg-slate-950/80 p-1 border border-white/10 self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setStatementSource("EMAIL")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
                     statementSource === "EMAIL"
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  ✉️ Gmail Sync
+                  <span>✉️</span> Gmail
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatementSource("SMS")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    statementSource === "SMS"
+                      ? "bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>💬</span> SMS
                 </button>
                 <button
                   type="button"
@@ -777,145 +801,34 @@ export function SubscriptionModal({
                     setStatementSource("MANUAL");
                     setStatementQuery("");
                   }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
                     statementSource === "MANUAL"
-                      ? "bg-white/10 text-white border border-white/20"
+                      ? "bg-white/10 text-white border border-white/20 shadow-sm"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  🚫 None (Fixed / Manual)
+                  <span>✋</span> Manual (Fixed)
                 </button>
               </div>
             </div>
 
+            {/* 2. Query Filters based on Source */}
             {statementSource === "EMAIL" ? (
-              <div className="space-y-3.5 pt-1">
-                {/* Statement Parser Selector */}
-                <div className="rounded-xl border border-cyan-500/20 bg-slate-900/80 p-3.5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-cyan-200">
-                      🧩 Statement Parser Engine
-                    </label>
-                    {onOpenTestSandbox && (
-                      <button
-                        type="button"
-                        onClick={onOpenTestSandbox}
-                        className="text-[10px] font-medium text-cyan-300 hover:text-cyan-200 cursor-pointer"
-                      >
-                        🧪 Test Sandbox
-                      </button>
-                    )}
-                  </div>
-
-                  <select
-                    value={statementParserModule}
-                    onChange={(e) => handleSelectStatementParser(e.target.value)}
-                    className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-950 px-3 py-1.5 text-xs font-medium text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
-                  >
-                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Fallback Cascade)</option>
-                    <option value="AirtelPostpaidParser">📱 Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
-                    <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
-                    <option value="HDFCCardParser">💳 HDFC Bank Credit Card (HDFCCardParser)</option>
-                    <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
-                    <option value="SBICardParser">💳 SBI Credit Card (SBICardParser)</option>
-                    <option value="HomefyParser">🏠 Homefy Community Water & Maintenance (HomefyParser)</option>
-                    <option value="JewellerySchemeParser">💍 Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
-                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility (GenericUtilityParser)</option>
-                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
-                  </select>
-
-                  {/* Statement Parser Info & Suggested Query */}
-                  {(() => {
-                    const selected = availableParsers.find((p) => p.id === statementParserModule) || availableParsers[0];
-                    return selected ? (
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-xs">
-                        <span className="text-[11px] text-slate-300 flex-1">{selected.description}</span>
-                        {selected.sampleStatementQuery && (
-                          <button
-                            type="button"
-                            onClick={() => setStatementQuery(selected.sampleStatementQuery)}
-                            className="text-[10px] font-semibold text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
-                          >
-                            ⚡ Set Sample Query
-                          </button>
-                        )}
-                      </div>
-                    ) : null;
-                  })()}
-
-                  {/* Dynamic Statement Parser Config Fields */}
-                  {(() => {
-                    const selected = availableParsers.find((p) => p.id === statementParserModule);
-                    if (!selected?.configFields || selected.configFields.length === 0) return null;
-                    return (
-                      <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/40 p-2.5 space-y-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block">
-                          ⚙️ Statement Filters & Config
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          {selected.configFields.map((field) => (
-                            <div key={field.key} className="space-y-0.5">
-                              <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
-                                {field.label}
-                              </label>
-                              <input
-                                type="text"
-                                placeholder={field.placeholder || ""}
-                                value={statementParserConfig[field.key] || ""}
-                                onChange={(e) =>
-                                  setStatementParserConfig((prev) => ({
-                                    ...prev,
-                                    [field.key]: e.target.value,
-                                  }))
-                                }
-                                className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Custom Regex Pattern for Statement */}
-                  {statementParserModule === "CustomRegexParser" && (
-                    <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
-                        🧪 Custom Regex (Statement)
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-300">Statement Amount Pattern</label>
-                          <input
-                            type="text"
-                            placeholder='e.g. Total Due:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
-                            value={customRegex.statementAmountPattern || ""}
-                            onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementAmountPattern: e.target.value }))}
-                            className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-300">Statement Due Date Pattern</label>
-                          <input
-                            type="text"
-                            placeholder='e.g. Due Date:\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})'
-                            value={customRegex.statementDueDatePattern || ""}
-                            onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementDueDatePattern: e.target.value }))}
-                            className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                    Gmail Search Query Filter
+                  </label>
+                  <span className="text-[10px] text-cyan-300">Discovers new bill statements</span>
                 </div>
 
-                {/* Statement Presets */}
+                {/* Quick Presets */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 mr-1">Quick Presets:</span>
+                  <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
                   {[
                     { id: "AIRTEL_POSTPAID", label: "📱 Airtel Postpaid" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
-                    { id: "TANISHQ_GOLD", label: "Tanishq Golden Harvest" },
+                    { id: "TANISHQ_GOLD", label: "Tanishq Gold" },
                     { id: "HOMEFY_WATER", label: "🏠 Homefy Water" },
                     { id: "AIRTEL_OTT", label: "Airtel OTT" },
                     { id: "AMAZON_PAY_ICICI", label: "Amazon Pay ICICI" },
@@ -936,386 +849,299 @@ export function SubscriptionModal({
                   ))}
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-1">
-                    Gmail Search Query for Statement Emails
-                  </label>
-                  <input
-                    type="text"
-                    placeholder='from:mail@grtjewels.com subject:"GRT JPS Advance payment"'
-                    value={statementQuery}
-                    onChange={(e) => setStatementQuery(e.target.value)}
-                    className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
-                  />
+                <input
+                  type="text"
+                  placeholder='from:mail@grtjewels.com subject:"GRT JPS Advance payment"'
+                  value={statementQuery}
+                  onChange={(e) => setStatementQuery(e.target.value)}
+                  className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                />
+              </div>
+            ) : statementSource === "SMS" ? (
+              <div className="space-y-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-300 block">
+                  SMS Search & Match Filters
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Sender Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. HDFCBK, AIRTEL"
+                      value={statementSmsSender}
+                      onChange={(e) => setStatementSmsSender(e.target.value)}
+                      className="mt-1 w-full min-h-[36px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-white placeholder-slate-500 focus:border-teal-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Account / Card Digits (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 7890"
+                      value={statementSmsDigits}
+                      onChange={(e) => setStatementSmsDigits(e.target.value)}
+                      className="mt-1 w-full min-h-[36px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-white placeholder-slate-500 focus:border-teal-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Filter Keywords
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="bill, due, statement"
+                      value={statementSmsKeywords}
+                      onChange={(e) => setStatementSmsKeywords(e.target.value)}
+                      className="mt-1 w-full min-h-[36px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-white placeholder-slate-500 focus:border-teal-400 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-slate-400 bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
-                No statement email will be searched. Expected amount will use the <strong>Amount per Cycle (₹{defaultAmount || 0})</strong>.
-              </p>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-xs text-slate-400">
+                No automated statement search. Expected amount will use the <strong>Amount per Cycle (₹{defaultAmount || 0})</strong>.
+              </div>
+            )}
+
+            {/* 3. Statement Parser Engine: Auto-Detect or Specific */}
+            {(statementSource === "EMAIL" || statementSource === "SMS") && (
+              <div className="rounded-xl border border-cyan-500/20 bg-slate-950/60 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-cyan-200">
+                      Statement Parser Engine
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Select Auto-Detect or a dedicated parser tuned for this provider
+                    </span>
+                  </div>
+
+                  {onOpenTestSandbox && (
+                    <button
+                      type="button"
+                      onClick={onOpenTestSandbox}
+                      className="text-[10px] font-medium text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-lg cursor-pointer"
+                    >
+                      🧪 Test Sandbox
+                    </button>
+                  )}
+                </div>
+
+                <select
+                  value={statementParserModule}
+                  onChange={(e) => handleSelectStatementParser(e.target.value)}
+                  className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
+                >
+                  <optgroup label="Auto Detection">
+                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Auto Cascading Rules)</option>
+                  </optgroup>
+                  <optgroup label="Specific Specialized Parsers">
+                    <option value="AirtelPostpaidParser">📱 Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
+                    <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
+                    <option value="HDFCCardParser">💳 HDFC Bank Credit Card (HDFCCardParser)</option>
+                    <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
+                    <option value="SBICardParser">💳 SBI Credit Card (SBICardParser)</option>
+                    <option value="HomefyParser">🏠 Homefy Community Water & Maintenance (HomefyParser)</option>
+                    <option value="JewellerySchemeParser">💍 Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
+                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility (GenericUtilityParser)</option>
+                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
+                  </optgroup>
+                </select>
+
+                {/* Parser Description */}
+                {(() => {
+                  const selected = availableParsers.find((p) => p.id === statementParserModule) || availableParsers[0];
+                  return selected ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-xs">
+                      <span className="text-[11px] text-slate-300 flex-1">{selected.description}</span>
+                      {selected.sampleStatementQuery && statementSource === "EMAIL" && (
+                        <button
+                          type="button"
+                          onClick={() => setStatementQuery(selected.sampleStatementQuery)}
+                          className="text-[10px] font-semibold text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
+                        >
+                          ⚡ Set Sample Query
+                        </button>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Dynamic Statement Parser Config Fields */}
+                {(() => {
+                  const selected = availableParsers.find((p) => p.id === statementParserModule);
+                  if (!selected?.configFields || selected.configFields.length === 0) return null;
+                  return (
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/40 p-2.5 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block">
+                        ⚙️ Additional Parser Configuration & Filters
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {selected.configFields.map((field) => (
+                          <div key={field.key} className="space-y-0.5">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                              {field.label}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={field.placeholder || ""}
+                              value={statementParserConfig[field.key] || ""}
+                              onChange={(e) =>
+                                setStatementParserConfig((prev) => ({
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                }))
+                              }
+                              className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                            />
+                            {field.description && (
+                              <span className="text-[9px] text-slate-400 block">{field.description}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Custom Regex Pattern for Statement */}
+                {statementParserModule === "CustomRegexParser" && (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
+                      🧪 Custom Regex (Statement)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-300">Statement Amount Pattern</label>
+                        <input
+                          type="text"
+                          placeholder='e.g. Total Due:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
+                          value={customRegex.statementAmountPattern || ""}
+                          onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementAmountPattern: e.target.value }))}
+                          className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-300">Statement Due Date Pattern</label>
+                        <input
+                          type="text"
+                          placeholder='e.g. Due Date:\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})'
+                          value={customRegex.statementDueDatePattern || ""}
+                          onChange={(e) => setCustomRegex((prev) => ({ ...prev, statementDueDatePattern: e.target.value }))}
+                          className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Section 3: Payment Confirmation Source */}
-          <div className="rounded-2xl border border-indigo-500/20 bg-indigo-950/20 p-4 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+          {/* Section 3: Payment Confirmation */}
+          <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-b from-indigo-950/30 to-slate-900/50 p-4 sm:p-5 space-y-4">
+            {/* Header with Step 1: Source */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-white/10 pb-3">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 block">
-                  3. Payment Confirmation Source
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                  <span>💳</span> 3. Payment Confirmation
                 </span>
                 <span className="text-[11px] text-slate-400">
-                  How should payments and debits be reconciled?
+                  How should debits & payments be matched and reconciled?
                 </span>
               </div>
 
-              {/* Source Toggle */}
-              <div className="flex items-center rounded-xl bg-slate-900/80 p-1 border border-white/10">
-                {isPrepaid ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPaymentSource("PREPAID_INVOICE");
-                        setPaymentQuery("");
-                      }}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        paymentSource === "PREPAID_INVOICE"
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      ⚡ Settled on Invoice
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentSource("EMAIL")}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        paymentSource === "EMAIL"
-                          ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      ✉️ Bank / UPI Alert
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPaymentSource("MANUAL");
-                        setPaymentQuery("");
-                      }}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        paymentSource === "MANUAL"
-                          ? "bg-white/10 text-white border border-white/20"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      ✋ Manual
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentSource("EMAIL")}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        paymentSource === "EMAIL"
-                          ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      ✉️ Gmail Sync
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentSource("SMS")}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        paymentSource === "SMS"
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      💬 Android SMS (Loan/EMI)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPaymentSource("MANUAL");
-                        setPaymentQuery("");
-                      }}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                        paymentSource === "MANUAL"
-                          ? "bg-white/10 text-white border border-white/20"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      ✋ Manual
-                    </button>
-                  </>
+              {/* 1. Source Pills */}
+              <div className="flex items-center rounded-xl bg-slate-950/80 p-1 border border-white/10 self-start sm:self-auto">
+                {isPrepaid && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentSource("PREPAID_INVOICE");
+                      setPaymentQuery("");
+                    }}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                      paymentSource === "PREPAID_INVOICE"
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <span>⚡</span> Prepaid / Invoice
+                  </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setPaymentSource("EMAIL")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    paymentSource === "EMAIL"
+                      ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>✉️</span> Gmail
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentSource("SMS")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    paymentSource === "SMS"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>💬</span> SMS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentSource("MANUAL");
+                    setPaymentQuery("");
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    paymentSource === "MANUAL"
+                      ? "bg-white/10 text-white border border-white/20 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>✋</span> Manual
+                </button>
               </div>
             </div>
 
+            {/* 2. Query Filters based on Source */}
             {paymentSource === "PREPAID_INVOICE" ? (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">
                 <span className="font-bold flex items-center gap-1 mb-0.5">
                   <span>⚡</span> Auto-Settled Upon Invoice Receipt
                 </span>
                 <p className="text-[11px] text-slate-300">
-                  Because this is a prepaid subscription, the invoice email in Section 2 is also the payment confirmation. Each detected bill is automatically recorded as <strong>Fully Paid</strong>.
+                  Because this is a prepaid subscription, the invoice in Section 2 is also the payment confirmation. Each detected bill is automatically recorded as <strong>Fully Paid</strong>.
                 </p>
               </div>
-            ) : paymentSource === "SMS" ? (
-              <div className="space-y-3 pt-1">
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
-                  <span className="font-bold flex items-center gap-1 mb-0.5">
-                    <span>💬</span> Android SMS Companion Sync
-                  </span>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Loan debits and EMI recovery messages forwarded from your Android phone will automatically reconcile this commitment.
-                  </p>
-                </div>
-
-                {/* Loan Presets */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSmsSenderQuery("BOI");
-                      setSmsKeywords("Loan Rec, Debited(TRF), Debited");
-                      setCategory("Loans & EMIs");
-                      setName((n) => n || "Bank of India Home Loan");
-                      setImageUrl("https://logo.clearbit.com/bankofindia.co.in");
-                    }}
-                    className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] text-teal-300 hover:bg-teal-500/20 cursor-pointer"
-                  >
-                    🏦 BOI Home Loan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSmsSenderQuery("HDFCBK");
-                      setSmsKeywords("Home Loan, LN RECOVERY");
-                      setCategory("Loans & EMIs");
-                      setName((n) => n || "HDFC Home Loan");
-                      setImageUrl("https://logo.clearbit.com/hdfcbank.com");
-                    }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
-                  >
-                    🏦 HDFC Home Loan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSmsSenderQuery("SBIINB");
-                      setSmsKeywords("LOAN A/C, transfer to LOAN");
-                      setCategory("Housing & Rent");
-                      setName((n) => n || "SBI Home Loan");
-                      setImageUrl("https://logo.clearbit.com/sbi.co.in");
-                    }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
-                  >
-                    🏦 SBI Home Loan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSmsSenderQuery("ICICIB");
-                      setSmsKeywords("Loan Account, towards EMI");
-                      setCategory("Housing & Rent");
-                      setName((n) => n || "ICICI Home Loan");
-                      setImageUrl("https://logo.clearbit.com/icicibank.com");
-                    }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
-                  >
-                    🏦 ICICI Home Loan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSmsSenderQuery("BAJAJ");
-                      setSmsKeywords("EMI, debited");
-                      setCategory("Services");
-                      setName((n) => n || "Bajaj Finserv Loan");
-                      setImageUrl("https://logo.clearbit.com/bajajfinserv.in");
-                    }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
-                  >
-                    💳 Bajaj Finserv EMI
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      Bank Sender Code
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. HDFCBK, SBIINB, CANBNK"
-                      value={smsSenderQuery}
-                      onChange={(e) => setSmsSenderQuery(e.target.value)}
-                      className="mt-1 w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      Matches SMS sender header (e.g. AD-HDFCBK).
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      Loan Last 4 Digits (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 7890"
-                      value={smsLoanDigits}
-                      onChange={(e) => setSmsLoanDigits(e.target.value)}
-                      className="mt-1 w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      Filters SMS matching your specific loan account.
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Filter Keywords (Comma Separated)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="loan, emi, recovery, debited"
-                    value={smsKeywords}
-                    onChange={(e) => setSmsKeywords(e.target.value)}
-                    className="mt-1 w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
-                  />
-                </div>
-              </div>
             ) : paymentSource === "EMAIL" ? (
-              <div className="space-y-3.5 pt-1">
-                {/* Payment Parser Selector */}
-                <div className="rounded-xl border border-indigo-500/20 bg-slate-900/80 p-3.5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-200">
-                      🧩 Payment Parser Engine
-                    </label>
-                    {onOpenTestSandbox && (
-                      <button
-                        type="button"
-                        onClick={onOpenTestSandbox}
-                        className="text-[10px] font-medium text-indigo-300 hover:text-indigo-200 cursor-pointer"
-                      >
-                        🧪 Test Sandbox
-                      </button>
-                    )}
-                  </div>
-
-                  <select
-                    value={paymentParserModule}
-                    onChange={(e) => handleSelectPaymentParser(e.target.value)}
-                    className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-950 px-3 py-1.5 text-xs font-medium text-white focus:border-indigo-400 focus:outline-none cursor-pointer"
-                  >
-                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Fallback Cascade)</option>
-                    <option value="UPIPaymentParser">⚡ UPI Payment Alert Parser - GPay/CRED/HDFC (UPIPaymentParser)</option>
-                    <option value="HDFCCardParser">💳 HDFC Bank Card & Alert (HDFCCardParser)</option>
-                    <option value="AirtelPostpaidParser">📱 Airtel Payment Receipt (AirtelPostpaidParser)</option>
-                    <option value="ICICICardParser">💳 ICICI Bank Payment Receipt (ICICICardParser)</option>
-                    <option value="AxisCardParser">💳 Axis Bank Payment Alert (AxisCardParser)</option>
-                    <option value="SBICardParser">💳 SBI Card Payment Confirmation (SBICardParser)</option>
-                    <option value="HomefyParser">🏠 Homefy Water Payment Receipt (HomefyParser)</option>
-                    <option value="JewellerySchemeParser">💍 Jewellery Scheme Receipt - GRT / Tanishq (JewellerySchemeParser)</option>
-                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility Receipt (GenericUtilityParser)</option>
-                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
-                  </select>
-
-                  {/* Payment Parser Info & Suggested Query */}
-                  {(() => {
-                    const selected = availableParsers.find((p) => p.id === paymentParserModule) || availableParsers[0];
-                    return selected ? (
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-xs">
-                        <span className="text-[11px] text-slate-300 flex-1">{selected.description}</span>
-                        {selected.samplePaymentQuery && (
-                          <button
-                            type="button"
-                            onClick={() => setPaymentQuery(selected.samplePaymentQuery)}
-                            className="text-[10px] font-semibold text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
-                          >
-                            ⚡ Set Sample Query
-                          </button>
-                        )}
-                      </div>
-                    ) : null;
-                  })()}
-
-                  {/* Dynamic Payment Parser Config Fields */}
-                  {(() => {
-                    const selected = availableParsers.find((p) => p.id === paymentParserModule);
-                    if (!selected?.configFields || selected.configFields.length === 0) return null;
-                    return (
-                      <div className="rounded-lg border border-indigo-500/20 bg-indigo-950/40 p-2.5 space-y-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 block">
-                          ⚙️ Payment Filters, VPA Handles & Account Digits
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          {selected.configFields.map((field) => (
-                            <div key={field.key} className="space-y-0.5">
-                              <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
-                                {field.label}
-                              </label>
-                              <input
-                                type="text"
-                                placeholder={field.placeholder || ""}
-                                value={paymentParserConfig[field.key] || ""}
-                                onChange={(e) =>
-                                  setPaymentParserConfig((prev) => ({
-                                    ...prev,
-                                    [field.key]: e.target.value,
-                                  }))
-                                }
-                                className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
-                              />
-                              {field.description && (
-                                <span className="text-[9px] text-slate-400 block">{field.description}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Custom Regex Pattern for Payment */}
-                  {paymentParserModule === "CustomRegexParser" && (
-                    <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
-                        🧪 Custom Regex (Payment)
-                      </span>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-300">Payment Amount Pattern</label>
-                        <input
-                          type="text"
-                          placeholder='e.g. Paid amount:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
-                          value={customRegex.paymentAmountPattern || ""}
-                          onChange={(e) => setCustomRegex((prev) => ({ ...prev, paymentAmountPattern: e.target.value }))}
-                          className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  )}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                    Gmail Search Query Filter
+                  </label>
+                  <span className="text-[10px] text-indigo-300">Matches debit alerts & receipts</span>
                 </div>
 
-                {/* Payment Presets */}
+                {/* Quick Presets */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 mr-1">Quick Presets:</span>
+                  <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
                   {[
                     { id: "AIRTEL_RECEIPT", label: "📱 Airtel Receipt" },
                     { id: "HOMEFY_WATER", label: "🏠 Homefy Water Bill" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
-                    { id: "TANISHQ_GOLD", label: "Tanishq Golden Harvest" },
+                    { id: "TANISHQ_GOLD", label: "Tanishq Gold" },
                     { id: "AMAZON_PAY", label: "Amazon Pay" },
-                    { id: "HDFC_UPI_VPA", label: "HDFC UPI (VPA / Alert)" },
-                    { id: "HDFC_UPI_GPAY", label: "HDFC UPI (GPay Flex)" },
+                    { id: "HDFC_UPI_VPA", label: "HDFC UPI (VPA)" },
+                    { id: "HDFC_UPI_GPAY", label: "HDFC UPI (GPay)" },
                     { id: "HDFC_DIRECT", label: "HDFC Direct" },
                     { id: "AXIS_DIRECT", label: "Axis Direct" },
                     { id: "ICICI_DIRECT", label: "ICICI Direct" },
@@ -1333,82 +1159,313 @@ export function SubscriptionModal({
                   ))}
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-300 mb-1">
-                    Gmail Search Query for Payment / Debit Alerts
-                  </label>
-                  <input
-                    type="text"
-                    placeholder='from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"'
-                    value={paymentQuery}
-                    onChange={(e) => setPaymentQuery(e.target.value)}
-                    className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 block mt-1">
-                    Example: <code className="text-indigo-300 font-mono">from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"</code>
-                  </span>
+                <input
+                  type="text"
+                  placeholder='from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"'
+                  value={paymentQuery}
+                  onChange={(e) => setPaymentQuery(e.target.value)}
+                  className="w-full min-h-[40px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
+                />
+                <span className="text-[10px] text-slate-400 block">
+                  Example: <code className="text-indigo-300 font-mono">from:alerts@hdfcbank.bank.in "gpay-creditcard@okpayaxis"</code>
+                </span>
+              </div>
+            ) : paymentSource === "SMS" ? (
+              <div className="space-y-3">
+                {/* Loan Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentSmsSender("BOI");
+                      setPaymentSmsKeywords("Loan Rec, Debited(TRF), Debited");
+                      setCategory("Loans & EMIs");
+                      setName((n) => n || "Bank of India Home Loan");
+                      setImageUrl("https://logo.clearbit.com/bankofindia.co.in");
+                    }}
+                    className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] text-teal-300 hover:bg-teal-500/20 cursor-pointer"
+                  >
+                    🏦 BOI Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentSmsSender("HDFCBK");
+                      setPaymentSmsKeywords("Home Loan, LN RECOVERY");
+                      setCategory("Loans & EMIs");
+                      setName((n) => n || "HDFC Home Loan");
+                      setImageUrl("https://logo.clearbit.com/hdfcbank.com");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    🏦 HDFC Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentSmsSender("SBIINB");
+                      setPaymentSmsKeywords("LOAN A/C, transfer to LOAN");
+                      setCategory("Housing & Rent");
+                      setName((n) => n || "SBI Home Loan");
+                      setImageUrl("https://logo.clearbit.com/sbi.co.in");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    🏦 SBI Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentSmsSender("ICICIB");
+                      setPaymentSmsKeywords("Loan Account, towards EMI");
+                      setCategory("Housing & Rent");
+                      setName((n) => n || "ICICI Home Loan");
+                      setImageUrl("https://logo.clearbit.com/icicibank.com");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    🏦 ICICI Home Loan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentSmsSender("BAJAJ");
+                      setPaymentSmsKeywords("EMI, debited");
+                      setCategory("Services");
+                      setName((n) => n || "Bajaj Finserv Loan");
+                      setImageUrl("https://logo.clearbit.com/bajajfinserv.in");
+                    }}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                  >
+                    💳 Bajaj Finserv EMI
+                  </button>
                 </div>
 
-                {/* Duplicate Prevention Setting */}
-                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2 mt-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
-                      🛡️ Duplicate Prevention Strategy
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Bank Sender Code
                     </label>
-                    <span className="text-[10px] text-indigo-300 font-medium">Prevents double-counting duplicate notifications</span>
+                    <input
+                      type="text"
+                      placeholder="e.g. HDFCBK, SBIINB"
+                      value={paymentSmsSender}
+                      onChange={(e) => setPaymentSmsSender(e.target.value)}
+                      className="mt-1 w-full min-h-[36px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
+                    />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDedupStrategy("SAME_DAY_SAME_AMOUNT")}
-                      className={`p-2.5 rounded-xl text-left text-xs transition cursor-pointer ${
-                        dedupStrategy === "SAME_DAY_SAME_AMOUNT"
-                          ? "border border-indigo-400 bg-indigo-500/20 text-indigo-200"
-                          : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <span className="font-semibold block text-white text-xs">🛡️ Same Day & Amount</span>
-                      <span className="block text-[10px] text-slate-400 mt-0.5">
-                        Ignores duplicate emails on same day for same amount (e.g. GRT / chits).
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDedupStrategy("SINGLE_PAYMENT_PER_CYCLE")}
-                      className={`p-2.5 rounded-xl text-left text-xs transition cursor-pointer ${
-                        dedupStrategy === "SINGLE_PAYMENT_PER_CYCLE"
-                          ? "border border-indigo-400 bg-indigo-500/20 text-indigo-200"
-                          : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <span className="font-semibold block text-white text-xs">🎯 1 Payment / Month</span>
-                      <span className="block text-[10px] text-slate-400 mt-0.5">
-                        Records max 1 installment per month. All subsequent emails ignored.
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDedupStrategy("ALLOW_MULTIPLE")}
-                      className={`p-2.5 rounded-xl text-left text-xs transition cursor-pointer ${
-                        dedupStrategy === "ALLOW_MULTIPLE"
-                          ? "border border-indigo-400 bg-indigo-500/20 text-indigo-200"
-                          : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <span className="font-semibold block text-white text-xs">➕ Sum All Emails</span>
-                      <span className="block text-[10px] text-slate-400 mt-0.5">
-                        Sums every matching email (e.g. multiple card payments).
-                      </span>
-                    </button>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Loan / Account Digits (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 7890"
+                      value={paymentSmsDigits}
+                      onChange={(e) => setPaymentSmsDigits(e.target.value)}
+                      className="mt-1 w-full min-h-[36px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Filter Keywords
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="loan, emi, recovery, debited"
+                      value={paymentSmsKeywords}
+                      onChange={(e) => setPaymentSmsKeywords(e.target.value)}
+                      className="mt-1 w-full min-h-[36px] font-mono text-xs rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
+                    />
                   </div>
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-slate-400 bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
-                Payments will not be synced automatically. You can click <strong>Pay Full</strong> or <strong>Override</strong> anytime in the ledger.
-              </p>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-xs text-slate-400">
+                Manual reconciliation. Mark payment status directly from the dashboard.
+              </div>
+            )}
+
+            {/* 3. Payment Parser Engine: Auto-Detect or Specific */}
+            {(paymentSource === "EMAIL" || paymentSource === "SMS") && (
+              <div className="rounded-xl border border-indigo-500/20 bg-slate-950/60 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-200">
+                      Payment Parser Engine
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Select Auto-Detect or a dedicated parser for your bank/payment mode
+                    </span>
+                  </div>
+
+                  {onOpenTestSandbox && (
+                    <button
+                      type="button"
+                      onClick={onOpenTestSandbox}
+                      className="text-[10px] font-medium text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg cursor-pointer"
+                    >
+                      🧪 Test Sandbox
+                    </button>
+                  )}
+                </div>
+
+                <select
+                  value={paymentParserModule}
+                  onChange={(e) => handleSelectPaymentParser(e.target.value)}
+                  className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-indigo-400 focus:outline-none cursor-pointer"
+                >
+                  <optgroup label="Auto Detection">
+                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Auto Cascading Rules)</option>
+                  </optgroup>
+                  <optgroup label="Specific Specialized Parsers">
+                    <option value="UPIPaymentParser">⚡ UPI Payment Alert Parser - GPay/CRED/HDFC (UPIPaymentParser)</option>
+                    <option value="HDFCCardParser">💳 HDFC Bank Card & UPI Alert (HDFCCardParser)</option>
+                    <option value="AirtelPostpaidParser">📱 Airtel Payment Receipt (AirtelPostpaidParser)</option>
+                    <option value="ICICICardParser">💳 ICICI Bank Payment Receipt (ICICICardParser)</option>
+                    <option value="AxisCardParser">💳 Axis Bank Payment Alert (AxisCardParser)</option>
+                    <option value="SBICardParser">💳 SBI Card Payment Confirmation (SBICardParser)</option>
+                    <option value="HomefyParser">🏠 Homefy Water Payment Receipt (HomefyParser)</option>
+                    <option value="JewellerySchemeParser">💍 Jewellery Scheme Receipt - GRT / Tanishq (JewellerySchemeParser)</option>
+                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility Receipt (GenericUtilityParser)</option>
+                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
+                  </optgroup>
+                </select>
+
+                {/* Parser Description */}
+                {(() => {
+                  const selected = availableParsers.find((p) => p.id === paymentParserModule) || availableParsers[0];
+                  return selected ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-xs">
+                      <span className="text-[11px] text-slate-300 flex-1">{selected.description}</span>
+                      {selected.samplePaymentQuery && paymentSource === "EMAIL" && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentQuery(selected.samplePaymentQuery)}
+                          className="text-[10px] font-semibold text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
+                        >
+                          ⚡ Set Sample Query
+                        </button>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Dynamic Payment Parser Config Fields */}
+                {(() => {
+                  const selected = availableParsers.find((p) => p.id === paymentParserModule);
+                  if (!selected?.configFields || selected.configFields.length === 0) return null;
+                  return (
+                    <div className="rounded-lg border border-indigo-500/20 bg-indigo-950/40 p-2.5 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 block">
+                        ⚙️ Additional Parser Configuration (e.g. VPA Filter)
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {selected.configFields.map((field) => (
+                          <div key={field.key} className="space-y-0.5">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                              {field.label}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={field.placeholder || ""}
+                              value={paymentParserConfig[field.key] || ""}
+                              onChange={(e) =>
+                                setPaymentParserConfig((prev) => ({
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                }))
+                              }
+                              className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
+                            />
+                            {field.description && (
+                              <span className="text-[9px] text-slate-400 block">{field.description}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Custom Regex Pattern for Payment */}
+                {paymentParserModule === "CustomRegexParser" && (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
+                      🧪 Custom Regex (Payment)
+                    </span>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-300">Payment Amount Pattern</label>
+                      <input
+                        type="text"
+                        placeholder='e.g. Paid amount:\s*(?:Rs\.?|₹)?\s*([\d,]+(?:\.\d{2})?)'
+                        value={customRegex.paymentAmountPattern || ""}
+                        onChange={(e) => setCustomRegex((prev) => ({ ...prev, paymentAmountPattern: e.target.value }))}
+                        className="w-full font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 4. Duplicate Prevention Setting */}
+            {(paymentSource === "EMAIL" || paymentSource === "SMS") && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2 mt-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                    🛡️ Duplicate Prevention Strategy
+                  </label>
+                  <span className="text-[10px] text-indigo-300 font-medium">Prevents double-counting duplicate notifications</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDedupStrategy("SAME_DAY_SAME_AMOUNT")}
+                    className={`p-2.5 rounded-xl text-left text-xs transition cursor-pointer ${
+                      dedupStrategy === "SAME_DAY_SAME_AMOUNT"
+                        ? "border border-indigo-400 bg-indigo-500/20 text-indigo-200"
+                        : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="font-semibold block text-white text-xs">🛡️ Same Day & Amount</span>
+                    <span className="block text-[10px] text-slate-400 mt-0.5">
+                      Ignores duplicate emails on same day for same amount (e.g. GRT / chits).
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDedupStrategy("SINGLE_PAYMENT_PER_CYCLE")}
+                    className={`p-2.5 rounded-xl text-left text-xs transition cursor-pointer ${
+                      dedupStrategy === "SINGLE_PAYMENT_PER_CYCLE"
+                        ? "border border-indigo-400 bg-indigo-500/20 text-indigo-200"
+                        : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="font-semibold block text-white text-xs">🎯 1 Payment / Month</span>
+                    <span className="block text-[10px] text-slate-400 mt-0.5">
+                      Records max 1 installment per month. All subsequent emails ignored.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDedupStrategy("ALLOW_MULTIPLE")}
+                    className={`p-2.5 rounded-xl text-left text-xs transition cursor-pointer ${
+                      dedupStrategy === "ALLOW_MULTIPLE"
+                        ? "border border-indigo-400 bg-indigo-500/20 text-indigo-200"
+                        : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="font-semibold block text-white text-xs">➕ Sum All Emails</span>
+                    <span className="block text-[10px] text-slate-400 mt-0.5">
+                      Sums every matching email (e.g. multiple card payments).
+                    </span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
