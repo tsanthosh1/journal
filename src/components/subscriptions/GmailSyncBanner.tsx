@@ -15,6 +15,7 @@ interface GmailSyncBannerProps {
   isHistoricalSyncing?: boolean;
   isSmsSyncing?: boolean;
   syncSummary?: string | null;
+  isLoading?: boolean;
 }
 
 export function GmailSyncBanner({
@@ -30,8 +31,32 @@ export function GmailSyncBanner({
   isHistoricalSyncing = false,
   isSmsSyncing = false,
   syncSummary,
+  isLoading = false,
 }: GmailSyncBannerProps) {
   const [showConfirmDisconnect, setShowConfirmDisconnect] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/5 bg-slate-900/60 p-4 sm:p-5 shadow-xl backdrop-blur-md animate-pulse">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5">
+          <div className="flex items-center gap-3 sm:gap-3.5">
+            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-slate-800/80 shrink-0" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-36 rounded bg-slate-800/90" />
+                <div className="h-3 w-16 rounded-full bg-slate-800/60" />
+              </div>
+              <div className="h-3 w-56 rounded bg-slate-800/50" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="h-9 w-24 rounded-xl bg-slate-800/70" />
+            <div className="h-9 w-28 rounded-xl bg-slate-800/70" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const formattedLastSync = lastSyncAt
     ? new Date(lastSyncAt).toLocaleString("en-IN", {

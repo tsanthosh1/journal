@@ -28,6 +28,7 @@ function SubscriptionsPageContent() {
     isSignedIn,
     isGmailSynced,
     lastSyncAt,
+    isLoading: isAuthLoading,
     signInWithGoogle,
     signOut,
     checkGmailSyncStatus,
@@ -127,13 +128,13 @@ function SubscriptionsPageContent() {
   }, [searchParams, checkGmailSyncStatus]);
 
   const fetchSubscriptions = useCallback(async () => {
+    if (isAuthLoading) {
+      // Do not complete loading until Firebase Auth determines active user state
+      return;
+    }
+
     try {
-      const qUserId = user?.email || user?.uid || userId;
-      if (!qUserId) {
-        setSubscriptions([]);
-        setIsLoading(false);
-        return;
-      }
+      const qUserId = user?.email || user?.uid || userId || "default_user";
       const res = await fetch(`/api/subscriptions?userId=${encodeURIComponent(qUserId)}`);
       if (res.ok) {
         const data = await res.json();
@@ -144,7 +145,7 @@ function SubscriptionsPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, userId]);
+  }, [user, userId, isAuthLoading]);
 
   useEffect(() => {
     fetchSubscriptions();
@@ -423,6 +424,7 @@ function SubscriptionsPageContent() {
 
         {/* Gmail & SMS Sync Status Banner */}
         <GmailSyncBanner
+          isLoading={isAuthLoading}
           isConnected={isGmailSynced}
           lastSyncAt={lastSyncAt}
           userEmail={userEmail}
@@ -437,7 +439,7 @@ function SubscriptionsPageContent() {
         />
 
         {/* If loading initial data, render full glassmorphic shimmer skeleton */}
-        {isLoading ? (
+        {isAuthLoading || isLoading ? (
           <SubscriptionsSkeleton />
         ) : activeSelectedSubscription ? (
           /* If a subscription is selected, render deep Detail View with back navigation */
