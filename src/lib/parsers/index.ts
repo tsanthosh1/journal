@@ -10,6 +10,7 @@ import { UniversalAutoParser } from "./universalParser";
 import { HomefyParser } from "./homefyParser";
 import { AirtelPostpaidParser } from "./airtelPostpaidParser";
 import { JewellerySchemeParser } from "./jewelleryParser";
+import { LoanSmsParser } from "./loanSmsParser";
 
 export * from "./base";
 export * from "./axisParser";
@@ -22,6 +23,7 @@ export * from "./universalParser";
 export * from "./homefyParser";
 export * from "./airtelPostpaidParser";
 export * from "./jewelleryParser";
+export * from "./loanSmsParser";
 
 export const BUILT_IN_PARSERS: Record<string, () => IStatementParser> = {
   UniversalAutoParser: () => new UniversalAutoParser(),
@@ -34,6 +36,7 @@ export const BUILT_IN_PARSERS: Record<string, () => IStatementParser> = {
   HomefyParser: () => new HomefyParser(),
   JewellerySchemeParser: () => new JewellerySchemeParser(),
   GenericUtilityParser: () => new GenericUtilityParser(),
+  LoanSmsParser: () => new LoanSmsParser(),
 };
 
 export interface ParserMetadata {

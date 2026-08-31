@@ -13,6 +13,7 @@ export function FinanceTopBar({ title }: { title?: string }) {
   const navLinks = [
     { href: "/subscriptions", label: "Subscriptions & Bills", badge: "Sync" },
     { href: "/statements", label: "Statements" },
+    { href: "/parsers", label: "Parsers", badge: "Labs" },
     { href: "/import", label: "Import" },
     { href: "/categories", label: "Categories" },
   ];

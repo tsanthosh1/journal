@@ -2,6 +2,8 @@
  * Specialized parser for Indian Bank Loan, Home Loan, and EMI Recovery SMS alerts.
  * Supports Bank of India (BOI), HDFC, ICICI, SBI, Canara, Axis, Kotak, Bank of Baroda, PNB, Bajaj, Tata Capital, etc.
  */
+import { IStatementParser } from "./base";
+import { ParsedPayment, ParsedStatement, ParserConfigField } from "../subscriptionTypes";
 
 export interface ParsedLoanSms {
   isMatch: boolean;
@@ -299,4 +301,61 @@ function parseDateToIso(dateStr: string): string | null {
   }
 
   return null;
+}
+
+export class LoanSmsParser implements IStatementParser {
+  readonly id = "LoanSmsParser";
+  readonly name = "Bank Loan & EMI Recovery SMS Parser";
+  readonly description =
+    "Extracts loan debit, home loan recovery, and EMI deductions from bank SMS alerts (BOI, HDFC, SBI, ICICI, etc.).";
+  readonly sampleStatementQuery = 'SMS header: "BOI" or "HDFCBK" with keywords "Loan Rec, EMI"';
+  readonly samplePaymentQuery = 'SMS header: "BOI" or "HDFCBK" with keywords "Loan Rec, Debited"';
+
+  readonly configFields: ParserConfigField[] = [
+    {
+      key: "loanDigits",
+      label: "Loan Account Last 4 Digits",
+      type: "text",
+      placeholder: "e.g. 7890",
+      description: "Filters SMS specifically mentioning this loan account number",
+    },
+    {
+      key: "senderFilter",
+      label: "Sender Filter",
+      type: "text",
+      placeholder: "e.g. BOI, HDFCBK, SBIINB",
+      description: "Sender ID prefix of the bank",
+    },
+  ];
+
+  parseStatement(rawContent: string, subject: string = "", config?: Record<string, any>): ParsedStatement {
+    const res = parseLoanSms(rawContent, config?.senderFilter || subject);
+    if (!res.isMatch || !res.amount) {
+      return { success: false, error: "No loan deduction or EMI amount matched in SMS text" };
+    }
+    return {
+      success: true,
+      statementTotal: res.amount,
+      statementDate: res.date || undefined,
+      dueDate: res.date || undefined,
+      accountOrCardDigits: res.loanAccount || res.debitAccount || undefined,
+      referenceId: res.referenceId || undefined,
+      rawMatches: { bank: res.bankName || "", raw: res.rawText },
+    };
+  }
+
+  parsePayment(rawContent: string, subject: string = "", config?: Record<string, any>): ParsedPayment {
+    const res = parseLoanSms(rawContent, config?.senderFilter || subject);
+    if (!res.isMatch || !res.amount) {
+      return { success: false, error: "No loan debit or EMI payment matched in SMS text" };
+    }
+    return {
+      success: true,
+      paidAmount: res.amount,
+      paymentDate: res.date || undefined,
+      accountOrCardDigits: res.loanAccount || res.debitAccount || undefined,
+      referenceId: res.referenceId || undefined,
+      rawMatches: { bank: res.bankName || "", raw: res.rawText },
+    };
+  }
 }
