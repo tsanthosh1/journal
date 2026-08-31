@@ -18,10 +18,10 @@ function decodeBase64IfPresent(raw: string): string {
 
 export class AirtelPostpaidParser implements IStatementParser {
   readonly id = "AirtelPostpaidParser";
-  readonly name = "Airtel Postpaid & Broadband Parser";
+  readonly name = "Google Pay BBPS / Airtel Postpaid Parser";
   readonly description =
-    "Extracts Airtel postpaid mobile and broadband bill dues (including Google Pay BBPS notifications) and payment receipts.";
-  readonly sampleStatementQuery = 'subject:("New bill from Airtel Postpaid Mobile" OR "Airtel Mobile Postpaid" OR "Invoice Generated")';
+    "Extracts Google Pay BBPS bill emails ('New bill from Airtel Postpaid Mobile') and official Airtel payment receipts.";
+  readonly sampleStatementQuery = 'from:google-pay-noreply@google.com "Airtel Mobile Postpaid"';
   readonly samplePaymentQuery = 'from:update@airtel.com subject:("payment receipt" OR "Payment Confirmation")';
 
   readonly configFields: ParserConfigField[] = [

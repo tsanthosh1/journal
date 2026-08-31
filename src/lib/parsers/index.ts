@@ -64,7 +64,7 @@ const PARSER_TYPE_MAP: Record<string, { type: ParserType; category: ParserMetada
   AirtelPostpaidParser: {
     type: "DUAL",
     category: "Utilities",
-    statementTitle: "Airtel Postpaid & Broadband Bill",
+    statementTitle: "Google Pay BBPS / Airtel Postpaid Bill",
     paymentTitle: "Airtel Payment Receipt Confirmation",
   },
   HDFCCardParser: {

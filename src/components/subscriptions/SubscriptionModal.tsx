@@ -274,7 +274,7 @@ export function SubscriptionModal({
       handleTimingModelChange(false);
     } else if (presetId === "AIRTEL_POSTPAID") {
       setStatementParserModule("AirtelPostpaidParser");
-      setStatementQuery('from:(google-pay-noreply@google.com OR ebill@airtel.com) subject:("Airtel Postpaid" OR "New bill from Airtel")');
+      setStatementQuery('from:google-pay-noreply@google.com "Airtel Mobile Postpaid"');
       setCategory("Utilities");
       setName((n) => n || "Airtel Postpaid");
       setImageUrl("https://logo.clearbit.com/airtel.in");
@@ -940,7 +940,7 @@ export function SubscriptionModal({
                     <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Auto Cascading Rules)</option>
                   </optgroup>
                   <optgroup label="Specific Specialized Parsers">
-                    <option value="AirtelPostpaidParser">📱 Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
+                    <option value="AirtelPostpaidParser">📱 Google Pay BBPS / Airtel Postpaid (AirtelPostpaidParser)</option>
                     <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
                     <option value="HDFCCardParser">💳 HDFC Bank Credit Card (HDFCCardParser)</option>
                     <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
