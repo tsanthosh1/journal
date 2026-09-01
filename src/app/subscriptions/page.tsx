@@ -14,6 +14,7 @@ import { ParserSandboxModal } from "@/components/subscriptions/ParserSandboxModa
 import { HistoricalCyclesModal } from "@/components/subscriptions/HistoricalCyclesModal";
 import { SourceEmailViewerModal } from "@/components/subscriptions/SourceEmailViewerModal";
 import { GmailSyncBanner } from "@/components/subscriptions/GmailSyncBanner";
+import { SyncConsoleModal } from "@/components/subscriptions/SyncConsoleModal";
 import { SubscriptionsSkeleton } from "@/components/subscriptions/SubscriptionsSkeleton";
 import { SourceEmailRecord, Subscription } from "@/lib/subscriptionTypes";
 import { useAuth } from "@/context/AuthContext";
@@ -104,6 +105,10 @@ function SubscriptionsPageContent() {
   const [emailViewerInitialRecord, setEmailViewerInitialRecord] = useState<SourceEmailRecord | null>(null);
   const [emailViewerScopedEmails, setEmailViewerScopedEmails] = useState<SourceEmailRecord[] | null>(null);
   const [emailViewerCycleMonth, setEmailViewerCycleMonth] = useState<string | null>(null);
+
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [consoleSub, setConsoleSub] = useState<Subscription | null>(null);
+  const [consoleMode, setConsoleMode] = useState<"current" | "historical">("current");
 
   const [bannerNotice, setBannerNotice] = useState<{ type: "success" | "error"; message: string } | null>(
     null,
@@ -208,32 +213,9 @@ function SubscriptionsPageContent() {
   };
 
   const handleTriggerSync = async () => {
-    setIsSyncing(true);
-    setSyncSummary(null);
-    try {
-      const qUserId = user?.email || user?.uid || userId || "default_user";
-      const res = await fetch("/api/sync/gmail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: qUserId }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Synchronization failed");
-      }
-
-      setSyncSummary(
-        `Gmail scan completed: ${data.processedSubscriptions || 0} subscriptions updated, ${
-          data.totalEmailsMatched || 0
-        } new emails synced.`,
-      );
-      await fetchSubscriptions();
-    } catch (err) {
-      setSyncSummary(`⚠️ Sync Error: ${(err as Error).message}`);
-    } finally {
-      setIsSyncing(false);
-    }
+    setConsoleSub(null);
+    setConsoleMode("current");
+    setIsConsoleOpen(true);
   };
 
   const handleTriggerSmsSync = async () => {
@@ -263,32 +245,9 @@ function SubscriptionsPageContent() {
   };
 
   const handleTriggerDeepHistoricalSync = async () => {
-    setIsHistoricalSyncing(true);
-    setSyncSummary(null);
-    try {
-      const qUserId = user?.email || user?.uid || userId || "default_user";
-      const res = await fetch("/api/sync/historical", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: qUserId, maxStatements: 100 }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Historical synchronization failed");
-      }
-
-      setSyncSummary(
-        `Deep scan completed: Found ${data.cyclesFound || 0} historical statement cycles across ${
-          data.messagesScanned || 0
-        } emails. Source emails archived in Storage.`,
-      );
-      await fetchSubscriptions();
-    } catch (err) {
-      setSyncSummary(`⚠️ Historical Scan Error: ${(err as Error).message}`);
-    } finally {
-      setIsHistoricalSyncing(false);
-    }
+    setConsoleSub(null);
+    setConsoleMode("historical");
+    setIsConsoleOpen(true);
   };
 
   const handleOpenSourceEmailViewer = (
@@ -678,6 +637,19 @@ function SubscriptionsPageContent() {
         initialEmail={emailViewerInitialRecord}
         scopedEmails={emailViewerScopedEmails}
         cycleMonth={emailViewerCycleMonth}
+      />
+
+      {/* Real-time Streaming Sync Console Modal */}
+      <SyncConsoleModal
+        isOpen={isConsoleOpen}
+        onClose={() => {
+          setIsConsoleOpen(false);
+          fetchSubscriptions();
+        }}
+        userId={userId || "default_user"}
+        initialSubscription={consoleSub}
+        initialMode={consoleMode}
+        onSyncComplete={fetchSubscriptions}
       />
     </div>
   );

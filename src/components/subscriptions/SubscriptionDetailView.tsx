@@ -10,6 +10,7 @@ import {
 } from "@/lib/subscriptionTypes";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { ManualOverrideModal } from "./ManualOverrideModal";
+import { SyncConsoleModal } from "./SyncConsoleModal";
 import { useAuth } from "@/context/AuthContext";
 
 interface SubscriptionDetailViewProps {
@@ -42,7 +43,8 @@ export function SubscriptionDetailView({
   const [selectedCycleForOverride, setSelectedCycleForOverride] = useState<HistoricalCycle | null>(null);
   const [isDeletingMonth, setIsDeletingMonth] = useState<string | null>(null);
   const [isDeletingSubscription, setIsDeletingSubscription] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [consoleMode, setConsoleMode] = useState<"current" | "historical">("historical");
   const [scanNotice, setScanNotice] = useState<string | null>(null);
 
   const fetchCycles = useCallback(async () => {
@@ -103,41 +105,14 @@ export function SubscriptionDetailView({
     }
   };
 
-  const handleTriggerDeepScan = async () => {
-    setIsScanning(true);
-    setScanNotice(null);
-    try {
-      const isSmsAutomated = subscription.source === "SMS_AUTOMATED" || subscription.smsConfig?.enabled;
-      const qUserId = user?.email || user?.uid || userId || "default_user";
+  const handleTriggerDeepScan = () => {
+    setConsoleMode("historical");
+    setIsConsoleOpen(true);
+  };
 
-      if (isSmsAutomated) {
-        const res = await fetch("/api/sync/sms/process", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: qUserId, subscriptionId: subscription.id }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "SMS sync failed");
-        setScanNotice(`✅ SMS Reconciled: ${data.summaryText || "Synced records."}`);
-      } else {
-        const res = await fetch("/api/sync/historical", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: qUserId, subscriptionId: subscription.id, maxStatements: 50 }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Gmail sync failed");
-        const foundCount = data.result?.cyclesFound ?? data.cyclesFound ?? 0;
-        setScanNotice(`✅ Deep scan complete: Reconciled ${foundCount} historical billing cycle${foundCount === 1 ? "" : "s"}.`);
-      }
-
-      await fetchCycles();
-      if (onRefreshSubscription) onRefreshSubscription();
-    } catch (err) {
-      setScanNotice(`⚠️ Sync Error: ${(err as Error).message}`);
-    } finally {
-      setIsScanning(false);
-    }
+  const handleTriggerLiveSync = () => {
+    setConsoleMode("current");
+    setIsConsoleOpen(true);
   };
 
   const handleDeleteSelf = async () => {
@@ -180,27 +155,23 @@ export function SubscriptionDetailView({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            disabled={isScanning}
-            onClick={handleTriggerDeepScan}
-            className="inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-indigo-400 active:scale-95 transition cursor-pointer disabled:opacity-50"
-            title="Scan and reconcile all multi-month past statements & payments"
+            onClick={handleTriggerLiveSync}
+            className="inline-flex items-center gap-1.5 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-2 text-xs sm:text-sm font-bold text-cyan-300 hover:bg-cyan-500/20 active:scale-95 transition cursor-pointer"
+            title="Open Live Sync Console to scan current cycle"
           >
-            {isScanning ? (
-              <>
-                <svg className="w-4 h-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <span>Scanning History...</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Run Full History</span>
-              </>
-            )}
+            <span>⚡ Live Sync</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTriggerDeepScan}
+            className="inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-indigo-400 active:scale-95 transition cursor-pointer"
+            title="Scan and reconcile all multi-month past statements & payments with live streaming logs"
+          >
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Run Full History</span>
           </button>
 
           <button
@@ -360,14 +331,13 @@ export function SubscriptionDetailView({
             </div>
             <button
               type="button"
-              disabled={isScanning}
               onClick={handleTriggerDeepScan}
-              className="inline-flex items-center gap-1 rounded-xl bg-indigo-500/20 border border-indigo-500/30 px-3 py-1 text-xs font-bold text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-xl bg-indigo-500/20 border border-indigo-500/30 px-3 py-1 text-xs font-bold text-indigo-300 hover:bg-indigo-500/30 transition cursor-pointer"
             >
-              <svg className={`w-3.5 h-3.5 ${isScanning ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>{isScanning ? "Syncing..." : "Reconcile Now"}</span>
+              <span>Reconcile Now</span>
             </button>
           </div>
 
@@ -427,27 +397,14 @@ export function SubscriptionDetailView({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={isScanning}
               onClick={handleTriggerDeepScan}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500/15 border border-cyan-500/30 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-500/25 transition cursor-pointer disabled:opacity-50"
-              title="Scan and reconcile all past multi-month statements and payments"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500/15 border border-cyan-500/30 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-500/25 transition cursor-pointer"
+              title="Scan and reconcile all past multi-month statements and payments with live streaming logs"
             >
-              {isScanning ? (
-                <>
-                  <svg className="w-3.5 h-3.5 animate-spin text-cyan-400" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  <span>Scanning...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Run Full History</span>
-                </>
-              )}
+              <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Run Full History</span>
             </button>
             <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs font-bold text-slate-400 border border-white/5">
               {cycles.length} Cycles Archived
@@ -629,6 +586,22 @@ export function SubscriptionDetailView({
           onSaveOverride={handleSaveCycleOverride}
         />
       )}
+
+      <SyncConsoleModal
+        isOpen={isConsoleOpen}
+        onClose={() => {
+          setIsConsoleOpen(false);
+          fetchCycles();
+          if (onRefreshSubscription) onRefreshSubscription();
+        }}
+        userId={userId || "default_user"}
+        initialSubscription={subscription}
+        initialMode={consoleMode}
+        onSyncComplete={() => {
+          fetchCycles();
+          if (onRefreshSubscription) onRefreshSubscription();
+        }}
+      />
     </div>
   );
 }

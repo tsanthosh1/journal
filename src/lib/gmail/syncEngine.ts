@@ -12,6 +12,7 @@ import {
 } from "../subscriptionTypes";
 import { getGmailMessageDetails, searchGmailMessages } from "./apiClient";
 import { getValidGmailToken, saveGmailTokens } from "./oauth";
+import { createSyncLogger, SyncLogCallback } from "./syncLogger";
 
 export interface SyncSubscriptionResult {
   subscriptionId: string;
@@ -34,9 +35,16 @@ export interface SyncSubscriptionResult {
 export async function syncSubscriptionWithGmail(
   subscription: Subscription,
   accessToken: string,
+  onLog?: SyncLogCallback,
 ): Promise<SyncSubscriptionResult> {
+  const log = createSyncLogger(onLog);
+  const subCtx = { subscriptionId: subscription.id, subscriptionName: subscription.name };
+
+  log("info", `Starting Gmail sync for ${subscription.name} (${subscription.billingType})`, subCtx);
+
   const emailConfig = subscription.emailConfig;
   if (!emailConfig || !emailConfig.enabled) {
+    log("info", `Email sync is disabled for ${subscription.name}`, subCtx);
     return {
       subscriptionId: subscription.id,
       subscriptionName: subscription.name,
@@ -77,16 +85,36 @@ export async function syncSubscriptionWithGmail(
 
   // 1. Execute Statement Query (if configured)
   if (emailConfig.statementQuery && emailConfig.statementQuery.trim()) {
+    const qStr = emailConfig.statementQuery.trim();
+    log("query", `Executing Statement Query: "${qStr}"`, { ...subCtx, details: { query: qStr, parser: statementParserModule } });
+
     try {
       const statementMessages = await searchGmailMessages(
         accessToken,
-        emailConfig.statementQuery.trim(),
+        qStr,
         15,
       );
 
+      log("fetch", `Statement search returned ${statementMessages.length} matching message(s)`, {
+        ...subCtx,
+        details: { messageCount: statementMessages.length, messageIds: statementMessages.map((m) => m.id) },
+      });
+
+      let foundValid = false;
       for (const msgSummary of statementMessages) {
         try {
           const msgDetail = await getGmailMessageDetails(accessToken, msgSummary.id);
+          const actualMsgDate = msgDetail.internalDate
+            ? new Date(parseInt(msgDetail.internalDate)).toISOString().split("T")[0]
+            : msgDetail.date
+            ? new Date(msgDetail.date).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0];
+
+          log("fetch", `Processing statement email ${msgSummary.id} | Date: ${actualMsgDate} | Subject: "${msgDetail.subject}"`, {
+            ...subCtx,
+            details: { messageId: msgSummary.id, subject: msgDetail.subject, date: actualMsgDate, from: msgDetail.from },
+          });
+
           const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
           const stmtParsed = statementParser.parseStatement(content, msgDetail.subject, statementConfig);
 
@@ -99,16 +127,22 @@ export async function syncSubscriptionWithGmail(
             if (stmtParsed.periodEndDate) cycle.periodEndDate = stmtParsed.periodEndDate;
             if (stmtParsed.nextRenewalDate) cycle.nextRenewalDate = stmtParsed.nextRenewalDate;
 
-            // Use parsed statementDate or fallback to the email message's actual internal date
-            const actualMsgDate = msgDetail.internalDate
-              ? new Date(parseInt(msgDetail.internalDate)).toISOString().split("T")[0]
-              : msgDetail.date
-              ? new Date(msgDetail.date).toISOString().split("T")[0]
-              : new Date().toISOString().split("T")[0];
-
             cycle.statementDate = stmtParsed.statementDate || actualMsgDate;
             const ym = (stmtParsed.statementDate || actualMsgDate).slice(0, 7);
             if (ym) cycle.cycleMonth = ym;
+
+            log("parse", `Statement extracted: ₹${stmtParsed.statementTotal.toLocaleString("en-IN")} | Due: ${cycle.dueDate || "N/A"} | Cycle: ${cycle.cycleMonth}`, {
+              ...subCtx,
+              details: {
+                total: stmtParsed.statementTotal,
+                dueDate: stmtParsed.dueDate,
+                statementDate: cycle.statementDate,
+                periodStartDate: stmtParsed.periodStartDate,
+                periodEndDate: stmtParsed.periodEndDate,
+                nextRenewalDate: stmtParsed.nextRenewalDate,
+                rawMatches: stmtParsed.rawMatches,
+              },
+            });
 
             // Save copy of source statement email to Firebase Storage & Firestore
             const archivedEmail = await saveEmailSnapshot({
@@ -131,6 +165,11 @@ export async function syncSubscriptionWithGmail(
               rawMatches: stmtParsed.rawMatches,
             });
 
+            log("save", `Archived statement email snapshot to Storage & Firestore`, {
+              ...subCtx,
+              details: { snapshotId: archivedEmail.id, storagePath: archivedEmail.storagePath },
+            });
+
             // Replace or add to cycle.sourceEmails
             if (!cycle.sourceEmails) cycle.sourceEmails = [];
             const existingIdx = cycle.sourceEmails.findIndex((e) => e.id === msgSummary.id);
@@ -146,26 +185,42 @@ export async function syncSubscriptionWithGmail(
               newMessagesProcessed++;
             }
 
-            // Once the most recent valid statement email is found and processed, stop
+            foundValid = true;
             break;
+          } else {
+            log("warn", `Parser mismatch on email ${msgSummary.id}: ${stmtParsed.error || "Could not parse amount"}`, subCtx);
           }
-        } catch {
-          // Try next message
+        } catch (fetchErr) {
+          log("warn", `Failed to inspect email ${msgSummary.id}: ${(fetchErr as Error).message}`, subCtx);
         }
       }
+
+      if (!foundValid && statementMessages.length > 0) {
+        log("warn", `None of the ${statementMessages.length} statement emails could be parsed by ${statementParserModule}`, subCtx);
+      }
     } catch (err) {
-      warnings.push(`Statement query error: ${(err as Error).message}`);
+      const errMsg = `Statement query error: ${(err as Error).message}`;
+      warnings.push(errMsg);
+      log("error", errMsg, subCtx);
     }
   }
 
   // 2. Execute Payment Query (if configured)
   if (emailConfig.paymentQuery && emailConfig.paymentQuery.trim()) {
+    const payQueryStr = emailConfig.paymentQuery.trim();
+    log("query", `Executing Payment Query: "${payQueryStr}"`, { ...subCtx, details: { query: payQueryStr, parser: paymentParserModule } });
+
     try {
       const paymentMessages = await searchGmailMessages(
         accessToken,
-        emailConfig.paymentQuery.trim(),
+        payQueryStr,
         15,
       );
+
+      log("fetch", `Payment search returned ${paymentMessages.length} candidate message(s)`, {
+        ...subCtx,
+        details: { messageCount: paymentMessages.length },
+      });
 
       // Statement start timestamp threshold (payments must be made ON or AFTER the statement generation date)
       // If no statement is generated (e.g. fixed service), allow payments within the current month window
@@ -253,6 +308,19 @@ export async function syncSubscriptionWithGmail(
             if (payParsed.periodStartDate) cycle.periodStartDate = payParsed.periodStartDate;
             if (payParsed.periodEndDate) cycle.periodEndDate = payParsed.periodEndDate;
             if (payParsed.nextRenewalDate) cycle.nextRenewalDate = payParsed.nextRenewalDate;
+
+            log("parse", `Payment extracted: ₹${payParsed.paidAmount.toLocaleString("en-IN")} on ${pDate} | Ref: ${payParsed.referenceId || "N/A"}`, {
+              ...subCtx,
+              details: {
+                amount: payParsed.paidAmount,
+                date: pDate,
+                referenceId: payParsed.referenceId,
+                cumulativePaid: cycle.paidAmount,
+                periodStartDate: payParsed.periodStartDate,
+                periodEndDate: payParsed.periodEndDate,
+                nextRenewalDate: payParsed.nextRenewalDate,
+              },
+            });
           }
 
           // Save copy of source payment email to Firebase Storage & Firestore
@@ -277,6 +345,8 @@ export async function syncSubscriptionWithGmail(
             rawMatches: payParsed.rawMatches,
           });
 
+          log("save", `Archived payment receipt snapshot (${pMsg.id}) to Storage`, subCtx);
+
           if (!cycle.sourceEmails) cycle.sourceEmails = [];
           if (!cycle.sourceEmails.some((e) => e.id === pMsg.id)) {
             cycle.sourceEmails.push(archivedEmail);
@@ -285,13 +355,16 @@ export async function syncSubscriptionWithGmail(
           cycle.processedMessageIds.push(pMsg.id);
           newMessagesProcessed++;
         } else {
+          log("warn", `Payment parser mismatch for msg ${pMsg.id}: ${payParsed.error || "Could not extract amount"}`, subCtx);
           warnings.push(
             `Payment parser mismatch for msg ${pMsg.id}: ${payParsed.error || "Could not extract payment amount"}`,
           );
         }
       }
     } catch (err) {
-      warnings.push(`Payment query error: ${(err as Error).message}`);
+      const errMsg = `Payment query error: ${(err as Error).message}`;
+      warnings.push(errMsg);
+      log("error", errMsg, subCtx);
     }
   }
 
@@ -353,6 +426,18 @@ export async function syncSubscriptionWithGmail(
 
   cycle.updatedAt = new Date().toISOString();
 
+  log("match", `Reconciled cycle ${cycle.cycleMonth}: Statement ₹${(cycle.statementTotal || 0).toLocaleString("en-IN")} - Paid ₹${(cycle.paidAmount || 0).toLocaleString("en-IN")} = Remaining ₹${(cycle.remainingBalance || 0).toLocaleString("en-IN")} [Status: ${cycle.status}]`, {
+    ...subCtx,
+    details: {
+      cycleMonth: cycle.cycleMonth,
+      statementTotal: cycle.statementTotal,
+      paidAmount: cycle.paidAmount,
+      remainingBalance: cycle.remainingBalance,
+      status: cycle.status,
+      dueDate: cycle.dueDate,
+    },
+  });
+
   // 4. Update Firestore
   const { db } = getFirebaseAdmin();
   const cleanCycle = sanitizeForFirestore(cycle);
@@ -377,6 +462,11 @@ export async function syncSubscriptionWithGmail(
     { merge: true },
   );
 
+  log("success", `Sync finished for ${subscription.name} (${newMessagesProcessed} new message(s) processed)`, {
+    ...subCtx,
+    details: { status: cycle.status, newMessagesProcessed },
+  });
+
   return {
     subscriptionId: subscription.id,
     subscriptionName: subscription.name,
@@ -398,6 +488,7 @@ export async function syncHistoricalSubscriptionWithGmail(
   subscription: Subscription,
   accessToken: string,
   maxStatements = 24,
+  onLog?: SyncLogCallback,
 ): Promise<{
   subscriptionId: string;
   subscriptionName: string;
@@ -407,8 +498,14 @@ export async function syncHistoricalSubscriptionWithGmail(
   messagesScanned: number;
   warnings?: string[];
 }> {
+  const log = createSyncLogger(onLog);
+  const subCtx = { subscriptionId: subscription.id, subscriptionName: subscription.name };
+
+  log("info", `Starting Deep Historical Scan for ${subscription.name} (up to ${maxStatements} past statements)`, subCtx);
+
   const emailConfig = subscription.emailConfig;
   if (!emailConfig || !emailConfig.enabled) {
+    log("info", `Email sync is not enabled for ${subscription.name}`, subCtx);
     return {
       subscriptionId: subscription.id,
       subscriptionName: subscription.name,
@@ -433,21 +530,35 @@ export async function syncHistoricalSubscriptionWithGmail(
   let totalMessagesScanned = 0;
 
   // 1. Fetch all matching historical statement emails (if statement query is configured)
-  const statementMessages =
-    emailConfig.statementQuery && emailConfig.statementQuery.trim()
-      ? await searchGmailMessages(accessToken, emailConfig.statementQuery.trim(), maxStatements)
-      : [];
+  let statementMessages: any[] = [];
+  if (emailConfig.statementQuery && emailConfig.statementQuery.trim()) {
+    const q = emailConfig.statementQuery.trim();
+    log("query", `Executing Historical Statement Query: "${q}" (limit: ${maxStatements})`, { ...subCtx, details: { query: q, limit: maxStatements } });
+    try {
+      statementMessages = await searchGmailMessages(accessToken, q, maxStatements);
+      log("fetch", `Historical statement search returned ${statementMessages.length} message(s)`, { ...subCtx, details: { count: statementMessages.length } });
+    } catch (err: any) {
+      log("error", `Statement search failed: ${err.message}`, subCtx);
+    }
+  }
   totalMessagesScanned += statementMessages.length;
 
   // 2. Fetch all matching payment emails (if payment query is configured)
-  const paymentMessages =
-    emailConfig.paymentQuery && emailConfig.paymentQuery.trim()
-      ? await searchGmailMessages(
-          accessToken,
-          emailConfig.paymentQuery.trim(),
-          Math.max(100, maxStatements * 2),
-        )
-      : [];
+  let paymentMessages: any[] = [];
+  if (emailConfig.paymentQuery && emailConfig.paymentQuery.trim()) {
+    const pq = emailConfig.paymentQuery.trim();
+    log("query", `Executing Historical Payment Query: "${pq}" (limit: ${Math.max(100, maxStatements * 2)})`, { ...subCtx, details: { query: pq } });
+    try {
+      paymentMessages = await searchGmailMessages(
+        accessToken,
+        pq,
+        Math.max(100, maxStatements * 2),
+      );
+      log("fetch", `Historical payment search returned ${paymentMessages.length} message(s)`, { ...subCtx, details: { count: paymentMessages.length } });
+    } catch (err: any) {
+      log("error", `Payment search failed: ${err.message}`, subCtx);
+    }
+  }
   totalMessagesScanned += paymentMessages.length;
 
   // 3. Parse all payments, archive them, and index by date
@@ -499,6 +610,11 @@ export async function syncHistoricalSubscriptionWithGmail(
           rawMatches: payParsed.rawMatches,
         });
 
+        log("parse", `Parsed historical payment: ₹${payParsed.paidAmount.toLocaleString("en-IN")} on ${pDate} | Msg: ${pMsg.id}`, {
+          ...subCtx,
+          details: { amount: payParsed.paidAmount, date: pDate, referenceId: payParsed.referenceId },
+        });
+
         parsedPayments.push({
           msgId: pMsg.id,
           paidAmount: payParsed.paidAmount,
@@ -538,6 +654,8 @@ export async function syncHistoricalSubscriptionWithGmail(
       deduplicatedPayments.push(p);
     }
   }
+
+  log("info", `Collected ${deduplicatedPayments.length} unique historical payment transactions`, subCtx);
 
   // 5. Reconcile monthly historical cycles
   const cyclesMap = new Map<string, HistoricalCycle>();
@@ -613,6 +731,11 @@ export async function syncHistoricalSubscriptionWithGmail(
             rawMatches: stmtParsed.rawMatches,
           });
 
+          log("parse", `Parsed statement for cycle ${cycleMonth}: ₹${stmtParsed.statementTotal.toLocaleString("en-IN")} | Due: ${dueDate || "N/A"}`, {
+            ...subCtx,
+            details: { total: stmtParsed.statementTotal, cycleMonth, dueDate, stmtDate },
+          });
+
           const isAdvanceDepositOrPrepaid =
             subscription.category === "Savings & Schemes" ||
             subscription.isPrepaid ||
@@ -644,9 +767,6 @@ export async function syncHistoricalSubscriptionWithGmail(
       const stmt = parsedStatements[i];
       const nextStmt = parsedStatements[i + 1];
 
-      // Exact cycle payment window:
-      // Starts on statement date (minus 1 day for same-day settlements)
-      // Ends when the next statement is generated (or dueDate + 12 days for the latest statement)
       const cycleStartTime = stmt.stmtTime - 1 * 86400000;
       const cycleEndTime = nextStmt
         ? nextStmt.stmtTime - 1
@@ -732,10 +852,14 @@ export async function syncHistoricalSubscriptionWithGmail(
         .collection("subscription_cycles")
         .doc(cycleRecord.id)
         .set(sanitizeForFirestore(cycleRecord), { merge: true });
+
+      log("match", `Reconciled historical cycle ${stmt.cycleMonth}: Total ₹${totalDue.toLocaleString("en-IN")} | Paid ₹${totalPaid.toLocaleString("en-IN")} | Status: ${status}`, {
+        ...subCtx,
+        details: { cycleMonth: stmt.cycleMonth, totalDue, totalPaid, status, sourceEmailsCount: sourceEmails.length },
+      });
     }
   } else if (deduplicatedPayments.length > 0) {
-    // Mode B: Payment-Driven Cycles (e.g. Vehicle Cleaning, Maid, Fixed Recurring, Gold Schemes with no separate statement email)
-    // Group all found payments by their billing month (YYYY-MM)
+    // Mode B: Payment-Driven Cycles
     const paymentsByMonth = new Map<string, ParsedPaymentRecord[]>();
 
     for (const p of deduplicatedPayments) {
@@ -750,7 +874,6 @@ export async function syncHistoricalSubscriptionWithGmail(
       const totalPaid =
         Math.round(monthPayments.reduce((sum, p) => sum + p.paidAmount, 0) * 100) / 100;
       
-      // Expected statement amount: defaultAmount or highest payment amount
       const expectedTotal = subscription.defaultAmount > 0 ? subscription.defaultAmount : totalPaid;
       const remaining = Math.max(0, Math.round((expectedTotal - totalPaid) * 100) / 100);
 
@@ -795,6 +918,11 @@ export async function syncHistoricalSubscriptionWithGmail(
         .collection("subscription_cycles")
         .doc(cycleRecord.id)
         .set(sanitizeForFirestore(cycleRecord), { merge: true });
+
+      log("match", `Reconciled payment-driven cycle ${ym}: Paid ₹${totalPaid.toLocaleString("en-IN")} | Status: ${status}`, {
+        ...subCtx,
+        details: { cycleMonth: ym, totalPaid, status },
+      });
     }
   }
 
@@ -811,6 +939,11 @@ export async function syncHistoricalSubscriptionWithGmail(
     });
   }
 
+  log("success", `Historical scan complete for ${subscription.name}: Reconstructed ${sortedCycles.length} billing cycle(s)`, {
+    ...subCtx,
+    details: { cyclesCount: sortedCycles.length, messagesScanned: totalMessagesScanned },
+  });
+
   return {
     subscriptionId: subscription.id,
     subscriptionName: subscription.name,
@@ -825,7 +958,10 @@ export async function syncHistoricalSubscriptionWithGmail(
 /**
  * Runs a full synchronization for all automated subscriptions of a user
  */
-export async function syncAllSubscriptions(userId = "default_user"): Promise<{
+export async function syncAllSubscriptions(
+  userId = "default_user",
+  onLog?: SyncLogCallback,
+): Promise<{
   success: boolean;
   totalSubscriptions: number;
   syncedCount: number;
@@ -833,14 +969,19 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
   results: SyncSubscriptionResult[];
   errors: string[];
 }> {
+  const log = createSyncLogger(onLog);
+  log("info", `Initiating global Gmail sync for user: ${userId}`);
+
   const startTime = Date.now();
   const tokenRecord = await getValidGmailToken(userId);
 
   if (!tokenRecord) {
-    throw new Error(
-      "Gmail integration is not connected or token has expired. Please connect your Gmail account via OAuth.",
-    );
+    const errText = "Gmail integration is not connected or token has expired. Please connect your Gmail account via OAuth.";
+    log("error", errText);
+    throw new Error(errText);
   }
+
+  log("info", `OAuth token verified for ${tokenRecord.email || userId}`);
 
   const { db } = getFirebaseAdmin();
 
@@ -860,7 +1001,6 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
     .get();
 
   if (subsSnap.empty) {
-    // Fallback: fetch all subscriptions if single tenant
     subsSnap = await db.collection("subscriptions").limit(100).get();
   }
 
@@ -878,19 +1018,25 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
     }
   });
 
+  log("info", `Found ${subscriptions.length} active email-configured subscription(s) to synchronize`);
+
   const results: SyncSubscriptionResult[] = [];
   const errors: string[] = [];
   let totalNewMessages = 0;
 
   let currentAccessToken = tokenRecord.accessToken;
 
-  for (const sub of subscriptions) {
+  for (let idx = 0; idx < subscriptions.length; idx++) {
+    const sub = subscriptions[idx];
+    log("info", `[${idx + 1}/${subscriptions.length}] Processing ${sub.name}...`, { subscriptionId: sub.id, subscriptionName: sub.name });
+
     if (sub.currentCycle.status === "PAUSED" || sub.currentCycle.status === "ARCHIVED") {
+      log("info", `Skipping ${sub.name} (Status is ${sub.currentCycle.status})`, { subscriptionId: sub.id, subscriptionName: sub.name });
       continue;
     }
 
     try {
-      const res = await syncSubscriptionWithGmail(sub, currentAccessToken);
+      const res = await syncSubscriptionWithGmail(sub, currentAccessToken, onLog);
       results.push(res);
       totalNewMessages += res.newMessagesProcessed;
       if (res.warnings) {
@@ -898,11 +1044,13 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
       }
     } catch (err: any) {
       if (err.message && err.message.includes("401")) {
+        log("warn", `Access token expired during ${sub.name}. Refreshing token...`, { subscriptionId: sub.id, subscriptionName: sub.name });
         const refreshed = await getValidGmailToken(userId, true);
         if (refreshed) {
           currentAccessToken = refreshed.accessToken;
+          log("info", `Successfully refreshed access token. Retrying sync for ${sub.name}...`, { subscriptionId: sub.id, subscriptionName: sub.name });
           try {
-            const retryRes = await syncSubscriptionWithGmail(sub, currentAccessToken);
+            const retryRes = await syncSubscriptionWithGmail(sub, currentAccessToken, onLog);
             results.push(retryRes);
             totalNewMessages += retryRes.newMessagesProcessed;
             if (retryRes.warnings) {
@@ -917,6 +1065,7 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
 
       const msg = `[${sub.name}] Sync failed: ${err.message || "Unknown error"}`;
       errors.push(msg);
+      log("error", msg, { subscriptionId: sub.id, subscriptionName: sub.name });
       results.push({
         subscriptionId: sub.id,
         subscriptionName: sub.name,
@@ -956,6 +1105,15 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
   };
 
   await db.collection("sync_audit_logs").doc(auditLog.id).set(auditLog);
+
+  log("success", `Global sync complete! Processed ${subscriptions.length} subscriptions in ${((Date.now() - startTime) / 1000).toFixed(1)}s (${totalNewMessages} new emails parsed)`, {
+    details: {
+      totalSubscriptions: subscriptions.length,
+      syncedCount: results.filter((r) => r.success).length,
+      totalNewMessages,
+      durationMs: Date.now() - startTime,
+    },
+  });
 
   return {
     success: true,
