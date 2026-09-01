@@ -98,10 +98,19 @@ export function SubscriptionCard({
     subscription.billingType === "FIXED_TENURE" ||
     subscription.category === "Loans & EMIs";
 
+  const hasStatementConfig = Boolean(
+    subscription.emailConfig?.statementQuery &&
+      subscription.emailConfig.statementQuery.trim(),
+  );
+
+  const isNoStatementService =
+    !isPrepaid && !isPaid && !isFixedCommitment && !hasStatementConfig;
+
   const isAwaitingBill =
     !isPrepaid &&
     !isPaid &&
     !isFixedCommitment &&
+    hasStatementConfig &&
     (!cycle.statementTotal || cycle.statementTotal === 0);
 
   let statusBadge = (
@@ -130,6 +139,13 @@ export function SubscriptionCard({
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
         Fully Paid
+      </span>
+    );
+  } else if (isNoStatementService) {
+    statusBadge = (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2.5 py-0.5 text-xs font-bold text-cyan-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+        ⚡ Pay your due
       </span>
     );
   } else if (isAwaitingBill) {
@@ -268,10 +284,18 @@ export function SubscriptionCard({
           <div className="mt-4 sm:mt-5 rounded-2xl border border-white/5 bg-white/[0.02] p-3.5 sm:p-4">
             <div className="flex items-baseline justify-between">
               <span className="text-xs text-slate-400">
-                {subscription.billingType === "BILL_GENERATED" ? "Statement Total" : "Fixed Commitment"}
+                {isNoStatementService
+                  ? "Variable Utility / Bill"
+                  : subscription.billingType === "BILL_GENERATED"
+                  ? "Statement Total"
+                  : "Fixed Commitment"}
               </span>
               <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-                ₹{total.toLocaleString("en-IN", { minimumFractionDigits: 0 })}
+                {isNoStatementService && total === 0 ? (
+                  <span className="text-base sm:text-lg font-bold text-cyan-300">Pay your due</span>
+                ) : (
+                  `₹${total.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`
+                )}
               </span>
             </div>
 

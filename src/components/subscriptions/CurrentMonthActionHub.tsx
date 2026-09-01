@@ -27,6 +27,7 @@ interface PrioritizedItem {
   remainingAmount: number;
   paidAmount: number;
   isAwaitingBill: boolean;
+  isNoStatementService?: boolean;
   isPrepaid: boolean;
 }
 
@@ -61,8 +62,15 @@ export function CurrentMonthActionHub({
 
       const cycle = sub.currentCycle;
       const isFixed = sub.billingType === "FIXED_TENURE" || sub.category === "Loans & EMIs";
+      const hasStatementConfig = Boolean(
+        sub.emailConfig?.statementQuery && sub.emailConfig.statementQuery.trim(),
+      );
       const hasStatementTotal = cycle.statementTotal !== undefined && cycle.statementTotal > 0;
-      const isAwaitingBill = !isPrepaid && !isFixed && !hasStatementTotal;
+
+      // Only subscriptions configured to receive a statement (e.g. statementQuery is set) await a bill.
+      // If there is NO statement query/source (e.g. payment-only receipt like Apartment Water Bill), it is an active due to pay.
+      const isNoStatementService = !isPrepaid && !isFixed && !hasStatementConfig;
+      const isAwaitingBill = !isPrepaid && !isFixed && hasStatementConfig && !hasStatementTotal;
 
       const total = hasStatementTotal ? cycle.statementTotal : isFixed ? (sub.defaultAmount || 0) : 0;
       const paid = isPrepaid ? (cycle.paidAmount || total) : (cycle.paidAmount || 0);
@@ -102,7 +110,7 @@ export function CurrentMonthActionHub({
         group = "AWAITING_BILL";
         upcomingCount++;
       } else {
-        // Unpaid or partially paid with known statement amount or fixed commitment
+        // Unpaid or partially paid with known statement amount, fixed commitment, or variable pay-your-due service
         if (daysDiff !== null && daysDiff < 0) {
           group = "OVERDUE";
           overdueCount++;
@@ -123,6 +131,7 @@ export function CurrentMonthActionHub({
         remainingAmount: remaining,
         paidAmount: paid,
         isAwaitingBill,
+        isNoStatementService,
         isPrepaid,
       };
     });
@@ -281,8 +290,18 @@ export function CurrentMonthActionHub({
 
       {/* Action Item Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
-        {filteredItems.map(({ subscription: sub, group, daysDiff, displayAmount, remainingAmount, isAwaitingBill, isPrepaid }) => {
-          const isSettled = group === "SETTLED" || group === "SKIPPED";
+        {filteredItems.map(
+          ({
+            subscription: sub,
+            group,
+            daysDiff,
+            displayAmount,
+            remainingAmount,
+            isAwaitingBill,
+            isNoStatementService,
+            isPrepaid,
+          }) => {
+            const isSettled = group === "SETTLED" || group === "SKIPPED";
           const isOverdue = group === "OVERDUE";
           const isDueSoon = group === "DUE_SOON";
           const cycle = sub.currentCycle;
@@ -384,6 +403,11 @@ export function CurrentMonthActionHub({
                         <span>₹0</span>
                         <span className="text-[10px] text-slate-500 font-medium block">Bill Pending</span>
                       </div>
+                    ) : isNoStatementService && displayAmount === 0 && !isSettled ? (
+                      <div>
+                        <span className="text-xs sm:text-sm font-bold text-cyan-300 font-sans">Pay your due</span>
+                        <span className="text-[10px] text-slate-400 font-medium block font-sans">Receipt Sync</span>
+                      </div>
                     ) : (
                       <span>₹{displayAmount.toLocaleString("en-IN")}</span>
                     )}
@@ -412,6 +436,8 @@ export function CurrentMonthActionHub({
                         ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                         : isAwaitingBill
                         ? "bg-slate-800/80 text-slate-300 border border-slate-700/60"
+                        : isNoStatementService
+                        ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
                         : "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
                     }`}
                   >
@@ -425,6 +451,8 @@ export function CurrentMonthActionHub({
                       ? "DUE SOON"
                       : isAwaitingBill
                       ? "⏳ AWAITING BILL"
+                      : isNoStatementService
+                      ? "⚡ PAY YOUR DUE"
                       : "PENDING"}
                   </span>
 

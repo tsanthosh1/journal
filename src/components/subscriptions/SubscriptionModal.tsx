@@ -842,10 +842,10 @@ export function SubscriptionModal({
             ) : statementSource === "MANUAL" ? (
               <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3.5 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
-                  <span>✋</span> Variable Manual Statement
+                  <span>✋</span> Variable / No External Statement
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Statement amount varies each billing cycle. The system waits for the bill to arrive and lets you enter or override the exact statement total manually.
+                  No automated statement email. The system prompts you to &quot;Pay your due&quot; by the due date each cycle, and automatically settles the cycle as soon as your payment confirmation email arrives.
                 </p>
               </div>
             ) : null}
@@ -939,7 +939,11 @@ export function SubscriptionModal({
               </div>
             ) : (
               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-xs text-slate-400">
-                No automated statement search. Expected amount will use the <strong>Amount per Cycle (₹{defaultAmount || 0})</strong>.
+                {defaultAmount && Number(defaultAmount) > 0 ? (
+                  <>No automated statement search. Expected amount will use the <strong>Amount per Cycle (₹{defaultAmount})</strong>.</>
+                ) : (
+                  <>No automated statement search. The card will show <strong>&quot;Pay your due&quot;</strong> until reconciled by your payment receipt.</>
+                )}
               </div>
             )}
 
