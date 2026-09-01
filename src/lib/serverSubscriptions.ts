@@ -4,6 +4,7 @@ import {
   HistoricalCycle,
   PaymentStatus,
   Subscription,
+  calculatePrepaidRenewalInfo,
 } from "./subscriptionTypes";
 
 function sanitizeForFirestore(obj: any): any {
@@ -28,10 +29,25 @@ export async function ensureSubscriptionCurrentMonth(
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const current = sub.currentCycle;
+
+  // 0. Prepaid Validity Check: If current cycle's prepaid period is still active, do NOT roll over!
+  const isPrepaid =
+    sub.isPrepaid ||
+    sub.category === "Entertainment" ||
+    (!sub.dueDayOfMonth && sub.billingType === "BILL_GENERATED" && !sub.emailConfig?.paymentQuery);
+
+  if (isPrepaid && current && (current.statementDate || current.lastPaymentDate)) {
+    const pInfo = calculatePrepaidRenewalInfo(current, sub.billingCycle, sub.dueDayOfMonth);
+    if (pInfo.daysRemaining !== undefined && pInfo.daysRemaining >= 0) {
+      // Prepaid subscription is still within its active validity period (e.g. Aug 17 to Sep 16)
+      return sub;
+    }
+  }
+
   // If currentCycle is missing or from a past month, roll forward to current calendar month
   if (!current || !current.cycleMonth || current.cycleMonth < currentMonthStr) {
-    // 1. Archive the previous cycle to subscription_cycles if valid
-    if (current && current.cycleMonth) {
+    // 1. Archive the previous cycle to subscription_cycles if it has actual data
+    if (current && current.cycleMonth && ((current.statementTotal && current.statementTotal > 0) || (current.paidAmount && current.paidAmount > 0) || (current.sourceEmails && current.sourceEmails.length > 0))) {
       try {
         const oldCycleId = `${sub.id}_${current.cycleMonth}`;
         const oldCycleRef = db.collection("subscription_cycles").doc(oldCycleId);
@@ -412,15 +428,29 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
   snap2.forEach((doc) => processDoc(doc.id, doc.data()));
   snap1.forEach((doc) => processDoc(doc.id, doc.data()));
 
-  // Also include currentCycle if present and not in cycleMap
+  // Also include currentCycle if present and has actual data
   if (subscription?.currentCycle?.cycleMonth) {
     const curMonth = subscription.currentCycle.cycleMonth;
-    if (!cycleMap.has(curMonth)) {
-      processDoc(`${subscriptionId}_${curMonth}`, subscription.currentCycle);
+    const curCycle = subscription.currentCycle;
+    const hasData =
+      (curCycle.statementTotal && curCycle.statementTotal > 0) ||
+      (curCycle.paidAmount && curCycle.paidAmount > 0) ||
+      (curCycle.sourceEmails && curCycle.sourceEmails.length > 0) ||
+      (curCycle.sourceSms && curCycle.sourceSms.length > 0) ||
+      subscription.billingType === "FIXED_TENURE";
+
+    if (!cycleMap.has(curMonth) && hasData) {
+      processDoc(`${subscriptionId}_${curMonth}`, curCycle);
     }
   }
 
-  const list = Array.from(cycleMap.values());
+  const list = Array.from(cycleMap.values()).filter(
+    (c) =>
+      (c.statementTotal && c.statementTotal > 0) ||
+      (c.paidAmount && c.paidAmount > 0) ||
+      (c.sourceEmails && c.sourceEmails.length > 0) ||
+      subscription?.billingType === "FIXED_TENURE",
+  );
   return list.sort((a, b) => b.cycleMonth.localeCompare(a.cycleMonth));
 }
 
