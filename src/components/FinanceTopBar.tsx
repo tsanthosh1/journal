@@ -75,10 +75,24 @@ export function FinanceTopBar({ title }: { title?: string }) {
                   <span className="max-w-[170px] truncate font-medium" title={userEmail || "Connected"}>
                     {userEmail || "Connected"}
                   </span>
-                  {isGmailSynced && (
-                    <span className="rounded-md bg-indigo-500/20 px-1.5 py-0.2 text-[10px] text-indigo-300 font-medium">
-                      Gmail Sync
-                    </span>
+                  {isGmailSynced ? (
+                    <button
+                      type="button"
+                      onClick={() => void signInWithGoogle()}
+                      className="rounded-md bg-indigo-500/20 hover:bg-indigo-500/30 px-1.5 py-0.5 text-[10px] text-indigo-300 font-medium transition cursor-pointer"
+                      title="Click to re-authorize / refresh offline Google/Gmail token"
+                    >
+                      Gmail Sync ⚡
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void signInWithGoogle()}
+                      className="rounded-md bg-amber-500/20 hover:bg-amber-500/30 px-1.5 py-0.5 text-[10px] text-amber-300 font-medium transition cursor-pointer"
+                      title="Click to connect Gmail Sync"
+                    >
+                      Link Gmail ⚠️
+                    </button>
                   )}
                   <button
                     type="button"

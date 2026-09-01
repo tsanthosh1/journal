@@ -11,6 +11,7 @@ import React, {
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithCustomToken,
   signInWithPopup,
   signOut as fbSignOut,
   type User,
@@ -82,17 +83,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  // Clean URL parameters (like ?auth=success) without storing raw emails
+  // Handle Firebase Custom Token from Server-Side OAuth redirect
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && firebase?.auth) {
       const url = new URL(window.location.href);
-      if (url.searchParams.has("email") || url.searchParams.has("firebase_token")) {
-        url.searchParams.delete("email");
-        url.searchParams.delete("firebase_token");
-        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      const customToken = url.searchParams.get("firebase_token");
+      if (customToken) {
+        signInWithCustomToken(firebase.auth, customToken)
+          .then((cred) => {
+            setUser(cred.user);
+            checkGmailSyncStatus();
+          })
+          .catch((err) => {
+            console.error("Firebase custom token signin error:", err);
+          })
+          .finally(() => {
+            url.searchParams.delete("firebase_token");
+            url.searchParams.delete("auth");
+            window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+          });
       }
     }
-  }, []);
+  }, [firebase, checkGmailSyncStatus]);
 
   // Cryptographic Firebase Auth Listener (Source of Truth)
   useEffect(() => {
@@ -128,40 +140,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [firebase]);
 
-  const signInWithGoogle = useCallback(async () => {
-    if (!firebase?.auth || !firebase?.googleProvider) {
-      console.error("Firebase Auth is not configured");
-      return;
-    }
-
-    try {
+  const signInWithGoogle = useCallback(async (returnTo?: string) => {
+    if (typeof window !== "undefined") {
       setIsLoading(true);
-      const result = await signInWithPopup(firebase.auth, firebase.googleProvider);
-      setUser(result.user);
-
-      // Extract OAuth Access Token for Gmail API
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential?.accessToken && result.user.email) {
-        await fetch("/api/auth/google/store-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: result.user.email,
-            email: result.user.email,
-            accessToken: credential.accessToken,
-          }),
-        }).catch((err) => console.warn("Failed to store initial Gmail token:", err));
-
-        await checkGmailSyncStatus();
-      }
-    } catch (popupErr: any) {
-      if (popupErr?.code !== "auth/popup-closed-by-user") {
-        console.error("Google Sign-In Error:", popupErr);
-      }
-    } finally {
-      setIsLoading(false);
+      const destination =
+        returnTo || window.location.pathname + window.location.search || "/subscriptions";
+      const qUserId = user?.email || user?.uid || "default_user";
+      // Redirect to server OAuth endpoint for offline consent & refresh token
+      window.location.href = `/api/auth/google?userId=${encodeURIComponent(qUserId)}&returnTo=${encodeURIComponent(destination)}`;
     }
-  }, [firebase, checkGmailSyncStatus]);
+  }, [user]);
 
   const signOut = useCallback(async () => {
     if (firebase) {
