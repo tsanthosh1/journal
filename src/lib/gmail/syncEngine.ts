@@ -81,78 +81,76 @@ export async function syncSubscriptionWithGmail(
       const statementMessages = await searchGmailMessages(
         accessToken,
         emailConfig.statementQuery.trim(),
-        5,
+        15,
       );
 
-      if (statementMessages.length > 0) {
-        const latestMsgSummary = statementMessages[0];
-        const msgDetail = await getGmailMessageDetails(accessToken, latestMsgSummary.id);
+      for (const msgSummary of statementMessages) {
+        try {
+          const msgDetail = await getGmailMessageDetails(accessToken, msgSummary.id);
+          const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
+          const stmtParsed = statementParser.parseStatement(content, msgDetail.subject, statementConfig);
 
-        const content = `${msgDetail.bodyText}\n${msgDetail.bodyHtml}`;
-        const stmtParsed = statementParser.parseStatement(content, msgDetail.subject, statementConfig);
+          if (stmtParsed.success && stmtParsed.statementTotal !== undefined) {
+            cycle.statementTotal = stmtParsed.statementTotal;
+            if (stmtParsed.dueDate) {
+              cycle.dueDate = stmtParsed.dueDate;
+            }
+            if (stmtParsed.periodStartDate) cycle.periodStartDate = stmtParsed.periodStartDate;
+            if (stmtParsed.periodEndDate) cycle.periodEndDate = stmtParsed.periodEndDate;
+            if (stmtParsed.nextRenewalDate) cycle.nextRenewalDate = stmtParsed.nextRenewalDate;
 
-        if (stmtParsed.success && stmtParsed.statementTotal !== undefined) {
-          cycle.statementTotal = stmtParsed.statementTotal;
-          if (stmtParsed.dueDate) {
-            cycle.dueDate = stmtParsed.dueDate;
+            // Use parsed statementDate or fallback to the email message's actual internal date
+            const actualMsgDate = msgDetail.internalDate
+              ? new Date(parseInt(msgDetail.internalDate)).toISOString().split("T")[0]
+              : msgDetail.date
+              ? new Date(msgDetail.date).toISOString().split("T")[0]
+              : new Date().toISOString().split("T")[0];
+
+            cycle.statementDate = stmtParsed.statementDate || actualMsgDate;
+            const ym = (stmtParsed.statementDate || actualMsgDate).slice(0, 7);
+            if (ym) cycle.cycleMonth = ym;
+
+            // Save copy of source statement email to Firebase Storage & Firestore
+            const archivedEmail = await saveEmailSnapshot({
+              userId: subscription.userId || "default_user",
+              subscriptionId: subscription.id,
+              subscriptionName: subscription.name,
+              cycleMonth: cycle.cycleMonth,
+              messageId: msgSummary.id,
+              type: "STATEMENT",
+              subject: msgDetail.subject,
+              from: msgDetail.from,
+              to: msgDetail.to,
+              date: msgDetail.date || actualMsgDate,
+              bodyHtml: msgDetail.bodyHtml,
+              bodyText: msgDetail.bodyText,
+              snippet: msgDetail.snippet,
+              extractedAmount: stmtParsed.statementTotal,
+              extractedDate: stmtParsed.dueDate,
+              accountOrCardDigits: stmtParsed.accountOrCardDigits,
+              rawMatches: stmtParsed.rawMatches,
+            });
+
+            // Replace or add to cycle.sourceEmails
+            if (!cycle.sourceEmails) cycle.sourceEmails = [];
+            const existingIdx = cycle.sourceEmails.findIndex((e) => e.id === msgSummary.id);
+            if (existingIdx >= 0) {
+              cycle.sourceEmails[existingIdx] = archivedEmail;
+            } else {
+              cycle.sourceEmails = cycle.sourceEmails.filter((e) => e.type !== "STATEMENT");
+              cycle.sourceEmails.unshift(archivedEmail);
+            }
+
+            if (!cycle.processedMessageIds.includes(msgSummary.id)) {
+              cycle.processedMessageIds.push(msgSummary.id);
+              newMessagesProcessed++;
+            }
+
+            // Once the most recent valid statement email is found and processed, stop
+            break;
           }
-          if (stmtParsed.periodStartDate) cycle.periodStartDate = stmtParsed.periodStartDate;
-          if (stmtParsed.periodEndDate) cycle.periodEndDate = stmtParsed.periodEndDate;
-          if (stmtParsed.nextRenewalDate) cycle.nextRenewalDate = stmtParsed.nextRenewalDate;
-
-          // Use parsed statementDate or fallback to the email message's actual internal date
-          const actualMsgDate = msgDetail.internalDate
-            ? new Date(parseInt(msgDetail.internalDate)).toISOString().split("T")[0]
-            : msgDetail.date
-            ? new Date(msgDetail.date).toISOString().split("T")[0]
-            : new Date().toISOString().split("T")[0];
-
-          cycle.statementDate = stmtParsed.statementDate || actualMsgDate;
-          const ym = (stmtParsed.statementDate || actualMsgDate).slice(0, 7);
-          if (ym) cycle.cycleMonth = ym;
-
-          // Save copy of source statement email to Firebase Storage & Firestore
-          const archivedEmail = await saveEmailSnapshot({
-            userId: subscription.userId || "default_user",
-            subscriptionId: subscription.id,
-            subscriptionName: subscription.name,
-            cycleMonth: cycle.cycleMonth,
-            messageId: latestMsgSummary.id,
-            type: "STATEMENT",
-            subject: msgDetail.subject,
-            from: msgDetail.from,
-            to: msgDetail.to,
-            date: msgDetail.date || actualMsgDate,
-            bodyHtml: msgDetail.bodyHtml,
-            bodyText: msgDetail.bodyText,
-            snippet: msgDetail.snippet,
-            extractedAmount: stmtParsed.statementTotal,
-            extractedDate: stmtParsed.dueDate,
-            accountOrCardDigits: stmtParsed.accountOrCardDigits,
-            rawMatches: stmtParsed.rawMatches,
-          });
-
-          // Replace or add to cycle.sourceEmails
-          if (!cycle.sourceEmails) cycle.sourceEmails = [];
-          const existingIdx = cycle.sourceEmails.findIndex((e) => e.id === latestMsgSummary.id);
-          if (existingIdx >= 0) {
-            cycle.sourceEmails[existingIdx] = archivedEmail;
-          } else {
-            // Keep only statement emails and valid payments in cycle.sourceEmails
-            cycle.sourceEmails = cycle.sourceEmails.filter((e) => e.type !== "STATEMENT");
-            cycle.sourceEmails.unshift(archivedEmail);
-          }
-
-          if (!cycle.processedMessageIds.includes(latestMsgSummary.id)) {
-            cycle.processedMessageIds.push(latestMsgSummary.id);
-            newMessagesProcessed++;
-          }
-        } else {
-          warnings.push(
-            `Statement parser mismatch: ${stmtParsed.error || "Could not extract statement amount"}`,
-          );
-          cycle.lastError = stmtParsed.error;
-          cycle.status = "MISMATCH_REVIEW";
+        } catch {
+          // Try next message
         }
       }
     } catch (err) {
@@ -845,15 +843,39 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
   }
 
   const { db } = getFirebaseAdmin();
-  const subsSnap = await db
+
+  // Support flexible user ID candidates (e.g. email, normalized email, token email, default_user)
+  const candidateUserIds = Array.from(
+    new Set([
+      userId,
+      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      tokenRecord.email,
+      "default_user",
+    ]),
+  ).filter(Boolean) as string[];
+
+  let subsSnap = await db
     .collection("subscriptions")
-    .where("userId", "==", userId)
-    .where("source", "==", "EMAIL_AUTOMATED")
+    .where("userId", "in", candidateUserIds.slice(0, 10))
     .get();
+
+  if (subsSnap.empty) {
+    // Fallback: fetch all subscriptions if single tenant
+    subsSnap = await db.collection("subscriptions").limit(100).get();
+  }
 
   const subscriptions: Subscription[] = [];
   subsSnap.forEach((doc) => {
-    subscriptions.push({ id: doc.id, ...(doc.data() as Omit<Subscription, "id">) });
+    const data = doc.data() as Subscription;
+    const hasEmailConfig =
+      data.emailConfig?.enabled ||
+      Boolean(data.emailConfig?.statementQuery?.trim()) ||
+      Boolean(data.emailConfig?.paymentQuery?.trim()) ||
+      data.source === "EMAIL_AUTOMATED";
+
+    if (hasEmailConfig) {
+      subscriptions.push({ ...data, id: doc.id });
+    }
   });
 
   const results: SyncSubscriptionResult[] = [];
