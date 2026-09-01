@@ -20,6 +20,134 @@ function sanitizeForFirestore(obj: any): any {
   return cleaned;
 }
 
+export async function ensureSubscriptionCurrentMonth(
+  sub: Subscription,
+  db: FirebaseFirestore.Firestore,
+): Promise<Subscription> {
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  const current = sub.currentCycle;
+  // If currentCycle is missing or from a past month, roll forward to current calendar month
+  if (!current || !current.cycleMonth || current.cycleMonth < currentMonthStr) {
+    // 1. Archive the previous cycle to subscription_cycles if valid
+    if (current && current.cycleMonth) {
+      try {
+        const oldCycleId = `${sub.id}_${current.cycleMonth}`;
+        const oldCycleRef = db.collection("subscription_cycles").doc(oldCycleId);
+        const oldSnap = await oldCycleRef.get();
+        if (!oldSnap.exists) {
+          const oldRecord: HistoricalCycle = {
+            id: oldCycleId,
+            subscriptionId: sub.id,
+            subscriptionName: sub.name,
+            currency: sub.currency || "INR",
+            cycleMonth: current.cycleMonth,
+            dueDate: current.dueDate,
+            statementDate: current.statementDate,
+            statementTotal: current.statementTotal || 0,
+            paidAmount: current.paidAmount || 0,
+            remainingBalance: current.remainingBalance ?? Math.max(0, (current.statementTotal || 0) - (current.paidAmount || 0)),
+            status: current.status || "UNPAID",
+            lastPaymentDate: current.lastPaymentDate,
+            processedMessageIds: current.processedMessageIds || [],
+            sourceEmails: current.sourceEmails,
+            sourceSms: current.sourceSms,
+            createdAt: current.updatedAt || new Date().toISOString(),
+            updatedAt: current.updatedAt || new Date().toISOString(),
+          };
+          await oldCycleRef.set(sanitizeForFirestore(oldRecord));
+        }
+      } catch (err) {
+        console.warn(`Could not archive old cycle for subscription ${sub.id}:`, err);
+      }
+    }
+
+    // 2. Compute new Due Date for current calendar month
+    let calculatedDueDate: string | undefined = undefined;
+    const [yStr, mStr] = currentMonthStr.split("-");
+    const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
+
+    if (sub.dueDayOfMonth) {
+      const validDay = Math.min(sub.dueDayOfMonth, maxDays);
+      calculatedDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+    } else if (sub.isEndOfMonthDue) {
+      calculatedDueDate = `${yStr}-${mStr}-${String(maxDays).padStart(2, "0")}`;
+    } else if (!sub.isPrepaid) {
+      calculatedDueDate = `${yStr}-${mStr}-15`;
+    }
+
+    // 3. Compute Statement Total and Paid Amounts
+    const isPrepaid =
+      sub.isPrepaid ||
+      sub.category === "Entertainment" ||
+      (!sub.dueDayOfMonth && sub.billingType === "BILL_GENERATED" && !sub.emailConfig?.paymentQuery);
+
+    const isFixedOrManual =
+      sub.billingType === "FIXED_TENURE" ||
+      sub.source === "MANUAL" ||
+      sub.category === "Loans & EMIs";
+
+    const statementTotal = isFixedOrManual || isPrepaid ? sub.defaultAmount || 0 : sub.defaultAmount || 0;
+    const paidAmount = isPrepaid ? statementTotal : 0;
+    const remainingBalance = isPrepaid ? 0 : statementTotal;
+    const status: PaymentStatus = isPrepaid ? "FULLY_PAID" : "UNPAID";
+
+    const newCycle: CycleState = {
+      cycleMonth: currentMonthStr,
+      dueDate: calculatedDueDate,
+      statementDate: `${currentMonthStr}-01`,
+      statementTotal,
+      paidAmount,
+      remainingBalance,
+      status,
+      processedMessageIds: [],
+      sourceEmails: [],
+      sourceSms: [],
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updatedSub: Subscription = {
+      ...sub,
+      currentCycle: newCycle,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 4. Update Firestore
+    try {
+      await db.collection("subscriptions").doc(sub.id).update({
+        currentCycle: sanitizeForFirestore(newCycle),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const newCycleId = `${sub.id}_${currentMonthStr}`;
+      const newCycleRecord: HistoricalCycle = {
+        id: newCycleId,
+        subscriptionId: sub.id,
+        subscriptionName: sub.name,
+        currency: sub.currency || "INR",
+        cycleMonth: currentMonthStr,
+        dueDate: calculatedDueDate,
+        statementDate: `${currentMonthStr}-01`,
+        statementTotal,
+        paidAmount,
+        remainingBalance,
+        status,
+        processedMessageIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await db.collection("subscription_cycles").doc(newCycleId).set(sanitizeForFirestore(newCycleRecord), { merge: true });
+    } catch (err) {
+      console.error(`Failed to update subscription ${sub.id} currentCycle rollover:`, err);
+    }
+
+    return updatedSub;
+  }
+
+  return sub;
+}
+
 export async function listSubscriptions(userId = "default_user"): Promise<Subscription[]> {
   const { db } = getFirebaseAdmin();
 
@@ -42,10 +170,15 @@ export async function listSubscriptions(userId = "default_user"): Promise<Subscr
     snap = await db.collection("subscriptions").limit(100).get();
   }
 
-  const list: Subscription[] = [];
+  const rawList: Subscription[] = [];
   snap.forEach((doc) => {
-    list.push({ id: doc.id, ...(doc.data() as Omit<Subscription, "id">) });
+    rawList.push({ id: doc.id, ...(doc.data() as Omit<Subscription, "id">) });
   });
+
+  // Roll forward any outdated cycles to the current calendar month
+  const list = await Promise.all(
+    rawList.map((sub) => ensureSubscriptionCurrentMonth(sub, db)),
+  );
 
   // Sort by upcoming dueDate ascending
   return list.sort((a, b) => {
@@ -59,7 +192,8 @@ export async function getSubscription(id: string): Promise<Subscription | null> 
   const { db } = getFirebaseAdmin();
   const snap = await db.collection("subscriptions").doc(id).get();
   if (!snap.exists) return null;
-  return { id: snap.id, ...(snap.data() as Omit<Subscription, "id">) };
+  const sub = { id: snap.id, ...(snap.data() as Omit<Subscription, "id">) };
+  return ensureSubscriptionCurrentMonth(sub, db);
 }
 
 export async function createSubscription(
