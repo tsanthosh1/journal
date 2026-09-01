@@ -12,7 +12,7 @@ interface CurrentMonthActionHubProps {
   onViewHistory: (sub: Subscription) => void;
 }
 
-type PriorityGroup = "OVERDUE" | "DUE_SOON" | "UPCOMING" | "SETTLED" | "SKIPPED";
+type PriorityGroup = "OVERDUE" | "DUE_SOON" | "UPCOMING" | "AWAITING_BILL" | "SETTLED" | "SKIPPED";
 
 interface PrioritizedItem {
   subscription: Subscription;
@@ -21,6 +21,7 @@ interface PrioritizedItem {
   displayAmount: number;
   remainingAmount: number;
   paidAmount: number;
+  isAwaitingBill: boolean;
 }
 
 export function CurrentMonthActionHub({
@@ -53,15 +54,19 @@ export function CurrentMonthActionHub({
           !sub.emailConfig?.paymentQuery);
 
       const cycle = sub.currentCycle;
-      const total = (cycle.statementTotal && cycle.statementTotal > 0) ? cycle.statementTotal : (sub.defaultAmount || 0);
+      const isFixed = sub.billingType === "FIXED_TENURE" || sub.category === "Loans & EMIs";
+      const hasStatementTotal = cycle.statementTotal !== undefined && cycle.statementTotal > 0;
+      const isAwaitingBill = !isPrepaid && !isFixed && !hasStatementTotal;
+
+      const total = hasStatementTotal ? cycle.statementTotal : isFixed ? (sub.defaultAmount || 0) : 0;
       const paid = isPrepaid ? (cycle.paidAmount || total) : (cycle.paidAmount || 0);
       const isPaid = isPrepaid || cycle.status === "FULLY_PAID" || (total > 0 && paid >= total);
       const isSkipped = cycle.status === "SKIPPED" || cycle.status === "PAUSED";
       const isPartiallyPaid = !isPrepaid && cycle.status === "PARTIALLY_PAID";
-      const remaining = isPaid || isSkipped ? 0 : (cycle.remainingBalance !== undefined ? cycle.remainingBalance : Math.max(0, total - paid));
+      const remaining = isPaid || isSkipped || isAwaitingBill ? 0 : (cycle.remainingBalance !== undefined && cycle.remainingBalance > 0 ? cycle.remainingBalance : Math.max(0, total - paid));
 
       totalPaidAmount += paid;
-      if (!isPaid && !isSkipped) {
+      if (!isPaid && !isSkipped && !isAwaitingBill) {
         totalPendingAmount += remaining;
       }
 
@@ -87,8 +92,11 @@ export function CurrentMonthActionHub({
       } else if (isPaid) {
         group = "SETTLED";
         settledCount++;
+      } else if (isAwaitingBill) {
+        group = "AWAITING_BILL";
+        upcomingCount++;
       } else {
-        // Unpaid or partially paid
+        // Unpaid or partially paid with known statement amount or fixed commitment
         if (daysDiff !== null && daysDiff < 0) {
           group = "OVERDUE";
           overdueCount++;
@@ -108,17 +116,19 @@ export function CurrentMonthActionHub({
         displayAmount: total,
         remainingAmount: remaining,
         paidAmount: paid,
+        isAwaitingBill,
       };
     });
 
-    // Sort by Priority: OVERDUE -> DUE_SOON -> UPCOMING -> SETTLED -> SKIPPED
+    // Sort by Priority: OVERDUE -> DUE_SOON -> UPCOMING -> AWAITING_BILL -> SETTLED -> SKIPPED
     // Within groups, sort by nearest due date (daysDiff ascending)
     const priorityWeight: Record<PriorityGroup, number> = {
       OVERDUE: 1,
       DUE_SOON: 2,
       UPCOMING: 3,
-      SETTLED: 4,
-      SKIPPED: 5,
+      AWAITING_BILL: 4,
+      SETTLED: 5,
+      SKIPPED: 6,
     };
 
     prioritized.sort((a, b) => {
@@ -264,7 +274,7 @@ export function CurrentMonthActionHub({
 
       {/* Action Item Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
-        {filteredItems.map(({ subscription: sub, group, daysDiff, displayAmount, remainingAmount }) => {
+        {filteredItems.map(({ subscription: sub, group, daysDiff, displayAmount, remainingAmount, isAwaitingBill }) => {
           const isSettled = group === "SETTLED" || group === "SKIPPED";
           const isOverdue = group === "OVERDUE";
           const isDueSoon = group === "DUE_SOON";
@@ -281,6 +291,8 @@ export function CurrentMonthActionHub({
                   ? "bg-amber-950/15 border-amber-500/30 hover:border-amber-500/50 hover:bg-amber-950/25"
                   : isSettled
                   ? "bg-slate-900/30 border-white/5 hover:border-white/15 opacity-75 hover:opacity-100"
+                  : isAwaitingBill
+                  ? "bg-slate-900/40 border-white/10 hover:border-cyan-500/30 hover:bg-slate-900/70"
                   : "bg-slate-900/50 border-white/10 hover:border-cyan-500/40 hover:bg-slate-900/80"
               }`}
             >
@@ -340,9 +352,16 @@ export function CurrentMonthActionHub({
                 {/* Right: Amounts & Status Badge */}
                 <div className="text-right shrink-0">
                   <div className="text-sm sm:text-base font-extrabold text-white font-mono">
-                    ₹{displayAmount.toLocaleString("en-IN")}
+                    {isAwaitingBill ? (
+                      <div>
+                        <span>₹0</span>
+                        <span className="text-[10px] text-slate-500 font-medium block">Bill Pending</span>
+                      </div>
+                    ) : (
+                      <span>₹{displayAmount.toLocaleString("en-IN")}</span>
+                    )}
                   </div>
-                  {remainingAmount > 0 && (
+                  {!isAwaitingBill && remainingAmount > 0 && (
                     <div className="text-[11px] font-extrabold text-rose-400 mt-0.5 tracking-tight flex items-center justify-end gap-1">
                       <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
                       <span>₹{remainingAmount.toLocaleString("en-IN")} pending</span>
@@ -362,10 +381,20 @@ export function CurrentMonthActionHub({
                         ? "bg-rose-500/25 text-rose-300 border border-rose-500/40"
                         : isDueSoon
                         ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                        : "bg-rose-500/15 text-rose-300 border border-rose-500/30"
+                        : isAwaitingBill
+                        ? "bg-slate-800/80 text-slate-300 border border-slate-700/60"
+                        : "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
                     }`}
                   >
-                    {isSettled ? "FULLY PAID" : isOverdue ? "OVERDUE" : isDueSoon ? "DUE SOON" : "PENDING"}
+                    {isSettled
+                      ? "FULLY PAID"
+                      : isOverdue
+                      ? "OVERDUE"
+                      : isDueSoon
+                      ? "DUE SOON"
+                      : isAwaitingBill
+                      ? "⏳ AWAITING BILL"
+                      : "PENDING"}
                   </span>
 
                   <span className="text-[11px] text-slate-400 group-hover:text-slate-200 transition">
@@ -375,7 +404,7 @@ export function CurrentMonthActionHub({
 
                 {/* Quick 1-Click Pay or Edit Actions */}
                 <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  {!isSettled && (
+                  {!isSettled && !isAwaitingBill && (
                     <button
                       type="button"
                       disabled={isMarkingPaidId === sub.id}

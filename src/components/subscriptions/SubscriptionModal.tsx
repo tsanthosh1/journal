@@ -63,8 +63,8 @@ export function SubscriptionModal({
   }>({});
 
   // Independent Sources
-  // Statement Source: "EMAIL" | "SMS" | "MANUAL"
-  const [statementSource, setStatementSource] = useState<"EMAIL" | "SMS" | "MANUAL">("EMAIL");
+  // Statement Source: "EMAIL" | "SMS" | "FIXED" | "MANUAL"
+  const [statementSource, setStatementSource] = useState<"EMAIL" | "SMS" | "FIXED" | "MANUAL">("EMAIL");
   const [statementQuery, setStatementQuery] = useState("");
   const [statementSmsSender, setStatementSmsSender] = useState("");
   const [statementSmsKeywords, setStatementSmsKeywords] = useState("bill, due, statement");
@@ -143,35 +143,35 @@ export function SubscriptionModal({
         setCustomRegex({});
       }
 
+      const isFixedTenure =
+        initialData.billingType === "FIXED_TENURE" ||
+        initialData.category === "Loans & EMIs" ||
+        (!ec?.statementQuery && initialData.defaultAmount && initialData.defaultAmount > 0);
+
+      if (isFixedTenure && !ec?.statementQuery) {
+        setStatementSource("FIXED");
+        setStatementQuery("");
+      } else if (ec && ec.enabled && ec.statementQuery && ec.statementQuery.trim().length > 0) {
+        setStatementSource("EMAIL");
+        setStatementQuery(ec.statementQuery);
+      } else {
+        setStatementSource("MANUAL");
+        setStatementQuery("");
+      }
+
       if (sc && (sc.enabled || initialData.source === "SMS_AUTOMATED")) {
         setPaymentSource("SMS");
         setPaymentSmsSender(sc.senderQuery || "");
         setPaymentSmsKeywords(sc.filterKeywords?.join(", ") || "loan, emi, recovery, debited");
         setPaymentSmsDigits(sc.accountOrLoanDigits || "");
-        setStatementSource("MANUAL");
-      } else if (ec && ec.enabled) {
-        if (ec.statementQuery && ec.statementQuery.trim().length > 0) {
-          setStatementSource("EMAIL");
-          setStatementQuery(ec.statementQuery);
-        } else {
-          setStatementSource("MANUAL");
-          setStatementQuery("");
-        }
-
-        if (ec.paymentQuery && ec.paymentQuery.trim().length > 0) {
-          setPaymentSource("EMAIL");
-          setPaymentQuery(ec.paymentQuery);
-        } else if (isPre) {
-          setPaymentSource("PREPAID_INVOICE");
-          setPaymentQuery("");
-        } else {
-          setPaymentSource("MANUAL");
-          setPaymentQuery("");
-        }
+      } else if (ec && ec.enabled && ec.paymentQuery && ec.paymentQuery.trim().length > 0) {
+        setPaymentSource("EMAIL");
+        setPaymentQuery(ec.paymentQuery);
+      } else if (isPre) {
+        setPaymentSource("PREPAID_INVOICE");
+        setPaymentQuery("");
       } else {
-        setStatementSource("MANUAL");
-        setPaymentSource(isPre ? "PREPAID_INVOICE" : "MANUAL");
-        setStatementQuery("");
+        setPaymentSource("MANUAL");
         setPaymentQuery("");
       }
     } else {
@@ -428,7 +428,9 @@ export function SubscriptionModal({
         statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE";
 
       const billingType: BillingType =
-        statementSource === "EMAIL" || statementSource === "SMS" ? "BILL_GENERATED" : "FIXED_TENURE";
+        statementSource === "FIXED" || category === "Loans & EMIs"
+          ? "FIXED_TENURE"
+          : "BILL_GENERATED";
 
       const source: SourceType =
         isEmailAutomated && isSmsAutomated
@@ -772,7 +774,7 @@ export function SubscriptionModal({
               </div>
 
               {/* 1. Source Pills */}
-              <div className="flex items-center rounded-xl bg-slate-950/80 p-1 border border-white/10 self-start sm:self-auto">
+              <div className="flex items-center rounded-xl bg-slate-950/80 p-1 border border-white/10 self-start sm:self-auto flex-wrap sm:flex-nowrap gap-1">
                 <button
                   type="button"
                   onClick={() => setStatementSource("EMAIL")}
@@ -798,6 +800,20 @@ export function SubscriptionModal({
                 <button
                   type="button"
                   onClick={() => {
+                    setStatementSource("FIXED");
+                    setStatementQuery("");
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    statementSource === "FIXED"
+                      ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>🔒</span> Fixed Amount
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setStatementSource("MANUAL");
                     setStatementQuery("");
                   }}
@@ -807,12 +823,32 @@ export function SubscriptionModal({
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <span>✋</span> Manual (Fixed)
+                  <span>✋</span> Manual
                 </button>
               </div>
             </div>
 
             {/* 2. Query Filters based on Source */}
+            {statementSource === "FIXED" ? (
+              <div className="rounded-xl border border-indigo-500/20 bg-indigo-950/20 p-3.5 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-xs">
+                  <span>🔒</span> Fixed Commitment / Loan EMI
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  The statement amount is constant every cycle (e.g. Home Loan EMI). The system automatically uses the set{" "}
+                  <strong className="text-white">Amount per Cycle (₹{defaultAmount || 0})</strong> as the exact due amount for every billing cycle without needing an external bill search.
+                </p>
+              </div>
+            ) : statementSource === "MANUAL" ? (
+              <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3.5 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
+                  <span>✋</span> Variable Manual Statement
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Statement amount varies each billing cycle. The system waits for the bill to arrive and lets you enter or override the exact statement total manually.
+                </p>
+              </div>
+            ) : null}
             {statementSource === "EMAIL" ? (
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">

@@ -83,12 +83,11 @@ export async function ensureSubscriptionCurrentMonth(
       sub.category === "Entertainment" ||
       (!sub.dueDayOfMonth && sub.billingType === "BILL_GENERATED" && !sub.emailConfig?.paymentQuery);
 
-    const isFixedOrManual =
+    const isFixed =
       sub.billingType === "FIXED_TENURE" ||
-      sub.source === "MANUAL" ||
       sub.category === "Loans & EMIs";
 
-    const statementTotal = isFixedOrManual || isPrepaid ? sub.defaultAmount || 0 : sub.defaultAmount || 0;
+    const statementTotal = isFixed || isPrepaid ? sub.defaultAmount || 0 : 0;
     const paidAmount = isPrepaid ? statementTotal : 0;
     const remainingBalance = isPrepaid ? 0 : statementTotal;
     const status: PaymentStatus = isPrepaid ? "FULLY_PAID" : "UNPAID";

@@ -46,10 +46,20 @@ export function SubscriptionCard({
   const isReview = cycle.status === "MISMATCH_REVIEW";
   const isPaused = cycle.status === "PAUSED";
 
-  const total = cycle.statementTotal > 0 ? cycle.statementTotal : subscription.defaultAmount;
+  const isFixed =
+    subscription.billingType === "FIXED_TENURE" ||
+    subscription.category === "Loans & EMIs";
+
+  const total =
+    cycle.statementTotal > 0
+      ? cycle.statementTotal
+      : isFixed
+      ? subscription.defaultAmount || 0
+      : 0;
+
   const paid = isPrepaid ? total : cycle.paidAmount || 0;
-  const remaining = isPrepaid ? 0 : cycle.remainingBalance || Math.max(0, total - paid);
-  const percentPaid = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 100;
+  const remaining = isPrepaid ? 0 : cycle.remainingBalance !== undefined && cycle.remainingBalance > 0 ? cycle.remainingBalance : Math.max(0, total - paid);
+  const percentPaid = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : isPaid ? 100 : 0;
 
   const handleCopyConfig = async () => {
     const configPayload = {
@@ -83,6 +93,16 @@ export function SubscriptionCard({
     }
   };
 
+  const isFixedCommitment =
+    subscription.billingType === "FIXED_TENURE" ||
+    subscription.category === "Loans & EMIs";
+
+  const isAwaitingBill =
+    !isPrepaid &&
+    !isPaid &&
+    !isFixedCommitment &&
+    (!cycle.statementTotal || cycle.statementTotal === 0);
+
   let statusBadge = (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800 border border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-300">
       <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -109,6 +129,13 @@ export function SubscriptionCard({
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
         Fully Paid
+      </span>
+    );
+  } else if (isAwaitingBill) {
+    statusBadge = (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-xs font-medium text-slate-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400/80" />
+        ⏳ Awaiting Bill
       </span>
     );
   } else if (isPartiallyPaid) {
