@@ -234,7 +234,10 @@ export async function saveGmailTokens(
 /**
  * Retrieves a valid Gmail access token for a user, automatically refreshing if close to expiry
  */
-export async function getValidGmailToken(userId = "default_user"): Promise<{
+export async function getValidGmailToken(
+  userId = "default_user",
+  forceRefresh = false,
+): Promise<{
   accessToken: string;
   email?: string;
   lastSyncAt?: string;
@@ -285,14 +288,20 @@ export async function getValidGmailToken(userId = "default_user"): Promise<{
   }
 
   const now = Date.now();
+  const shouldRefresh =
+    forceRefresh ||
+    !record.accessToken ||
+    !record.expiryDate ||
+    record.expiryDate - now < 300000;
 
-  // If token expires in less than 5 minutes (300,000ms), refresh it
-  if (record.expiryDate - now < 300000 && record.refreshToken) {
+  // If token is expired / close to expiry / force refreshed, and refresh token is available
+  if (shouldRefresh && record.refreshToken) {
     try {
       const refreshed = await refreshAccessToken(record.refreshToken);
       await saveGmailTokens(activeDocKey, {
         accessToken: refreshed.accessToken,
         expiryDate: refreshed.expiryDate,
+        refreshToken: record.refreshToken,
       });
       return {
         accessToken: refreshed.accessToken,
@@ -301,6 +310,13 @@ export async function getValidGmailToken(userId = "default_user"): Promise<{
       };
     } catch (err) {
       console.error("Token refresh error:", err);
+      if (record.accessToken && !forceRefresh) {
+        return {
+          accessToken: record.accessToken,
+          email: record.email,
+          lastSyncAt: record.lastSyncAt,
+        };
+      }
       return null;
     }
   }

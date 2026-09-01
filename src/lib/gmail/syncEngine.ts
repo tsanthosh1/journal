@@ -882,20 +882,40 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
   const errors: string[] = [];
   let totalNewMessages = 0;
 
+  let currentAccessToken = tokenRecord.accessToken;
+
   for (const sub of subscriptions) {
     if (sub.currentCycle.status === "PAUSED" || sub.currentCycle.status === "ARCHIVED") {
       continue;
     }
 
     try {
-      const res = await syncSubscriptionWithGmail(sub, tokenRecord.accessToken);
+      const res = await syncSubscriptionWithGmail(sub, currentAccessToken);
       results.push(res);
       totalNewMessages += res.newMessagesProcessed;
       if (res.warnings) {
         errors.push(...res.warnings.map((w) => `[${sub.name}] ${w}`));
       }
-    } catch (err) {
-      const msg = `[${sub.name}] Sync failed: ${(err as Error).message}`;
+    } catch (err: any) {
+      if (err.message && err.message.includes("401")) {
+        const refreshed = await getValidGmailToken(userId, true);
+        if (refreshed) {
+          currentAccessToken = refreshed.accessToken;
+          try {
+            const retryRes = await syncSubscriptionWithGmail(sub, currentAccessToken);
+            results.push(retryRes);
+            totalNewMessages += retryRes.newMessagesProcessed;
+            if (retryRes.warnings) {
+              errors.push(...retryRes.warnings.map((w) => `[${sub.name}] ${w}`));
+            }
+            continue;
+          } catch {
+            // fall through to error
+          }
+        }
+      }
+
+      const msg = `[${sub.name}] Sync failed: ${err.message || "Unknown error"}`;
       errors.push(msg);
       results.push({
         subscriptionId: sub.id,
@@ -909,13 +929,13 @@ export async function syncAllSubscriptions(userId = "default_user"): Promise<{
   }
 
   // Update lastSyncAt on gmail_tokens
-  await saveGmailTokens(userId, {
-    accessToken: tokenRecord.accessToken,
-    expiryDate: Date.now() + 3600000,
-  });
-  await db.collection("gmail_tokens").doc(userId).update({
-    lastSyncAt: new Date().toISOString(),
-  });
+  try {
+    await db.collection("gmail_tokens").doc(userId).update({
+      lastSyncAt: new Date().toISOString(),
+    });
+  } catch {
+    // optional update
+  }
 
   const auditLog: SyncAuditLog = {
     id: `sync_${Date.now()}`,

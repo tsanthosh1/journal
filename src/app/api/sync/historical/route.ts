@@ -27,32 +27,67 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
       }
 
-      const result = await syncHistoricalSubscriptionWithGmail(
-        sub,
-        tokenRecord.accessToken,
-        maxStatements,
-      );
-
-      return NextResponse.json({ success: true, result });
+      try {
+        const result = await syncHistoricalSubscriptionWithGmail(
+          sub,
+          tokenRecord.accessToken,
+          maxStatements,
+        );
+        return NextResponse.json({ success: true, result });
+      } catch (err: any) {
+        if (err.message && err.message.includes("401")) {
+          // Token expired unexpectedly; force refresh and retry once
+          const refreshedToken = await getValidGmailToken(userId, true);
+          if (refreshedToken) {
+            const retryResult = await syncHistoricalSubscriptionWithGmail(
+              sub,
+              refreshedToken.accessToken,
+              maxStatements,
+            );
+            return NextResponse.json({ success: true, result: retryResult });
+          }
+        }
+        throw err;
+      }
     }
 
     // Otherwise sync historical for all automated subscriptions
     const allSubs = await listSubscriptions(userId);
-    const automatedSubs = allSubs.filter((s) => s.source === "EMAIL_AUTOMATED");
+    const automatedSubs = allSubs.filter((s) => s.source === "EMAIL_AUTOMATED" || s.emailConfig?.enabled);
 
     const results = [];
     let totalCycles = 0;
+    let currentAccessToken = tokenRecord.accessToken;
 
     for (const sub of automatedSubs) {
       try {
         const res = await syncHistoricalSubscriptionWithGmail(
           sub,
-          tokenRecord.accessToken,
+          currentAccessToken,
           maxStatements,
         );
         results.push(res);
         totalCycles += res.cyclesFound;
-      } catch (err) {
+      } catch (err: any) {
+        if (err.message && err.message.includes("401")) {
+          const refreshedToken = await getValidGmailToken(userId, true);
+          if (refreshedToken) {
+            currentAccessToken = refreshedToken.accessToken;
+            try {
+              const retryRes = await syncHistoricalSubscriptionWithGmail(
+                sub,
+                currentAccessToken,
+                maxStatements,
+              );
+              results.push(retryRes);
+              totalCycles += retryRes.cyclesFound;
+              continue;
+            } catch {
+              // fall through to error
+            }
+          }
+        }
+
         results.push({
           subscriptionId: sub.id,
           subscriptionName: sub.name,
@@ -60,7 +95,7 @@ export async function POST(request: NextRequest) {
           cyclesFound: 0,
           cycles: [],
           messagesScanned: 0,
-          error: (err as Error).message,
+          error: err.message || "Historical sync failed",
         });
       }
     }
