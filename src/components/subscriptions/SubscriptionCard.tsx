@@ -379,7 +379,7 @@ export function SubscriptionCard({
             <button
               type="button"
               onClick={() => onQuickMarkPaid(subscription)}
-              className="min-h-[36px] rounded-xl bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30 transition active:scale-95 cursor-pointer"
+              className="min-h-[36px] rounded-xl border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/20 hover:text-white hover:border-white/25 transition active:scale-95 cursor-pointer shadow-sm"
             >
               Pay Full
             </button>
