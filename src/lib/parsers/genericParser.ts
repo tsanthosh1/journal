@@ -66,6 +66,30 @@ export class GenericUtilityParser implements IStatementParser {
       }
     }
 
+    // Period Extraction (e.g. "Billing Period: 14 Aug 2026 to 13 Sep 2026" or "Valid till: 13-09-2026")
+    const periodRangeRx =
+      /(?:Billing\s+Period|Plan\s+Validity|Period|Coverage|Subscription\s+Period)\s*[:\-]?\s*(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s+(?:to|-|through)\s+(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i;
+    const periodRangeMatch = cleanText.match(periodRangeRx);
+    if (periodRangeMatch && periodRangeMatch[1] && periodRangeMatch[2]) {
+      matches.rawPeriodStart = periodRangeMatch[1];
+      matches.rawPeriodEnd = periodRangeMatch[2];
+    }
+
+    const periodEndRx =
+      /(?:valid\s+till|valid\s+until|validity\s+ends|expiry\s+date|plan\s+expires\s+on|next\s+bill\s+date|next\s+renewal\s+date|renews\s+on)\s*[:\-]?\s*(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i;
+    const periodEndMatch = cleanText.match(periodEndRx);
+    if (periodEndMatch && periodEndMatch[1] && !matches.rawPeriodEnd) {
+      matches.rawPeriodEnd = periodEndMatch[1];
+    }
+
+    const periodStartDate = parseFlexibleDate(matches.rawPeriodStart);
+    const periodEndDate = parseFlexibleDate(matches.rawPeriodEnd);
+    let nextRenewalDate: string | undefined = undefined;
+    if (periodEndDate) {
+      const pEndDate = new Date(periodEndDate);
+      nextRenewalDate = new Date(pEndDate.getTime() + 86400000).toISOString().split("T")[0];
+    }
+
     // Ref / Invoice ID
     const refMatch = raw.match(/filename=([A-Za-z0-9_]+)\.pdf/i) || cleanText.match(/Invoice\s*(?:No\.?|Number|#)\s*[:\-]?\s*([A-Za-z0-9_\-]+)/i);
     if (refMatch && refMatch[1]) {
@@ -87,6 +111,9 @@ export class GenericUtilityParser implements IStatementParser {
       success: true,
       statementTotal,
       dueDate: dueDate ?? new Date().toISOString().split("T")[0],
+      periodStartDate,
+      periodEndDate,
+      nextRenewalDate,
       referenceId: matches.rawReferenceId,
       rawMatches: matches,
     };
@@ -136,6 +163,30 @@ export class GenericUtilityParser implements IStatementParser {
       }
     }
 
+    // Period Extraction
+    const periodRangeRx =
+      /(?:Billing\s+Period|Plan\s+Validity|Period|Coverage|Subscription\s+Period)\s*[:\-]?\s*(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s+(?:to|-|through)\s+(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i;
+    const periodRangeMatch = cleanText.match(periodRangeRx);
+    if (periodRangeMatch && periodRangeMatch[1] && periodRangeMatch[2]) {
+      matches.rawPeriodStart = periodRangeMatch[1];
+      matches.rawPeriodEnd = periodRangeMatch[2];
+    }
+
+    const periodEndRx =
+      /(?:valid\s+till|valid\s+until|validity\s+ends|expiry\s+date|plan\s+expires\s+on|next\s+bill\s+date|next\s+renewal\s+date|renews\s+on)\s*[:\-]?\s*(\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i;
+    const periodEndMatch = cleanText.match(periodEndRx);
+    if (periodEndMatch && periodEndMatch[1] && !matches.rawPeriodEnd) {
+      matches.rawPeriodEnd = periodEndMatch[1];
+    }
+
+    const periodStartDate = parseFlexibleDate(matches.rawPeriodStart);
+    const periodEndDate = parseFlexibleDate(matches.rawPeriodEnd);
+    let nextRenewalDate: string | undefined = undefined;
+    if (periodEndDate) {
+      const pEndDate = new Date(periodEndDate);
+      nextRenewalDate = new Date(pEndDate.getTime() + 86400000).toISOString().split("T")[0];
+    }
+
     // Transaction ID / Reference
     const refMatch = cleanText.match(/(?:receipt|transaction|txn|order|reference|invoice)\s*(?:no\.?|id|number)?\s*[:\-]?\s*([A-Za-z0-9_\-]+)/i);
     if (refMatch && refMatch[1]) {
@@ -157,6 +208,9 @@ export class GenericUtilityParser implements IStatementParser {
       success: true,
       paidAmount,
       paymentDate: paymentDate ?? new Date().toISOString().split("T")[0],
+      periodStartDate,
+      periodEndDate,
+      nextRenewalDate,
       referenceId: matches.rawReferenceId,
       rawMatches: matches,
     };

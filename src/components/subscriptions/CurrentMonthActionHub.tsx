@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Subscription, formatDisplayDate, formatCycleMonth } from "@/lib/subscriptionTypes";
+import {
+  Subscription,
+  formatDisplayDate,
+  formatCycleMonth,
+  calculatePrepaidRenewalInfo,
+} from "@/lib/subscriptionTypes";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 
 interface CurrentMonthActionHubProps {
@@ -22,6 +27,7 @@ interface PrioritizedItem {
   remainingAmount: number;
   paidAmount: number;
   isAwaitingBill: boolean;
+  isPrepaid: boolean;
 }
 
 export function CurrentMonthActionHub({
@@ -117,6 +123,7 @@ export function CurrentMonthActionHub({
         remainingAmount: remaining,
         paidAmount: paid,
         isAwaitingBill,
+        isPrepaid,
       };
     });
 
@@ -274,7 +281,7 @@ export function CurrentMonthActionHub({
 
       {/* Action Item Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
-        {filteredItems.map(({ subscription: sub, group, daysDiff, displayAmount, remainingAmount, isAwaitingBill }) => {
+        {filteredItems.map(({ subscription: sub, group, daysDiff, displayAmount, remainingAmount, isAwaitingBill, isPrepaid }) => {
           const isSettled = group === "SETTLED" || group === "SKIPPED";
           const isOverdue = group === "OVERDUE";
           const isDueSoon = group === "DUE_SOON";
@@ -317,9 +324,24 @@ export function CurrentMonthActionHub({
                       )}
                     </div>
 
-                    {/* Due Date Indicator */}
+                    {/* Due Date or Prepaid Period Indicator */}
                     <div className="flex items-center gap-2 mt-1 text-xs">
-                      {isSettled ? (
+                      {isPrepaid ? (
+                        (() => {
+                          const pInfo = calculatePrepaidRenewalInfo(cycle, sub.billingCycle, sub.dueDayOfMonth);
+                          return (
+                            <span className="text-emerald-400 font-medium flex items-center gap-1.5 flex-wrap">
+                              <span>⚡</span>
+                              <span>
+                                Valid until <strong className="text-white">{pInfo.periodEndDate ? formatDisplayDate(pInfo.periodEndDate) : "End of Cycle"}</strong>
+                              </span>
+                              <span className="text-[11px] text-slate-400">
+                                • Next Bill: {pInfo.nextRenewalDate ? formatDisplayDate(pInfo.nextRenewalDate) : "Next Month"}
+                              </span>
+                            </span>
+                          );
+                        })()
+                      ) : isSettled ? (
                         <span className="text-emerald-400 font-medium flex items-center gap-1">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -352,7 +374,12 @@ export function CurrentMonthActionHub({
                 {/* Right: Amounts & Status Badge */}
                 <div className="text-right shrink-0">
                   <div className="text-sm sm:text-base font-extrabold text-white font-mono">
-                    {isAwaitingBill ? (
+                    {isPrepaid ? (
+                      <div>
+                        <span>₹{displayAmount > 0 ? displayAmount.toLocaleString("en-IN") : (cycle.paidAmount || 0).toLocaleString("en-IN")}</span>
+                        <span className="text-[10px] text-emerald-300 font-medium block">Prepaid Active</span>
+                      </div>
+                    ) : isAwaitingBill ? (
                       <div>
                         <span>₹0</span>
                         <span className="text-[10px] text-slate-500 font-medium block">Bill Pending</span>
@@ -361,7 +388,7 @@ export function CurrentMonthActionHub({
                       <span>₹{displayAmount.toLocaleString("en-IN")}</span>
                     )}
                   </div>
-                  {!isAwaitingBill && remainingAmount > 0 && (
+                  {!isAwaitingBill && !isPrepaid && remainingAmount > 0 && (
                     <div className="text-[11px] font-extrabold text-rose-400 mt-0.5 tracking-tight flex items-center justify-end gap-1">
                       <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
                       <span>₹{remainingAmount.toLocaleString("en-IN")} pending</span>
@@ -375,7 +402,9 @@ export function CurrentMonthActionHub({
                 <div className="flex items-center gap-2">
                   <span
                     className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      isSettled
+                      isPrepaid
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        : isSettled
                         ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                         : isOverdue
                         ? "bg-rose-500/25 text-rose-300 border border-rose-500/40"
@@ -386,7 +415,9 @@ export function CurrentMonthActionHub({
                         : "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
                     }`}
                   >
-                    {isSettled
+                    {isPrepaid
+                      ? "⚡ PREPAID ACTIVE"
+                      : isSettled
                       ? "FULLY PAID"
                       : isOverdue
                       ? "OVERDUE"

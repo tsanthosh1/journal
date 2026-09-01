@@ -5,6 +5,7 @@ import {
   Subscription,
   formatCycleMonth,
   formatDisplayDate,
+  calculatePrepaidRenewalInfo,
 } from "@/lib/subscriptionTypes";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 
@@ -219,32 +220,50 @@ export function SubscriptionCard({
 
         {/* Financial Details Box: Redesigned distinctly for Prepaid vs Postpaid */}
         {isPrepaid ? (
-          <div className="mt-4 sm:mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-950/15 p-3.5 sm:p-4">
-            <div className="flex items-baseline justify-between">
-              <div>
-                <span className="text-xs text-slate-400 block">Subscription Cost</span>
-                <span className="text-[11px] text-emerald-300 font-medium flex items-center gap-1 mt-0.5">
-                  <span>⚡</span> Settled on Invoice
-                </span>
-              </div>
-              <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-                ₹{total.toLocaleString("en-IN", { minimumFractionDigits: 0 })}
-              </span>
-            </div>
+          (() => {
+            const pInfo = calculatePrepaidRenewalInfo(cycle, subscription.billingCycle, subscription.dueDayOfMonth);
+            return (
+              <div className="mt-4 sm:mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-950/15 p-3.5 sm:p-4 space-y-3">
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <span className="text-xs text-slate-400 block">Prepaid Plan Cost</span>
+                    <span className="text-[11px] text-emerald-300 font-medium flex items-center gap-1 mt-0.5">
+                      <span>⚡</span> Paid Upfront on Invoice
+                    </span>
+                  </div>
+                  <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
+                    ₹{total.toLocaleString("en-IN", { minimumFractionDigits: 0 })}
+                  </span>
+                </div>
 
-            <div className="mt-3.5 grid grid-cols-2 gap-2 border-t border-white/5 pt-2.5 text-xs text-slate-400">
-              <div>
-                <span className="text-slate-500 block text-[11px]">Invoice Date</span>
-                <span className="font-medium text-slate-200">
-                  {cycle.statementDate ? formatDisplayDate(cycle.statementDate) : "Synced on Invoice"}
-                </span>
+                <div className="grid grid-cols-2 gap-2 border-t border-white/5 pt-2.5 text-xs text-slate-400">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Valid Until (Period End)</span>
+                    <span className="font-semibold text-emerald-300">
+                      {pInfo.periodEndDate ? formatDisplayDate(pInfo.periodEndDate) : "End of Cycle"}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-500 block text-[11px]">Next Expected Renewal</span>
+                    <span className="font-semibold text-cyan-200 font-mono">
+                      {pInfo.nextRenewalDate ? formatDisplayDate(pInfo.nextRenewalDate) : "Next Month"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-white/5 pt-2 text-[11px] text-slate-400">
+                  <span>
+                    Invoice: {cycle.statementDate ? formatDisplayDate(cycle.statementDate) : formatCycleMonth(cycle.cycleMonth)}
+                  </span>
+                  <span className="font-medium text-emerald-400">
+                    {pInfo.daysRemaining !== undefined && pInfo.daysRemaining >= 0
+                      ? `${pInfo.daysRemaining} days remaining`
+                      : "Active"}
+                  </span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-slate-500 block text-[11px]">Billing Cycle</span>
-                <span className="font-medium text-slate-200">{formatCycleMonth(cycle.cycleMonth)}</span>
-              </div>
-            </div>
-          </div>
+            );
+          })()
         ) : (
           <div className="mt-4 sm:mt-5 rounded-2xl border border-white/5 bg-white/[0.02] p-3.5 sm:p-4">
             <div className="flex items-baseline justify-between">

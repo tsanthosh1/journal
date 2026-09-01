@@ -118,6 +118,9 @@ export interface CycleState {
   cycleMonth: string; // "YYYY-MM"
   statementDate?: string; // "YYYY-MM-DD"
   dueDate?: string; // "YYYY-MM-DD" (Optional for Prepaid OTTs / Instant renewals)
+  periodStartDate?: string; // "YYYY-MM-DD" (Prepaid subscription validity start)
+  periodEndDate?: string; // "YYYY-MM-DD" (Prepaid subscription validity end)
+  nextRenewalDate?: string; // "YYYY-MM-DD" (Next expected prepaid renewal / bill date)
   statementTotal: number;
   paidAmount: number;
   remainingBalance: number;
@@ -143,15 +146,15 @@ export interface Subscription {
   dueDayOfMonth?: number; // 1-31 (Optional for postpaid bills)
   isEndOfMonthDue?: boolean; // True if due on last day of month (e.g. 28-31)
   allowSkip?: boolean; // True if missed month is skipped without overdue penalty (e.g. jewellery schemes / voluntary SIPs)
-  dedupStrategy?: DedupStrategy; // Anti-duplicate strategy for duplicate email alerts
-  isPrepaid?: boolean; // True for OTTs/immediate renewals (no due date)
-  emailConfig?: EmailConfig;
-  smsConfig?: SmsConfig;
-  currentCycle: CycleState;
+  isPrepaid?: boolean; // True for OTTs / services paid upfront for the upcoming period
+  dedupStrategy?: DedupStrategy;
   notes?: string;
   imageUrl?: string; // Custom uploaded image URL or online logo URL
   icon?: string;
   color?: string;
+  emailConfig?: EmailConfig;
+  smsConfig?: SmsConfig;
+  currentCycle: CycleState;
   createdAt: string;
   updatedAt: string;
 }
@@ -162,6 +165,20 @@ export interface HistoricalCycle extends CycleState {
   subscriptionName: string;
   currency: string;
   createdAt: string;
+}
+
+export interface SyncSummary {
+  userId: string;
+  timestamp: string;
+  totalSubscriptions: number;
+  totalSynced: number;
+  results: Array<{
+    subscriptionId: string;
+    subscriptionName: string;
+    status: string;
+    message?: string;
+    messagesProcessed?: number;
+  }>;
 }
 
 export interface GmailTokenRecord {
@@ -199,6 +216,9 @@ export interface ParsedStatement {
   statementTotal?: number;
   statementDate?: string;
   dueDate?: string;
+  periodStartDate?: string;
+  periodEndDate?: string;
+  nextRenewalDate?: string;
   accountOrCardDigits?: string;
   referenceId?: string;
   rawMatches?: Record<string, string>;
@@ -209,10 +229,90 @@ export interface ParsedPayment {
   success: boolean;
   paidAmount?: number;
   paymentDate?: string;
+  periodStartDate?: string;
+  periodEndDate?: string;
+  nextRenewalDate?: string;
   referenceId?: string;
   accountOrCardDigits?: string;
   rawMatches?: Record<string, string>;
   error?: string;
+}
+
+export interface PrepaidRenewalInfo {
+  periodStartDate?: string;
+  periodEndDate?: string;
+  nextRenewalDate?: string;
+  daysRemaining?: number;
+  isExpiringSoon?: boolean;
+  isExpired?: boolean;
+}
+
+export function calculatePrepaidRenewalInfo(
+  cycle?: CycleState | null,
+  billingCycle: BillingCycle | string = "MONTHLY",
+  dueDayOfMonth?: number,
+): PrepaidRenewalInfo {
+  if (!cycle) return {};
+
+  const baseDateStr =
+    cycle.periodStartDate ||
+    cycle.statementDate ||
+    cycle.lastPaymentDate ||
+    (cycle.cycleMonth ? `${cycle.cycleMonth}-${String(dueDayOfMonth || 1).padStart(2, "0")}` : undefined);
+
+  if (!baseDateStr) return {};
+
+  const baseDate = new Date(baseDateStr);
+  if (isNaN(baseDate.getTime())) return {};
+
+  let renewalDate: Date;
+  let periodEnd: Date;
+
+  if (cycle.nextRenewalDate) {
+    renewalDate = new Date(cycle.nextRenewalDate);
+    periodEnd = cycle.periodEndDate ? new Date(cycle.periodEndDate) : new Date(renewalDate.getTime() - 86400000);
+  } else if (cycle.periodEndDate) {
+    periodEnd = new Date(cycle.periodEndDate);
+    renewalDate = new Date(periodEnd.getTime() + 86400000);
+  } else {
+    renewalDate = new Date(baseDate);
+    if (billingCycle === "ANNUAL" || billingCycle === "YEARLY") {
+      renewalDate.setFullYear(renewalDate.getFullYear() + 1);
+    } else if (billingCycle === "HALF_YEARLY") {
+      renewalDate.setMonth(renewalDate.getMonth() + 6);
+    } else if (billingCycle === "QUARTERLY") {
+      renewalDate.setMonth(renewalDate.getMonth() + 3);
+    } else if (billingCycle === "WEEKLY") {
+      renewalDate.setDate(renewalDate.getDate() + 7);
+    } else {
+      // Default: 1 month validity
+      renewalDate.setMonth(renewalDate.getMonth() + 1);
+    }
+
+    periodEnd = new Date(renewalDate);
+    periodEnd.setDate(periodEnd.getDate() - 1);
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const startIso = cycle.periodStartDate || baseDate.toISOString().split("T")[0];
+  const endIso = cycle.periodEndDate || periodEnd.toISOString().split("T")[0];
+  const nextIso = cycle.nextRenewalDate || renewalDate.toISOString().split("T")[0];
+
+  const diffMs = periodEnd.getTime() - today.getTime();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const isExpired = daysRemaining < 0;
+  const isExpiringSoon = daysRemaining >= 0 && daysRemaining <= 5;
+
+  return {
+    periodStartDate: startIso,
+    periodEndDate: endIso,
+    nextRenewalDate: nextIso,
+    daysRemaining,
+    isExpiringSoon,
+    isExpired,
+  };
 }
 
 export interface ParserTestResult {

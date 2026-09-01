@@ -96,6 +96,9 @@ export async function syncSubscriptionWithGmail(
           if (stmtParsed.dueDate) {
             cycle.dueDate = stmtParsed.dueDate;
           }
+          if (stmtParsed.periodStartDate) cycle.periodStartDate = stmtParsed.periodStartDate;
+          if (stmtParsed.periodEndDate) cycle.periodEndDate = stmtParsed.periodEndDate;
+          if (stmtParsed.nextRenewalDate) cycle.nextRenewalDate = stmtParsed.nextRenewalDate;
 
           // Use parsed statementDate or fallback to the email message's actual internal date
           const actualMsgDate = msgDetail.internalDate
@@ -249,6 +252,9 @@ export async function syncSubscriptionWithGmail(
             if (payParsed.paymentDate) {
               cycle.lastPaymentDate = payParsed.paymentDate;
             }
+            if (payParsed.periodStartDate) cycle.periodStartDate = payParsed.periodStartDate;
+            if (payParsed.periodEndDate) cycle.periodEndDate = payParsed.periodEndDate;
+            if (payParsed.nextRenewalDate) cycle.nextRenewalDate = payParsed.nextRenewalDate;
           }
 
           // Save copy of source payment email to Firebase Storage & Firestore
