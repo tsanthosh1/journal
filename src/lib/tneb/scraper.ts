@@ -107,17 +107,65 @@ export async function scrapeAndSyncTneb(
       await page.type("#userName", username, { delay: 30 });
       await page.type("#password", password, { delay: 30 });
 
-      // Take screenshot of captcha element
-      const captchaElement = await page.$("#CaptchaImgID");
-      if (!captchaElement) {
+      // Extract preprocessed high-res border-free captcha directly from canvas
+      log("info", "Extracting & preprocessing Captcha image for OCR resolution...");
+      const processedDataUrl = await page.evaluate(() => {
+        const img = document.querySelector("#CaptchaImgID") as HTMLImageElement;
+        if (!img) return null;
+        const w = img.naturalWidth || img.width || 155;
+        const h = img.naturalHeight || img.height || 40;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const d = imgData.data;
+
+        // Erase 3px border
+        const borderWidth = 3;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const idx = (y * w + x) * 4;
+            if (x < borderWidth || x >= w - borderWidth || y < borderWidth || y >= h - borderWidth) {
+              d[idx] = 255;
+              d[idx + 1] = 255;
+              d[idx + 2] = 255;
+            } else {
+              const gray = (d[idx] + d[idx + 1] + d[idx + 2]) / 3;
+              const val = gray < 160 ? 0 : 255;
+              d[idx] = val;
+              d[idx + 1] = val;
+              d[idx + 2] = val;
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+
+        // 3x upscaled canvas with white padding
+        const scale = 3;
+        const pad = 24;
+        const scaledCanvas = document.createElement("canvas");
+        scaledCanvas.width = w * scale + pad * 2;
+        scaledCanvas.height = h * scale + pad * 2;
+        const sCtx = scaledCanvas.getContext("2d")!;
+        sCtx.fillStyle = "#FFFFFF";
+        sCtx.fillRect(0, 0, scaledCanvas.width, scaledCanvas.height);
+        sCtx.imageSmoothingEnabled = false;
+        sCtx.drawImage(canvas, pad, pad, w * scale, h * scale);
+
+        return scaledCanvas.toDataURL("image/png");
+      });
+
+      if (!processedDataUrl) {
         log("warn", "Captcha image element #CaptchaImgID not found on page");
         continue;
       }
 
-      log("info", "Extracting Captcha node screenshot for OCR resolution...");
-      const captchaBuffer = (await captchaElement.screenshot({
-        encoding: "binary",
-      })) as Buffer;
+      const base64Data = processedDataUrl.replace(/^data:image\/png;base64,/, "");
+      const captchaBuffer = Buffer.from(base64Data, "base64");
 
       let solvedCaptcha = "";
       try {
@@ -136,9 +184,9 @@ export async function scrapeAndSyncTneb(
       await page.type("#CaptchaID", solvedCaptcha, { delay: 40 });
 
       // Submit form
-      log("info", "Submitting login form...");
+      log("info", `Submitting login credentials with captcha "${solvedCaptcha}"...`);
       await Promise.all([
-        page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 }).catch(() => null),
+        page.waitForNavigation({ waitUntil: "networkidle2", timeout: 25000 }).catch(() => null),
         page.click('input[name="submit"], input[value="உட்புகல்"], input[type="submit"]'),
       ]);
 
