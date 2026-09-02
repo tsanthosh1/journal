@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
-import { TnebBillRecord, TnebConsumerAccount } from "@/lib/tneb/types";
+import { TnebBillRecord, TnebConsumerAccount, TnebConfig, TnebTrackedConsumer } from "@/lib/tneb/types";
 
 export default function TnebPage() {
   const [accounts, setAccounts] = useState<TnebConsumerAccount[]>([]);
@@ -12,12 +12,24 @@ export default function TnebPage() {
   const [isLoadingBills, setIsLoadingBills] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Config State
+  const [config, setConfig] = useState<TnebConfig | null>(null);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configStatus, setConfigStatus] = useState<string | null>(null);
+
+  // New Consumer Form inside Config Modal
+  const [newConsumerNo, setNewConsumerNo] = useState("");
+  const [newNickname, setNewNickname] = useState("");
+  const [newAddressSnippet, setNewAddressSnippet] = useState("");
+
   // Sync Modal & Logs
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncUsername, setSyncUsername] = useState("");
   const [syncPassword, setSyncPassword] = useState("");
-  const [syncTargets, setSyncTargets] = useState("09299011890, 024310032538");
+  const [syncModeAll, setSyncModeAll] = useState(false);
+  const [selectedSyncTargets, setSelectedSyncTargets] = useState<string[]>([]);
   const [syncLogs, setSyncLogs] = useState<Array<{ level: string; message: string; timestamp: string }>>([]);
 
   // Import Modal
@@ -45,8 +57,27 @@ export default function TnebPage() {
     }
   };
 
+  // Load Config
+  const fetchConfig = async () => {
+    try {
+      const res = await fetch("/api/tneb/config");
+      const data = await res.json();
+      if (data.success && data.config) {
+        setConfig(data.config);
+        setSyncModeAll(Boolean(data.config.syncAllFound));
+        const activeTargets = (data.config.trackedConsumers || [])
+          .filter((c: TnebTrackedConsumer) => c.enabled !== false)
+          .map((c: TnebTrackedConsumer) => c.consumerNumber);
+        setSelectedSyncTargets(activeTargets);
+      }
+    } catch (err) {
+      console.error("Failed to load TNEB config:", err);
+    }
+  };
+
   useEffect(() => {
     fetchAccounts();
+    fetchConfig();
   }, []);
 
   // Load Bills for selected consumer
@@ -108,6 +139,81 @@ export default function TnebPage() {
     }, 0);
   }, [accounts]);
 
+  // Config Handlers
+  const handleAddConsumer = () => {
+    if (!newConsumerNo.trim()) return;
+    const cleanNo = newConsumerNo.trim().replace(/[^0-9]/g, "");
+    if (!cleanNo) return;
+
+    const currentList = config?.trackedConsumers || [];
+    if (currentList.some((c) => c.consumerNumber === cleanNo)) {
+      alert(`Consumer #${cleanNo} is already in your tracked list.`);
+      return;
+    }
+
+    const updatedList: TnebTrackedConsumer[] = [
+      ...currentList,
+      {
+        consumerNumber: cleanNo,
+        nickname: newNickname.trim() || undefined,
+        addressSnippet: newAddressSnippet.trim() || undefined,
+        enabled: true,
+        addedAt: new Date().toISOString(),
+      },
+    ];
+
+    setConfig((prev) => (prev ? { ...prev, trackedConsumers: updatedList } : null));
+    setSelectedSyncTargets((prev) => (prev.includes(cleanNo) ? prev : [...prev, cleanNo]));
+    setNewConsumerNo("");
+    setNewNickname("");
+    setNewAddressSnippet("");
+  };
+
+  const handleToggleConsumer = (consumerNo: string) => {
+    if (!config) return;
+    const updated = config.trackedConsumers.map((c) =>
+      c.consumerNumber === consumerNo ? { ...c, enabled: !c.enabled } : c,
+    );
+    setConfig({ ...config, trackedConsumers: updated });
+    setSelectedSyncTargets((prev) =>
+      prev.includes(consumerNo) ? prev.filter((n) => n !== consumerNo) : [...prev, consumerNo],
+    );
+  };
+
+  const handleRemoveConsumer = (consumerNo: string) => {
+    if (!config) return;
+    const updated = config.trackedConsumers.filter((c) => c.consumerNumber !== consumerNo);
+    setConfig({ ...config, trackedConsumers: updated });
+    setSelectedSyncTargets((prev) => prev.filter((n) => n !== consumerNo));
+  };
+
+  const handleSaveConfig = async () => {
+    if (!config) return;
+    setIsSavingConfig(true);
+    setConfigStatus(null);
+    try {
+      const res = await fetch("/api/tneb/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConfigStatus("✅ Configuration saved successfully!");
+        setTimeout(() => {
+          setIsConfigModalOpen(false);
+          setConfigStatus(null);
+        }, 1200);
+      } else {
+        setConfigStatus(`❌ ${data.error || "Failed to save"}`);
+      }
+    } catch (err: any) {
+      setConfigStatus(`❌ ${err.message || "Network error"}`);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
   // Live SSE Sync
   const handleStartSync = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,11 +226,6 @@ export default function TnebPage() {
       },
     ]);
 
-    const targets = syncTargets
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
     try {
       const response = await fetch("/api/tneb/sync?stream=true", {
         method: "POST",
@@ -132,7 +233,8 @@ export default function TnebPage() {
         body: JSON.stringify({
           username: syncUsername || undefined,
           password: syncPassword || undefined,
-          targetConsumerNumbers: targets.length > 0 ? targets : undefined,
+          syncAllFound: syncModeAll,
+          targetConsumerNumbers: syncModeAll ? undefined : selectedSyncTargets,
         }),
       });
 
@@ -269,18 +371,30 @@ export default function TnebPage() {
               </h1>
             </div>
             <p className="mt-1 text-xs sm:text-sm text-slate-400">
-              Automated portal sync, consumption metrics, slab rates, and bi-monthly ledger.
+              Configurable multi-consumer sync, consumption metrics, slab rates, and bi-monthly ledger.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={() => setIsConfigModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900/80 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer shadow-sm"
+              title="Configure tracked consumer numbers"
+            >
+              <span>⚙️</span>
+              <span>
+                Consumers ({config?.trackedConsumers?.length || 0})
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsImportModalOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900/80 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer shadow-sm"
             >
               <span>📄</span>
-              <span>Import MHTML / HTML</span>
+              <span>Import MHTML</span>
             </button>
 
             <button
@@ -289,7 +403,7 @@ export default function TnebPage() {
               className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 text-xs font-bold text-slate-950 hover:from-amber-400 hover:to-amber-500 transition active:scale-95 cursor-pointer shadow-lg shadow-amber-500/20"
             >
               <span>⚡</span>
-              <span>Sync from TNEB Portal</span>
+              <span>Sync Portal</span>
             </button>
           </div>
         </div>
@@ -298,10 +412,13 @@ export default function TnebPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-md">
             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Registered Accounts
+              Tracked Accounts
             </span>
             <div className="mt-1 text-xl sm:text-2xl font-extrabold text-white">
-              {accounts.length}
+              {accounts.length}{" "}
+              <span className="text-xs text-slate-400 font-normal">
+                / {config?.trackedConsumers?.length || 0} configured
+              </span>
             </div>
             <span className="text-[10px] text-slate-500">Live consumers tracked</span>
           </div>
@@ -311,7 +428,8 @@ export default function TnebPage() {
               Total Units Recorded
             </span>
             <div className="mt-1 text-xl sm:text-2xl font-extrabold text-cyan-400 font-mono">
-              {totalTrackedUnits.toLocaleString("en-IN", { maximumFractionDigits: 1 })} <span className="text-xs text-slate-400">kWh</span>
+              {totalTrackedUnits.toLocaleString("en-IN", { maximumFractionDigits: 1 })}{" "}
+              <span className="text-xs text-slate-400">kWh</span>
             </div>
             <span className="text-[10px] text-slate-500">Across all billing cycles</span>
           </div>
@@ -320,7 +438,11 @@ export default function TnebPage() {
             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               Outstanding Dues
             </span>
-            <div className={`mt-1 text-xl sm:text-2xl font-extrabold ${totalOutstandingDues > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+            <div
+              className={`mt-1 text-xl sm:text-2xl font-extrabold ${
+                totalOutstandingDues > 0 ? "text-rose-400" : "text-emerald-400"
+              }`}
+            >
               {totalOutstandingDues > 0 ? `₹${totalOutstandingDues.toLocaleString("en-IN")}` : "NIL"}
             </div>
             <span className="text-[10px] text-slate-500">
@@ -346,6 +468,8 @@ export default function TnebPage() {
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
             {accounts.map((acc) => {
               const isSelected = acc.consumerNumber === selectedConsumerNo;
+              const trackedMeta = config?.trackedConsumers?.find((c) => c.consumerNumber === acc.consumerNumber);
+
               return (
                 <button
                   key={acc.consumerNumber}
@@ -369,7 +493,7 @@ export default function TnebPage() {
                     />
                   </div>
                   <div className="mt-1 text-xs font-semibold text-white truncate max-w-[180px]">
-                    {acc.consumerName}
+                    {trackedMeta?.nickname || acc.consumerName}
                   </div>
                   <div className="text-[10px] text-slate-400 truncate max-w-[180px]">
                     {acc.section || acc.region}
@@ -383,22 +507,22 @@ export default function TnebPage() {
             <span className="text-3xl">⚡</span>
             <h3 className="mt-2 text-base font-bold text-white">No TNEB Accounts Loaded Yet</h3>
             <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
-              Sync directly from the official portal or import your saved <code>SERVICE DETAILS.mhtml</code> file to view full consumption charts and history.
+              Configure your required consumer numbers in Settings, or sync directly from the portal with your login.
             </p>
             <div className="mt-4 flex items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => setIsImportModalOpen(true)}
+                onClick={() => setIsConfigModalOpen(true)}
                 className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 cursor-pointer"
               >
-                Import MHTML File
+                ⚙️ Configure Consumers
               </button>
               <button
                 type="button"
                 onClick={() => setIsSyncModalOpen(true)}
                 className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 cursor-pointer shadow-md"
               >
-                Sync with Credentials
+                Sync with Portal
               </button>
             </div>
           </div>
@@ -484,7 +608,8 @@ export default function TnebPage() {
               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5">
                 <span className="text-[10px] text-slate-500 block">ACCD / MCD Deposit</span>
                 <span className="font-medium text-slate-200 font-mono truncate block">
-                  ₹{selectedAccount.accdAsOnDate.split("/")[0]?.trim() || 0} / ₹{selectedAccount.mcdAsOnDate.split("/")[0]?.trim() || 0}
+                  ₹{selectedAccount.accdAsOnDate.split("/")[0]?.trim() || 0} / ₹
+                  {selectedAccount.mcdAsOnDate.split("/")[0]?.trim() || 0}
                 </span>
               </div>
             </div>
@@ -626,6 +751,229 @@ export default function TnebPage() {
         </div>
       </main>
 
+      {/* Consumer Configuration Modal */}
+      {isConfigModalOpen && config && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 font-bold text-sm">
+                  ⚙️
+                </span>
+                <h3 className="text-base font-bold text-white">Configure Tracked Consumer Numbers</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfigModalOpen(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-4 flex-1 pr-1 scrollbar-thin">
+              {/* Sync Mode Toggle */}
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3.5 space-y-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-xs font-bold text-white">Auto-Sync All Registered Accounts in Portal</div>
+                    <p className="text-[11px] text-slate-400">
+                      When enabled, syncs all consumer accounts found in your TNEB login across all pagination pages.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.syncAllFound}
+                    onChange={(e) => setConfig({ ...config, syncAllFound: e.target.checked })}
+                    className="h-4 w-4 rounded accent-cyan-500 cursor-pointer"
+                  />
+                </label>
+              </div>
+
+              {/* Add New Consumer Form */}
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3.5 space-y-3">
+                <div className="text-xs font-bold text-slate-200">➕ Add Consumer Number to Track</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Consumer No *
+                    </label>
+                    <input
+                      type="text"
+                      value={newConsumerNo}
+                      onChange={(e) => setNewConsumerNo(e.target.value)}
+                      placeholder="e.g. 09299011890"
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-xs text-white font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Nickname / Label
+                    </label>
+                    <input
+                      type="text"
+                      value={newNickname}
+                      onChange={(e) => setNewNickname(e.target.value)}
+                      placeholder="e.g. Home, Farm, Shop"
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Location / Notes
+                    </label>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newAddressSnippet}
+                        onChange={(e) => setNewAddressSnippet(e.target.value)}
+                        placeholder="e.g. Thoraipakkam"
+                        className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddConsumer}
+                        disabled={!newConsumerNo.trim()}
+                        className="rounded-xl bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 shrink-0 cursor-pointer shadow-sm"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Add from Discovered/Loaded Accounts */}
+                {accounts.some((a) => !config.trackedConsumers.some((c) => c.consumerNumber === a.consumerNumber)) && (
+                  <div className="pt-2 border-t border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-1.5">Quick add from discovered accounts:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {accounts
+                        .filter((a) => !config.trackedConsumers.some((c) => c.consumerNumber === a.consumerNumber))
+                        .map((a) => (
+                          <button
+                            key={a.consumerNumber}
+                            type="button"
+                            onClick={() => {
+                              setConfig({
+                                ...config,
+                                trackedConsumers: [
+                                  ...config.trackedConsumers,
+                                  {
+                                    consumerNumber: a.consumerNumber,
+                                    nickname: a.consumerName,
+                                    addressSnippet: a.address,
+                                    enabled: true,
+                                    addedAt: new Date().toISOString(),
+                                  },
+                                ],
+                              });
+                              setSelectedSyncTargets((prev) => [...prev, a.consumerNumber]);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-mono text-cyan-300 hover:bg-cyan-500/20 cursor-pointer"
+                          >
+                            <span>+</span>
+                            <span>{a.consumerNumber} ({a.consumerName})</span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Tracked Consumers List */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>Tracked Consumer Accounts ({config.trackedConsumers.length})</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Toggle checkbox to enable/disable for auto-sync</span>
+                </div>
+
+                {config.trackedConsumers.length === 0 ? (
+                  <div className="rounded-xl border border-white/5 bg-white/[0.01] p-4 text-center text-xs text-slate-500">
+                    No consumer numbers configured yet. Add your consumer number above.
+                  </div>
+                ) : (
+                  config.trackedConsumers.map((c) => (
+                    <div
+                      key={c.consumerNumber}
+                      className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/70 p-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={c.enabled !== false}
+                          onChange={() => handleToggleConsumer(c.consumerNumber)}
+                          className="h-4 w-4 rounded accent-cyan-500 cursor-pointer"
+                        />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-amber-300">
+                              #{c.consumerNumber}
+                            </span>
+                            {c.nickname && (
+                              <span className="font-semibold text-white">
+                                {c.nickname}
+                              </span>
+                            )}
+                          </div>
+                          {c.addressSnippet && (
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {c.addressSnippet}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveConsumer(c.consumerNumber)}
+                          className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
+                          title="Remove consumer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {configStatus && (
+                <div
+                  className={`rounded-xl p-3 text-xs font-semibold ${
+                    configStatus.startsWith("✅")
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                  }`}
+                >
+                  {configStatus}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsConfigModalOpen(false)}
+                className="rounded-xl border border-white/10 px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveConfig}
+                disabled={isSavingConfig}
+                className="rounded-xl bg-cyan-500 px-5 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 cursor-pointer shadow-md"
+              >
+                {isSavingConfig ? "Saving..." : "Save Consumer Settings"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sync from Portal Modal */}
       {isSyncModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
@@ -640,7 +988,7 @@ export default function TnebPage() {
               <button
                 type="button"
                 onClick={() => setIsSyncModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
                 ✕
               </button>
@@ -675,17 +1023,55 @@ export default function TnebPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold uppercase tracking-wider text-slate-400 text-[10px]">
-                  Target Consumer Numbers (Comma Separated)
-                </label>
-                <input
-                  type="text"
-                  value={syncTargets}
-                  onChange={(e) => setSyncTargets(e.target.value)}
-                  placeholder="09299011890, 024310032538"
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white focus:border-amber-400 focus:outline-none font-mono"
-                />
+              {/* Target Consumer Selection */}
+              <div className="rounded-xl border border-white/10 bg-slate-950/80 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold uppercase tracking-wider text-slate-300 text-[10px]">
+                    Target Consumers to Sync
+                  </span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={syncModeAll}
+                      onChange={(e) => setSyncModeAll(e.target.checked)}
+                      className="rounded accent-amber-400"
+                    />
+                    <span>Sync All Found in Account</span>
+                  </label>
+                </div>
+
+                {!syncModeAll && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(config?.trackedConsumers || []).map((c) => {
+                      const isChecked = selectedSyncTargets.includes(c.consumerNumber);
+                      return (
+                        <label
+                          key={c.consumerNumber}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs cursor-pointer transition ${
+                            isChecked
+                              ? "border-amber-500/40 bg-amber-500/10 text-amber-300 font-semibold"
+                              : "border-white/10 bg-slate-900 text-slate-400"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setSelectedSyncTargets((prev) =>
+                                prev.includes(c.consumerNumber)
+                                  ? prev.filter((n) => n !== c.consumerNumber)
+                                  : [...prev, c.consumerNumber],
+                              );
+                            }}
+                            className="hidden"
+                          />
+                          <span>#{c.consumerNumber}</span>
+                          {c.nickname && <span className="text-[10px] text-slate-400">({c.nickname})</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Console Logs Box */}
@@ -719,7 +1105,7 @@ export default function TnebPage() {
                 <button
                   type="button"
                   onClick={() => setIsSyncModalOpen(false)}
-                  className="rounded-xl border border-white/10 px-4 py-2 text-slate-400 hover:text-white"
+                  className="rounded-xl border border-white/10 px-4 py-2 text-slate-400 hover:text-white cursor-pointer"
                 >
                   Close
                 </button>
@@ -750,7 +1136,7 @@ export default function TnebPage() {
               <button
                 type="button"
                 onClick={() => setIsImportModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
                 ✕
               </button>
@@ -765,7 +1151,7 @@ export default function TnebPage() {
                   type="file"
                   accept=".mhtml,.html,.htm"
                   onChange={handleFileUpload}
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500/20 file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-cyan-300"
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500/20 file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-cyan-300 cursor-pointer"
                 />
               </div>
 
@@ -798,7 +1184,7 @@ export default function TnebPage() {
                 <button
                   type="button"
                   onClick={() => setIsImportModalOpen(false)}
-                  className="rounded-xl border border-white/10 px-4 py-2 text-slate-400 hover:text-white"
+                  className="rounded-xl border border-white/10 px-4 py-2 text-slate-400 hover:text-white cursor-pointer"
                 >
                   Cancel
                 </button>

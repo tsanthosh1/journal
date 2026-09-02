@@ -1,8 +1,8 @@
-import puppeteer, { Browser, Page } from "puppeteer";
+import puppeteer, { Browser } from "puppeteer";
 import { solveNumericCaptcha } from "./captchaSolver";
 import { parseTnebServiceDetailsHtml } from "./parser";
-import { saveTnebAccountAndBills } from "./storage";
-import { TnebConsumerAccount, TnebScrapeOptions, TnebSyncResult } from "./types";
+import { getTnebConfig, saveTnebAccountAndBills } from "./storage";
+import { TnebConsumerAccount, TnebScrapeOptions, TnebSyncResult, TnebTrackedConsumer } from "./types";
 
 export type TnebLogCallback = (level: "info" | "warn" | "error" | "success", message: string, details?: any) => void;
 
@@ -43,12 +43,20 @@ export async function scrapeAndSyncTneb(
     };
   }
 
-  const targetConsumerNumbers = options.targetConsumerNumbers?.map((n) => n.trim()) || [
-    "09299011890",
-    "024310032538",
-  ];
+  const savedConfig = await getTnebConfig();
+  const targetConsumerNumbers =
+    options.targetConsumerNumbers && options.targetConsumerNumbers.length > 0
+      ? options.targetConsumerNumbers.map((n) => n.trim())
+      : (savedConfig.trackedConsumers || [])
+          .filter((c: TnebTrackedConsumer) => c.enabled !== false)
+          .map((c: TnebTrackedConsumer) => c.consumerNumber);
 
-  log("info", `Starting TNEB Web Scraper for user "${username}" (Targets: ${targetConsumerNumbers.join(", ")})`);
+  const shouldSyncAll = options.syncAllFound !== undefined ? options.syncAllFound : savedConfig.syncAllFound;
+
+  log(
+    "info",
+    `Starting TNEB Web Scraper for user "${username}" (Mode: ${shouldSyncAll ? "All Profile Accounts" : "Configured Targets: " + targetConsumerNumbers.join(", ")})`,
+  );
 
   let browser: Browser | null = null;
 
@@ -236,7 +244,7 @@ export async function scrapeAndSyncTneb(
     log("info", `Discovered ${discoveredConsumers.length} consumer account(s) registered in profile: ${discoveredConsumers.map((c) => c.consumerNo).join(", ")}`);
 
     // 4. Determine which accounts to scrape
-    const consumersToScrape = options.syncAllFound
+    const consumersToScrape = shouldSyncAll
       ? discoveredConsumers
       : discoveredConsumers.filter((c) =>
           targetConsumerNumbers.length === 0 || targetConsumerNumbers.includes(c.consumerNo),

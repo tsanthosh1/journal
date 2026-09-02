@@ -80,6 +80,23 @@ export interface TnebScrapeOptions {
   maxPages?: number;
 }
 
+export interface TnebTrackedConsumer {
+  consumerNumber: string;
+  nickname?: string;
+  addressSnippet?: string;
+  enabled: boolean;
+  notes?: string;
+  addedAt?: string;
+}
+
+export interface TnebConfig {
+  trackedConsumers: TnebTrackedConsumer[];
+  syncAllFound: boolean;
+  defaultUsername?: string;
+  autoSyncEnabled?: boolean;
+  updatedAt?: string;
+}
+
 export interface TnebSyncResult {
   success: boolean;
   accountsProcessed: number;
