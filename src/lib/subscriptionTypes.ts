@@ -1,7 +1,7 @@
 // Billing Models & Schema definitions for Subscriptions and Outflow Tracker
 
 export type BillingType = "FIXED_TENURE" | "BILL_GENERATED";
-export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED";
+export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED" | "TNEB_MODULE";
 export type BillingCycle = "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "ANNUAL" | "CUSTOM";
 export type PaymentStatus =
   | "UNPAID"
@@ -133,6 +133,15 @@ export interface CycleState {
   updatedAt: string;
 }
 
+export interface TnebSubscriptionConfig {
+  consumerNumber: string;
+  nickname?: string;
+  tariffCode?: string;
+  section?: string;
+  meterNumber?: string;
+  autoSyncWithEbModule?: boolean;
+}
+
 export interface Subscription {
   id: string;
   userId: string;
@@ -154,6 +163,7 @@ export interface Subscription {
   color?: string;
   emailConfig?: EmailConfig;
   smsConfig?: SmsConfig;
+  tnebConfig?: TnebSubscriptionConfig;
   currentCycle: CycleState;
   createdAt: string;
   updatedAt: string;

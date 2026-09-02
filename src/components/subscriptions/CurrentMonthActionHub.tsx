@@ -61,13 +61,14 @@ export function CurrentMonthActionHub({
           !sub.emailConfig?.paymentQuery);
 
       const cycle = sub.currentCycle;
+      const isTneb = sub.source === "TNEB_MODULE";
       const isFixed = sub.billingType === "FIXED_TENURE" || sub.category === "Loans & EMIs";
-      const hasStatementConfig = Boolean(
+      const hasStatementConfig = isTneb || Boolean(
         sub.emailConfig?.statementQuery && sub.emailConfig.statementQuery.trim(),
       );
       const hasStatementTotal = cycle.statementTotal !== undefined && cycle.statementTotal > 0;
 
-      // Only subscriptions configured to receive a statement (e.g. statementQuery is set) await a bill.
+      // Only subscriptions configured to receive a statement (e.g. statementQuery is set or TNEB module) await a bill.
       // If there is NO statement query/source (e.g. payment-only receipt like Apartment Water Bill), it is an active due to pay.
       const isNoStatementService = !isPrepaid && !isFixed && !hasStatementConfig;
       const isAwaitingBill = !isPrepaid && !isFixed && hasStatementConfig && !hasStatementTotal;

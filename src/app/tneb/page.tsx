@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
 import { TnebBillRecord, TnebConsumerAccount, TnebConfig, TnebTrackedConsumer } from "@/lib/tneb/types";
 
@@ -211,6 +212,32 @@ export default function TnebPage() {
       setConfigStatus(`❌ ${err.message || "Network error"}`);
     } finally {
       setIsSavingConfig(false);
+    }
+  };
+
+  // Link Consumer as Subscription
+  const [linkingConsumerNo, setLinkingConsumerNo] = useState<string | null>(null);
+  const [linkSuccessToast, setLinkSuccessToast] = useState<string | null>(null);
+
+  const handleLinkSubscription = async (consumerNo: string, nickname?: string) => {
+    setLinkingConsumerNo(consumerNo);
+    try {
+      const res = await fetch("/api/tneb/link-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consumerNumber: consumerNo, nickname }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLinkSuccessToast(`✅ Linked #${consumerNo} to Subscriptions page!`);
+        setTimeout(() => setLinkSuccessToast(null), 4000);
+      } else {
+        alert(`Failed to link subscription: ${data.error || "Unknown error"}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setLinkingConsumerNo(null);
     }
   };
 
@@ -547,7 +574,30 @@ export default function TnebPage() {
                 <p className="text-xs text-slate-400 mt-1">{selectedAccount.address}</p>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  disabled={linkingConsumerNo === selectedAccount.consumerNumber}
+                  onClick={() => {
+                    const tracked = config?.trackedConsumers?.find(
+                      (c) => c.consumerNumber === selectedAccount.consumerNumber,
+                    );
+                    handleLinkSubscription(
+                      selectedAccount.consumerNumber,
+                      tracked?.nickname || selectedAccount.consumerName,
+                    );
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-amber-500/20 hover:text-amber-200 transition cursor-pointer shadow-sm disabled:opacity-50"
+                  title="Add or link this consumer bill to the Subscriptions & Outflow Tracker"
+                >
+                  <span>📋</span>
+                  <span>
+                    {linkingConsumerNo === selectedAccount.consumerNumber
+                      ? "Linking..."
+                      : "+ Add as Subscription"}
+                  </span>
+                </button>
+
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 px-3.5 py-2 text-right">
                   <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
                     Current Dues
@@ -564,6 +614,18 @@ export default function TnebPage() {
                 </div>
               </div>
             </div>
+
+            {linkSuccessToast && (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-300 flex items-center justify-between">
+                <span>{linkSuccessToast}</span>
+                <Link
+                  href="/subscriptions"
+                  className="underline hover:text-white font-bold"
+                >
+                  Go to Subscriptions →
+                </Link>
+              </div>
+            )}
 
             {/* Account Metadata Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">

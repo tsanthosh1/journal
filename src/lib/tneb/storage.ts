@@ -40,6 +40,14 @@ export async function saveTnebAccountAndBills(
 
   await batch.commit();
 
+  // Automatically update any linked Subscriptions
+  try {
+    const { syncTnebToSubscriptions } = await import("./subscriptionBridge");
+    await syncTnebToSubscriptions(account, bills);
+  } catch (bridgeErr) {
+    console.warn("Notice: subscription bridge sync skipped:", bridgeErr);
+  }
+
   return { accountSaved: true, billsSavedCount: count };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   Subscription,
   formatCycleMonth,
@@ -213,6 +214,14 @@ export function SubscriptionCard({
                     </svg>
                     Auto Sync
                   </span>
+                ) : subscription.source === "TNEB_MODULE" ? (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[11px] font-bold text-amber-300">
+                    ⚡ TNEB Portal
+                  </span>
+                ) : subscription.source === "SMS_AUTOMATED" ? (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[11px] font-medium text-teal-300">
+                    💬 SMS Sync
+                  </span>
                 ) : (
                   <span className="rounded-lg bg-slate-800 border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400">
                     Manual
@@ -333,6 +342,23 @@ export function SubscriptionCard({
                 <span className="font-medium text-slate-200">{formatCycleMonth(cycle.cycleMonth)}</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TNEB Module actions */}
+        {subscription.source === "TNEB_MODULE" && (
+          <div className="mt-2.5 flex items-center justify-between text-xs text-slate-400 px-1">
+            <span className="text-[11px] text-amber-300/90 font-medium flex items-center gap-1">
+              <span>⚡</span>
+              <span>Consumer #{subscription.tnebConfig?.consumerNumber || ""}</span>
+            </span>
+            <Link
+              href={`/tneb`}
+              className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer flex items-center gap-1 text-[11px] hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span>View EB Ledger 📊 →</span>
+            </Link>
           </div>
         )}
 

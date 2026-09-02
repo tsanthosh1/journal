@@ -63,12 +63,16 @@ export function SubscriptionModal({
   }>({});
 
   // Independent Sources
-  // Statement Source: "EMAIL" | "SMS" | "FIXED" | "MANUAL"
-  const [statementSource, setStatementSource] = useState<"EMAIL" | "SMS" | "FIXED" | "MANUAL">("EMAIL");
+  // Statement Source: "EMAIL" | "SMS" | "FIXED" | "MANUAL" | "TNEB"
+  const [statementSource, setStatementSource] = useState<"EMAIL" | "SMS" | "FIXED" | "MANUAL" | "TNEB">("EMAIL");
   const [statementQuery, setStatementQuery] = useState("");
   const [statementSmsSender, setStatementSmsSender] = useState("");
   const [statementSmsKeywords, setStatementSmsKeywords] = useState("bill, due, statement");
   const [statementSmsDigits, setStatementSmsDigits] = useState("");
+
+  // TNEB Integration State
+  const [tnebConsumerNo, setTnebConsumerNo] = useState("09299011890");
+  const [tnebTrackedList, setTnebTrackedList] = useState<Array<{ consumerNumber: string; nickname?: string; name?: string }>>([]);
 
   // Payment Source: "EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL"
   const [paymentSource, setPaymentSource] = useState<"EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL">("EMAIL");
@@ -143,36 +147,42 @@ export function SubscriptionModal({
         setCustomRegex({});
       }
 
-      const isFixedTenure =
-        initialData.billingType === "FIXED_TENURE" ||
-        initialData.category === "Loans & EMIs" ||
-        (!ec?.statementQuery && initialData.defaultAmount && initialData.defaultAmount > 0);
-
-      if (isFixedTenure && !ec?.statementQuery) {
-        setStatementSource("FIXED");
-        setStatementQuery("");
-      } else if (ec && ec.enabled && ec.statementQuery && ec.statementQuery.trim().length > 0) {
-        setStatementSource("EMAIL");
-        setStatementQuery(ec.statementQuery);
-      } else {
-        setStatementSource("MANUAL");
-        setStatementQuery("");
-      }
-
-      if (sc && (sc.enabled || initialData.source === "SMS_AUTOMATED")) {
-        setPaymentSource("SMS");
-        setPaymentSmsSender(sc.senderQuery || "");
-        setPaymentSmsKeywords(sc.filterKeywords?.join(", ") || "loan, emi, recovery, debited");
-        setPaymentSmsDigits(sc.accountOrLoanDigits || "");
-      } else if (ec && ec.enabled && ec.paymentQuery && ec.paymentQuery.trim().length > 0) {
-        setPaymentSource("EMAIL");
-        setPaymentQuery(ec.paymentQuery);
-      } else if (isPre) {
-        setPaymentSource("PREPAID_INVOICE");
-        setPaymentQuery("");
-      } else {
+      if (initialData.source === "TNEB_MODULE" || initialData.tnebConfig?.consumerNumber) {
+        setStatementSource("TNEB");
+        setTnebConsumerNo(initialData.tnebConfig?.consumerNumber || "09299011890");
         setPaymentSource("MANUAL");
-        setPaymentQuery("");
+      } else {
+        const isFixedTenure =
+          initialData.billingType === "FIXED_TENURE" ||
+          initialData.category === "Loans & EMIs" ||
+          (!ec?.statementQuery && initialData.defaultAmount && initialData.defaultAmount > 0);
+
+        if (isFixedTenure && !ec?.statementQuery) {
+          setStatementSource("FIXED");
+          setStatementQuery("");
+        } else if (ec && ec.enabled && ec.statementQuery && ec.statementQuery.trim().length > 0) {
+          setStatementSource("EMAIL");
+          setStatementQuery(ec.statementQuery);
+        } else {
+          setStatementSource("MANUAL");
+          setStatementQuery("");
+        }
+
+        if (sc && (sc.enabled || initialData.source === "SMS_AUTOMATED")) {
+          setPaymentSource("SMS");
+          setPaymentSmsSender(sc.senderQuery || "");
+          setPaymentSmsKeywords(sc.filterKeywords?.join(", ") || "loan, emi, recovery, debited");
+          setPaymentSmsDigits(sc.accountOrLoanDigits || "");
+        } else if (ec && ec.enabled && ec.paymentQuery && ec.paymentQuery.trim().length > 0) {
+          setPaymentSource("EMAIL");
+          setPaymentQuery(ec.paymentQuery);
+        } else if (isPre) {
+          setPaymentSource("PREPAID_INVOICE");
+          setPaymentQuery("");
+        } else {
+          setPaymentSource("MANUAL");
+          setPaymentQuery("");
+        }
       }
     } else {
       setName("");
@@ -206,6 +216,19 @@ export function SubscriptionModal({
       setPaymentSmsKeywords("loan, emi, recovery, debited");
       setPaymentSmsDigits("");
     }
+
+    // Fetch TNEB tracked consumers for dropdown
+    fetch("/api/tneb/config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.config?.trackedConsumers) {
+          setTnebTrackedList(data.config.trackedConsumers);
+          if (!initialData?.tnebConfig?.consumerNumber && data.config.trackedConsumers.length > 0) {
+            setTnebConsumerNo(data.config.trackedConsumers[0].consumerNumber);
+          }
+        }
+      })
+      .catch(() => {});
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
@@ -423,23 +446,33 @@ export function SubscriptionModal({
     setErrorMessage("");
 
     try {
-      const isSmsAutomated = statementSource === "SMS" || paymentSource === "SMS";
+      const isTnebSource = statementSource === "TNEB";
+      const isSmsAutomated = !isTnebSource && (statementSource === "SMS" || paymentSource === "SMS");
       const isEmailAutomated =
-        statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE";
+        !isTnebSource && (statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE");
 
       const billingType: BillingType =
         statementSource === "FIXED" || category === "Loans & EMIs"
           ? "FIXED_TENURE"
           : "BILL_GENERATED";
 
-      const source: SourceType =
-        isEmailAutomated && isSmsAutomated
-          ? "EMAIL_AUTOMATED"
-          : isSmsAutomated
-          ? "SMS_AUTOMATED"
-          : isEmailAutomated
-          ? "EMAIL_AUTOMATED"
-          : "MANUAL";
+      const source: SourceType = isTnebSource
+        ? "TNEB_MODULE"
+        : isEmailAutomated && isSmsAutomated
+        ? "EMAIL_AUTOMATED"
+        : isSmsAutomated
+        ? "SMS_AUTOMATED"
+        : isEmailAutomated
+        ? "EMAIL_AUTOMATED"
+        : "MANUAL";
+
+      const tnebConfig = isTnebSource
+        ? {
+            consumerNumber: tnebConsumerNo.trim(),
+            nickname: name.trim(),
+            autoSyncWithEbModule: true,
+          }
+        : undefined;
 
       const emailConfig: EmailConfig | undefined = isEmailAutomated
         ? {
@@ -492,14 +525,15 @@ export function SubscriptionModal({
         source,
         currency,
         defaultAmount: Number(defaultAmount) || 0,
-        billingCycle,
-        isPrepaid,
+        billingCycle: isTnebSource ? "CUSTOM" : billingCycle,
+        isPrepaid: isTnebSource ? false : isPrepaid,
         dueDayOfMonth: isPrepaid ? undefined : isEndOfMonthDue ? undefined : Number(dueDayOfMonth) || 5,
         isEndOfMonthDue: isPrepaid ? false : isEndOfMonthDue,
         allowSkip,
         dedupStrategy,
         emailConfig,
         smsConfig,
+        tnebConfig,
         notes,
       };
 
@@ -777,6 +811,22 @@ export function SubscriptionModal({
               <div className="flex items-center rounded-xl bg-slate-950/80 p-1 border border-white/10 self-start sm:self-auto flex-wrap sm:flex-nowrap gap-1">
                 <button
                   type="button"
+                  onClick={() => {
+                    setStatementSource("TNEB");
+                    setCategory("Utilities");
+                    setName((curr) => curr || "Tamil Nadu Electricity Board (TNEB)");
+                    setImageUrl("https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg");
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    statementSource === "TNEB"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>⚡</span> TNEB Portal
+                </button>
+                <button
+                  type="button"
                   onClick={() => setStatementSource("EMAIL")}
                   className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
                     statementSource === "EMAIL"
@@ -829,7 +879,67 @@ export function SubscriptionModal({
             </div>
 
             {/* 2. Query Filters based on Source */}
-            {statementSource === "FIXED" ? (
+            {statementSource === "TNEB" ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 font-bold text-xs">
+                      ⚡
+                    </span>
+                    <span className="font-bold text-amber-300 text-xs">
+                      Tamil Nadu Electricity Board (TNEB) Module Source
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-amber-400/80 font-mono">Bi-Monthly Assessment</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Linked directly to your TNEB consumer electricity profile. Automatically updates bi-monthly meter readings, units consumed, CC charges, taxes, payment due date, and collection receipts from the TNEB module.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Select Tracked Consumer Number *
+                    </label>
+                    <select
+                      value={tnebConsumerNo}
+                      onChange={(e) => {
+                        setTnebConsumerNo(e.target.value);
+                        const match = tnebTrackedList.find((t) => t.consumerNumber === e.target.value);
+                        if (match && match.nickname) {
+                          setName(`TNEB - ${match.nickname}`);
+                        } else {
+                          setName(`TNEB EB #${e.target.value}`);
+                        }
+                      }}
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-mono text-white focus:border-amber-400 focus:outline-none cursor-pointer"
+                    >
+                      {tnebTrackedList.map((t) => (
+                        <option key={t.consumerNumber} value={t.consumerNumber}>
+                          #{t.consumerNumber} {t.nickname ? `(${t.nickname})` : ""}
+                        </option>
+                      ))}
+                      {!tnebTrackedList.some((t) => t.consumerNumber === tnebConsumerNo) && (
+                        <option value={tnebConsumerNo}>#{tnebConsumerNo} (Custom)</option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Or Enter Consumer Number
+                    </label>
+                    <input
+                      type="text"
+                      value={tnebConsumerNo}
+                      onChange={(e) => setTnebConsumerNo(e.target.value.replace(/[^0-9]/g, ""))}
+                      placeholder="e.g. 09299011890"
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-mono text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : statementSource === "FIXED" ? (
               <div className="rounded-xl border border-indigo-500/20 bg-indigo-950/20 p-3.5 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-xs">
                   <span>🔒</span> Fixed Commitment / Loan EMI
