@@ -5,6 +5,7 @@ import {
   RawSmsRecord,
   Subscription,
 } from "../subscriptionTypes";
+import { getCycleDocId } from "../subscriptionUtils";
 import { parseLoanSms } from "../parsers/loanSmsParser";
 
 export interface SmsSyncResult {
@@ -202,7 +203,7 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
         updatedAt: new Date().toISOString(),
       };
 
-      const cycleDocId = `${sub.id}_${month}`;
+      const cycleDocId = getCycleDocId(sub.id, month);
       const cycleRecord = {
         ...cycleState,
         id: cycleDocId,
@@ -211,18 +212,10 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
         currency: sub.currency || "INR",
       };
 
-      // 1. Save to subscription_cycles collection (queried by listHistoricalCycles)
+      // Single source of truth: subscription_cycles collection
       await db
         .collection("subscription_cycles")
         .doc(cycleDocId)
-        .set(cycleRecord, { merge: true });
-
-      // 2. Also save to subcollection for redundancy
-      await db
-        .collection("subscriptions")
-        .doc(sub.id)
-        .collection("cycles")
-        .doc(month)
         .set(cycleRecord, { merge: true });
 
       // If current cycle month matches, update subscription currentCycle

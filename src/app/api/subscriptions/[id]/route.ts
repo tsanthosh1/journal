@@ -6,6 +6,9 @@ import {
   updateSubscription,
 } from "@/lib/serverSubscriptions";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -21,10 +24,24 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     if (searchParams.get("includeHistory") === "true") {
       const history = await listHistoricalCycles(id);
-      return NextResponse.json({ subscription, history });
+      return NextResponse.json(
+        { subscription, history },
+        {
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          },
+        },
+      );
     }
 
-    return NextResponse.json({ subscription });
+    return NextResponse.json(
+      { subscription },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        },
+      },
+    );
   } catch (error) {
     console.error("GET /api/subscriptions/[id] error:", error);
     return NextResponse.json(

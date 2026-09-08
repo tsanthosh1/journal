@@ -1,11 +1,5 @@
 import { NextRequest } from "next/server";
-import { getValidGmailToken } from "@/lib/gmail/oauth";
-import {
-  syncAllSubscriptions,
-  syncHistoricalSubscriptionWithGmail,
-  syncSubscriptionWithGmail,
-} from "@/lib/gmail/syncEngine";
-import { getSubscription } from "@/lib/serverSubscriptions";
+import { runUnifiedSync, UnifiedSyncSource } from "@/lib/sync/unifiedSyncOrchestrator";
 import { SyncLogEvent } from "@/lib/gmail/syncLogger";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +10,17 @@ export async function POST(request: NextRequest) {
   const subscriptionId = body.subscriptionId;
   const mode = body.mode || "current"; // "current" | "historical"
   const maxStatements = body.maxStatements || 24;
+
+  // Optional source filtering: "all" | "gmail" | "sms" | "tneb" | "apartment" or array of sources
+  let sources: UnifiedSyncSource[] = ["GMAIL", "SMS", "TNEB", "APARTMENT", "CHENNAI_WATER"];
+  if (body.sources && Array.isArray(body.sources)) {
+    sources = body.sources.map((s: string) => s.toUpperCase() as UnifiedSyncSource);
+  } else if (body.source) {
+    const s = String(body.source).toUpperCase();
+    if (s === "GMAIL" || s === "SMS" || s === "TNEB" || s === "APARTMENT" || s === "CHENNAI_WATER") {
+      sources = [s as UnifiedSyncSource];
+    }
+  }
 
   const encoder = new TextEncoder();
 
@@ -30,55 +35,18 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        const tokenRecord = await getValidGmailToken(userId);
-        if (!tokenRecord) {
-          sendEvent({
-            id: `err_${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            level: "error",
-            message:
-              "Gmail is not connected. Please click 'Gmail Sync ⚡' in the top bar to connect your Google account.",
-          });
-          controller.close();
-          return;
-        }
+        const result = await runUnifiedSync(
+          {
+            userId,
+            sources,
+            subscriptionId,
+            mode,
+            maxStatements,
+          },
+          (logEvent) => sendEvent(logEvent),
+        );
 
-        if (subscriptionId) {
-          const sub = await getSubscription(subscriptionId);
-          if (!sub) {
-            sendEvent({
-              id: `err_${Date.now()}`,
-              timestamp: new Date().toISOString(),
-              level: "error",
-              message: `Subscription with ID "${subscriptionId}" was not found.`,
-            });
-            controller.close();
-            return;
-          }
-
-          if (mode === "historical") {
-            const result = await syncHistoricalSubscriptionWithGmail(
-              sub,
-              tokenRecord.accessToken,
-              maxStatements,
-              (logEvent) => sendEvent(logEvent),
-            );
-            sendEvent({ type: "done", data: result });
-          } else {
-            const result = await syncSubscriptionWithGmail(
-              sub,
-              tokenRecord.accessToken,
-              (logEvent) => sendEvent(logEvent),
-            );
-            sendEvent({ type: "done", data: result });
-          }
-        } else {
-          // Global sync for all subscriptions
-          const result = await syncAllSubscriptions(userId, (logEvent) =>
-            sendEvent(logEvent),
-          );
-          sendEvent({ type: "done", data: result });
-        }
+        sendEvent({ type: "done", data: result });
       } catch (err: any) {
         sendEvent({
           id: `err_${Date.now()}`,

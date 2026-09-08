@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   BillingCycle,
   BillingType,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/subscriptionTypes";
 import { ThumbnailPicker } from "./ThumbnailPicker";
 import { getAvailableParsers, ParserMetadata } from "@/lib/parsers";
+import { ParserConfigFields } from "./modal/ParserConfigFields";
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -42,6 +44,7 @@ export function SubscriptionModal({
   const [defaultAmount, setDefaultAmount] = useState<number>(0);
   const [isPrepaid, setIsPrepaid] = useState<boolean>(false);
   const [dueDayOfMonth, setDueDayOfMonth] = useState<number>(5);
+  const [statementDayOfMonth, setStatementDayOfMonth] = useState<number | string>("");
   const [isEndOfMonthDue, setIsEndOfMonthDue] = useState<boolean>(false);
   const [allowSkip, setAllowSkip] = useState<boolean>(false);
   const [dedupStrategy, setDedupStrategy] = useState<DedupStrategy>("SAME_DAY_SAME_AMOUNT");
@@ -63,9 +66,21 @@ export function SubscriptionModal({
   }>({});
 
   // Independent Sources
-  // Statement Source: "EMAIL" | "SMS" | "FIXED" | "MANUAL" | "TNEB"
-  const [statementSource, setStatementSource] = useState<"EMAIL" | "SMS" | "FIXED" | "MANUAL" | "TNEB">("EMAIL");
+  // Statement Source: "EMAIL" | "SMS" | "FIXED" | "MANUAL" | "TNEB" | "APARTMENT" | "APARTMENT_MAINTENANCE" | "APARTMENT_WATER" | "CHENNAI_WATER"
+  const [statementSource, setStatementSource] = useState<
+    | "EMAIL"
+    | "SMS"
+    | "FIXED"
+    | "MANUAL"
+    | "TNEB"
+    | "APARTMENT"
+    | "APARTMENT_MAINTENANCE"
+    | "APARTMENT_WATER"
+    | "CHENNAI_WATER"
+  >("EMAIL");
   const [statementQuery, setStatementQuery] = useState("");
+  const [apartmentCategory, setApartmentCategory] = useState("Maintenance Bill");
+  const [chennaiWaterBillNo, setChennaiWaterBillNo] = useState("15-193-097538");
   const [statementSmsSender, setStatementSmsSender] = useState("");
   const [statementSmsKeywords, setStatementSmsKeywords] = useState("bill, due, statement");
   const [statementSmsDigits, setStatementSmsDigits] = useState("");
@@ -74,8 +89,10 @@ export function SubscriptionModal({
   const [tnebConsumerNo, setTnebConsumerNo] = useState("09299011890");
   const [tnebTrackedList, setTnebTrackedList] = useState<Array<{ consumerNumber: string; nickname?: string; name?: string }>>([]);
 
-  // Payment Source: "EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL"
-  const [paymentSource, setPaymentSource] = useState<"EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL">("EMAIL");
+  // Payment Source: "EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL" | "APARTMENT" | "TNEB" | "CHENNAI_WATER"
+  const [paymentSource, setPaymentSource] = useState<
+    "EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL" | "APARTMENT" | "TNEB" | "CHENNAI_WATER"
+  >("EMAIL");
   const [paymentQuery, setPaymentQuery] = useState("");
   const [paymentSmsSender, setPaymentSmsSender] = useState("");
   const [paymentSmsKeywords, setPaymentSmsKeywords] = useState("loan, emi, recovery, debited");
@@ -96,6 +113,13 @@ export function SubscriptionModal({
       const isPre = Boolean(initialData.isPrepaid);
       setIsPrepaid(isPre);
       setDueDayOfMonth(initialData.dueDayOfMonth || 5);
+      const initStmtDay =
+        typeof initialData.statementDayOfMonth === "number"
+          ? initialData.statementDayOfMonth
+          : typeof initialData.statementDate === "number"
+          ? initialData.statementDate
+          : initialData.statementDate || "";
+      setStatementDayOfMonth(initStmtDay);
       setIsEndOfMonthDue(Boolean(initialData.isEndOfMonthDue));
       setAllowSkip(Boolean(initialData.allowSkip));
       setDedupStrategy(
@@ -147,10 +171,51 @@ export function SubscriptionModal({
         setCustomRegex({});
       }
 
-      if (initialData.source === "TNEB_MODULE" || initialData.tnebConfig?.consumerNumber) {
+      if (initialData.source === "APARTMENT_MODULE" || initialData.apartmentConfig) {
+        let catFilter = initialData.apartmentConfig?.categoryFilter;
+        if (!catFilter) {
+          if ((initialData.name || "").toLowerCase().includes("water") || (initialData.name || "").toLowerCase().includes("corpus")) {
+            catFilter = "Water Bill";
+          } else {
+            catFilter = "Maintenance Bill";
+          }
+        }
+        if (catFilter.toLowerCase().includes("water") || catFilter.toLowerCase().includes("corpus")) {
+          setStatementSource("APARTMENT_WATER");
+        } else {
+          setStatementSource("APARTMENT_MAINTENANCE");
+        }
+        setApartmentCategory(catFilter);
+        if (ec?.paymentQuery && ec.paymentQuery.trim().length > 0) {
+          setPaymentSource("EMAIL");
+          setPaymentQuery(ec.paymentQuery);
+        } else if (sc?.senderQuery && sc.senderQuery.trim().length > 0) {
+          setPaymentSource("SMS");
+        } else {
+          setPaymentSource("APARTMENT");
+        }
+      } else if (initialData.source === "CHENNAI_WATER_MODULE" || initialData.chennaiWaterConfig) {
+        setStatementSource("CHENNAI_WATER");
+        setChennaiWaterBillNo(initialData.chennaiWaterConfig?.billNumber || "15-193-097538");
+        if (ec?.paymentQuery && ec.paymentQuery.trim().length > 0) {
+          setPaymentSource("EMAIL");
+          setPaymentQuery(ec.paymentQuery);
+        } else if (sc?.senderQuery && sc.senderQuery.trim().length > 0) {
+          setPaymentSource("SMS");
+        } else {
+          setPaymentSource("CHENNAI_WATER");
+        }
+      } else if (initialData.source === "TNEB_MODULE" || initialData.tnebConfig?.consumerNumber) {
         setStatementSource("TNEB");
         setTnebConsumerNo(initialData.tnebConfig?.consumerNumber || "09299011890");
-        setPaymentSource("MANUAL");
+        if (ec?.paymentQuery && ec.paymentQuery.trim().length > 0) {
+          setPaymentSource("EMAIL");
+          setPaymentQuery(ec.paymentQuery);
+        } else if (sc?.senderQuery && sc.senderQuery.trim().length > 0) {
+          setPaymentSource("SMS");
+        } else {
+          setPaymentSource("TNEB");
+        }
       } else {
         const isFixedTenure =
           initialData.billingType === "FIXED_TENURE" ||
@@ -192,6 +257,7 @@ export function SubscriptionModal({
       setDefaultAmount(0);
       setIsPrepaid(false);
       setDueDayOfMonth(5);
+      setStatementDayOfMonth("");
       setIsEndOfMonthDue(false);
       setAllowSkip(false);
       setDedupStrategy("SAME_DAY_SAME_AMOUNT");
@@ -236,7 +302,12 @@ export function SubscriptionModal({
   const handleTimingModelChange = (prepaid: boolean) => {
     setIsPrepaid(prepaid);
     if (prepaid) {
-      if (paymentSource !== "EMAIL") {
+      if (
+        paymentSource !== "EMAIL" &&
+        paymentSource !== "APARTMENT" &&
+        paymentSource !== "TNEB" &&
+        paymentSource !== "CHENNAI_WATER"
+      ) {
         setPaymentSource("PREPAID_INVOICE");
       }
     } else {
@@ -446,17 +517,24 @@ export function SubscriptionModal({
     setErrorMessage("");
 
     try {
-      const isTnebSource = statementSource === "TNEB";
-      const isSmsAutomated = !isTnebSource && (statementSource === "SMS" || paymentSource === "SMS");
-      const isEmailAutomated =
-        !isTnebSource && (statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE");
+      const isApartmentMaintenance = statementSource === "APARTMENT_MAINTENANCE";
+      const isApartmentWater = statementSource === "APARTMENT_WATER";
+      const isApartmentSource = isApartmentMaintenance || isApartmentWater || statementSource === "APARTMENT" || paymentSource === "APARTMENT";
+      const isChennaiWaterSource = statementSource === "CHENNAI_WATER" || paymentSource === "CHENNAI_WATER";
+      const isTnebSource = statementSource === "TNEB" || paymentSource === "TNEB";
+      const isSmsAutomated = statementSource === "SMS" || paymentSource === "SMS";
+      const isEmailAutomated = statementSource === "EMAIL" || paymentSource === "EMAIL" || paymentSource === "PREPAID_INVOICE";
 
       const billingType: BillingType =
         statementSource === "FIXED" || category === "Loans & EMIs"
           ? "FIXED_TENURE"
           : "BILL_GENERATED";
 
-      const source: SourceType = isTnebSource
+      const source: SourceType = isApartmentSource
+        ? "APARTMENT_MODULE"
+        : isChennaiWaterSource
+        ? "CHENNAI_WATER_MODULE"
+        : isTnebSource
         ? "TNEB_MODULE"
         : isEmailAutomated && isSmsAutomated
         ? "EMAIL_AUTOMATED"
@@ -465,6 +543,24 @@ export function SubscriptionModal({
         : isEmailAutomated
         ? "EMAIL_AUTOMATED"
         : "MANUAL";
+
+      const apartmentConfig = isApartmentSource
+        ? {
+            categoryFilter: isApartmentWater
+              ? (apartmentCategory || "Water Bill")
+              : (apartmentCategory || "Maintenance Bill"),
+            autoSyncWithApartmentModule: true,
+          }
+        : undefined;
+
+      const chennaiWaterConfig = isChennaiWaterSource
+        ? {
+            billNumber: chennaiWaterBillNo.trim() || "15-193-097538",
+            existingBillNumber: "15-193-56648-000",
+            componentType: "TAX_AND_CHARGES" as const,
+            autoSyncWithMetroWaterModule: true,
+          }
+        : undefined;
 
       const tnebConfig = isTnebSource
         ? {
@@ -525,15 +621,21 @@ export function SubscriptionModal({
         source,
         currency,
         defaultAmount: Number(defaultAmount) || 0,
-        billingCycle: isTnebSource ? "CUSTOM" : billingCycle,
-        isPrepaid: isTnebSource ? false : isPrepaid,
+        billingCycle: isChennaiWaterSource ? "HALF_YEARLY" : isTnebSource ? "CUSTOM" : billingCycle,
+        isPrepaid: isTnebSource || isChennaiWaterSource ? false : isPrepaid,
         dueDayOfMonth: isPrepaid ? undefined : isEndOfMonthDue ? undefined : Number(dueDayOfMonth) || 5,
+        statementDayOfMonth:
+          statementDayOfMonth !== "" && !isNaN(Number(statementDayOfMonth))
+            ? Math.min(31, Math.max(1, Number(statementDayOfMonth)))
+            : undefined,
         isEndOfMonthDue: isPrepaid ? false : isEndOfMonthDue,
         allowSkip,
         dedupStrategy,
         emailConfig,
         smsConfig,
         tnebConfig,
+        apartmentConfig,
+        chennaiWaterConfig,
         notes,
       };
 
@@ -711,6 +813,25 @@ export function SubscriptionModal({
                     ? "Updated automatically when bill/invoice email is synced."
                     : "Default or estimated installment. Leave blank if amount varies and resolves upon receipt."}
                 </span>
+
+                {/* Statement Date (Optional Day of Month) */}
+                <div className="mt-3 pt-3 border-t border-white/5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Statement Date (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    placeholder="e.g. 15 (Day of Month 1-31)"
+                    value={statementDayOfMonth}
+                    onChange={(e) => setStatementDayOfMonth(e.target.value ? parseInt(e.target.value, 10) : "")}
+                    className="mt-1 w-full min-h-[40px] rounded-xl border border-white/10 bg-slate-800 px-3.5 py-2 text-xs text-white focus:border-cyan-400 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Day of month bill arrives. Displays &ldquo;Next statement in n days&rdquo; on the home tab when previous cycle has ended.
+                  </span>
+                </div>
               </div>
 
               {!isPrepaid ? (
@@ -807,79 +928,242 @@ export function SubscriptionModal({
                 </span>
               </div>
 
-              {/* 1. Source Pills */}
-              <div className="flex items-center rounded-xl bg-slate-950/80 p-1 border border-white/10 self-start sm:self-auto flex-wrap sm:flex-nowrap gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatementSource("TNEB");
-                    setCategory("Utilities");
-                    setName((curr) => curr || "Tamil Nadu Electricity Board (TNEB)");
-                    setImageUrl("https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg");
+              {/* 1. Source Dropdown */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <label className="text-xs text-slate-300 font-semibold">Source:</label>
+                <select
+                  value={statementSource}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setStatementSource(val);
+                    if (val === "APARTMENT_MAINTENANCE") {
+                      setCategory("Housing & Rent");
+                      setBillingCycle("QUARTERLY");
+                      setApartmentCategory("Maintenance Bill");
+                      setName((curr) => (!curr || curr.includes("Apartment") ? "Apartment Maintenance" : curr));
+                      setPaymentSource("APARTMENT");
+                    } else if (val === "APARTMENT_WATER") {
+                      setCategory("Housing & Rent");
+                      setBillingCycle("MONTHLY");
+                      setApartmentCategory("Water Bill");
+                      setName((curr) => (!curr || curr.includes("Apartment") ? "Apartment Water & Corpus" : curr));
+                      setPaymentSource("APARTMENT");
+                    } else if (val === "APARTMENT") {
+                      setCategory("Housing & Rent");
+                      setName((curr) => curr || "Apartment Maintenance");
+                      setPaymentSource("APARTMENT");
+                    } else if (val === "CHENNAI_WATER") {
+                      setCategory("Utilities");
+                      setBillingCycle("HALF_YEARLY");
+                      setName((curr) => curr || "Chennai Metro Water (CMWSSB)");
+                      setImageUrl("https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg");
+                      setPaymentSource("CHENNAI_WATER");
+                    } else if (val === "TNEB") {
+                      setCategory("Utilities");
+                      setBillingCycle("CUSTOM");
+                      setName((curr) => curr || "Tamil Nadu Electricity Board (TNEB)");
+                      setImageUrl("https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg");
+                      setPaymentSource("TNEB");
+                    } else if (val === "FIXED") {
+                      setStatementQuery("");
+                    } else if (val === "MANUAL") {
+                      setStatementQuery("");
+                    }
                   }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    statementSource === "TNEB"
-                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
+                  className="min-h-[38px] rounded-xl border border-cyan-500/30 bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-cyan-300 focus:border-cyan-400 focus:outline-none cursor-pointer shadow-lg shadow-cyan-950/20"
                 >
-                  <span>⚡</span> TNEB Portal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatementSource("EMAIL")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    statementSource === "EMAIL"
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <span>✉️</span> Gmail
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatementSource("SMS")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    statementSource === "SMS"
-                      ? "bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <span>💬</span> SMS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatementSource("FIXED");
-                    setStatementQuery("");
-                  }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    statementSource === "FIXED"
-                      ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <span>🔒</span> Fixed Amount
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatementSource("MANUAL");
-                    setStatementQuery("");
-                  }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    statementSource === "MANUAL"
-                      ? "bg-white/10 text-white border border-white/20 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <span>✋</span> Manual
-                </button>
+                  <option value="APARTMENT_MAINTENANCE">🏢 Apartment Maintenance (Quarterly)</option>
+                  <option value="APARTMENT_WATER">💧 Apartment Water & Corpus (Monthly)</option>
+                  <option value="CHENNAI_WATER">💧 Metro Water (CMWSSB)</option>
+                  <option value="TNEB">⚡ TNEB Portal (EB Bills)</option>
+                  <option value="EMAIL">✉️ Gmail (E-Statement Query)</option>
+                  <option value="SMS">💬 SMS (Bill / Debit SMS)</option>
+                  <option value="FIXED">🔒 Fixed Amount (Loans / EMIs)</option>
+                  <option value="MANUAL">✋ Manual (No External Statement)</option>
+                </select>
               </div>
             </div>
 
             {/* 2. Query Filters based on Source */}
-            {statementSource === "TNEB" ? (
+            {statementSource === "APARTMENT_MAINTENANCE" ? (
+              <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 font-bold text-xs">
+                      🏢
+                    </span>
+                    <span className="font-bold text-indigo-300 text-xs">
+                      Apartment Maintenance Source (Homefy)
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-indigo-400/80 font-mono">Quarterly Maintenance</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Linked to your active flat community maintenance bills in Homefy. Automatically syncs society quarterly maintenance charges, due dates, paid proofs, and receipts.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Bill Category *
+                    </label>
+                    <select
+                      value={apartmentCategory}
+                      onChange={(e) => {
+                        setApartmentCategory(e.target.value);
+                      }}
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-indigo-400 focus:outline-none cursor-pointer"
+                    >
+                      <option value="Maintenance Bill">Maintenance Bill (Quarterly)</option>
+                      <option value="ALL">All Bills Combined</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <Link
+                      href="/apartment"
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 underline pb-2"
+                    >
+                      <span>Open Apartment Dashboard ↗</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : statementSource === "APARTMENT_WATER" ? (
+              <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 font-bold text-xs">
+                      💧
+                    </span>
+                    <span className="font-bold text-cyan-300 text-xs">
+                      Apartment Water & Corpus Source (Homefy)
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-cyan-400/80 font-mono">Monthly Water & Sinking Fund</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Linked to your flat monthly water meter reading bills and corpus fund dues in Homefy. Reconciles usage charges, due dates, paid proofs, and receipts.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Bill Category *
+                    </label>
+                    <select
+                      value={apartmentCategory}
+                      onChange={(e) => {
+                        setApartmentCategory(e.target.value);
+                      }}
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
+                    >
+                      <option value="Water Bill">Water & Corpus Combined (Default)</option>
+                      <option value="Corpus Fund">Corpus Fund Only</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <Link
+                      href="/apartment"
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 underline pb-2"
+                    >
+                      <span>Open Apartment Dashboard ↗</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : statementSource === "APARTMENT" ? (
+              <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 font-bold text-xs">
+                      🏢
+                    </span>
+                    <span className="font-bold text-indigo-300 text-xs">
+                      Homefy Apartment Management Source
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-indigo-400/80 font-mono">Society Bills</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Linked to your active flat community bills in the Apartment Management module. Automatically retrieves bills, charges, due dates, paid proofs, and receipts in real time.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Bill Category *
+                    </label>
+                    <select
+                      value={apartmentCategory}
+                      onChange={(e) => {
+                        setApartmentCategory(e.target.value);
+                        if (!name || name.includes("Apartment")) {
+                          setName(e.target.value === "ALL" ? "Apartment - All Bills" : `Apartment - ${e.target.value}`);
+                        }
+                      }}
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-indigo-400 focus:outline-none cursor-pointer"
+                    >
+                      <option value="Maintenance Bill">Maintenance Bill (Quarterly)</option>
+                      <option value="Water Bill">Water Bill (Monthly)</option>
+                      <option value="Corpus Fund">Corpus Fund</option>
+                      <option value="ALL">All Bills Combined</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <Link
+                      href="/apartment"
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 underline pb-2"
+                    >
+                      <span>Open Apartment Dashboard ↗</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : statementSource === "CHENNAI_WATER" ? (
+              <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs">
+                      💧
+                    </span>
+                    <span className="font-bold text-sky-300 text-xs">
+                      Chennai Metro Water (CMWSSB) Module Source
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-sky-400/80 font-mono">Half-Yearly Assessment</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Linked directly to your Chennai Metro Water & Sewerage Board property profile. Automatically retrieves half-yearly water tax assessments, usage charges, and payment receipts from the portal.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      New Bill Number (Area-Division-Bill) *
+                    </label>
+                    <input
+                      type="text"
+                      value={chennaiWaterBillNo}
+                      onChange={(e) => setChennaiWaterBillNo(e.target.value)}
+                      placeholder="15-193-097538"
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-mono text-white focus:border-sky-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Link
+                      href="/chennai-water"
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 underline pb-2"
+                    >
+                      <span>Open Metro Water Dashboard ↗</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : statementSource === "TNEB" ? (
               <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1122,41 +1406,15 @@ export function SubscriptionModal({
                 })()}
 
                 {/* Dynamic Statement Parser Config Fields */}
-                {(() => {
-                  const selected = availableParsers.find((p) => p.id === statementParserModule);
-                  if (!selected?.configFields || selected.configFields.length === 0) return null;
-                  return (
-                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/40 p-2.5 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block">
-                        ⚙️ Additional Parser Configuration & Filters
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {selected.configFields.map((field) => (
-                          <div key={field.key} className="space-y-0.5">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
-                              {field.label}
-                            </label>
-                            <input
-                              type="text"
-                              placeholder={field.placeholder || ""}
-                              value={statementParserConfig[field.key] || ""}
-                              onChange={(e) =>
-                                setStatementParserConfig((prev) => ({
-                                  ...prev,
-                                  [field.key]: e.target.value,
-                                }))
-                              }
-                              className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
-                            />
-                            {field.description && (
-                              <span className="text-[9px] text-slate-400 block">{field.description}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+                <ParserConfigFields
+                  title="Additional Parser Configuration & Filters"
+                  accentColor="cyan"
+                  fields={availableParsers.find((p) => p.id === statementParserModule)?.configFields}
+                  values={statementParserConfig}
+                  onChange={(key, val) =>
+                    setStatementParserConfig((prev) => ({ ...prev, [key]: val }))
+                  }
+                />
 
                 {/* Custom Regex Pattern for Statement */}
                 {statementParserModule === "CustomRegexParser" && (
@@ -1205,65 +1463,214 @@ export function SubscriptionModal({
                 </span>
               </div>
 
-              {/* 1. Source Pills */}
-              <div className="flex items-center rounded-xl bg-slate-950/80 p-1 border border-white/10 self-start sm:self-auto">
-                {isPrepaid && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentSource("PREPAID_INVOICE");
-                      setPaymentQuery("");
-                    }}
-                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                      paymentSource === "PREPAID_INVOICE"
-                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    <span>⚡</span> Prepaid / Invoice
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setPaymentSource("EMAIL")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    paymentSource === "EMAIL"
-                      ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <span>✉️</span> Gmail
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentSource("SMS")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    paymentSource === "SMS"
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <span>💬</span> SMS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaymentSource("MANUAL");
-                    setPaymentQuery("");
+              {/* 1. Payment Method Dropdown */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <label className="text-xs text-slate-300 font-semibold">Method:</label>
+                <select
+                  value={paymentSource}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setPaymentSource(val);
+                    if (val !== "EMAIL") setPaymentQuery("");
                   }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
-                    paymentSource === "MANUAL"
-                      ? "bg-white/10 text-white border border-white/20 shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
+                  className="min-h-[38px] rounded-xl border border-indigo-500/30 bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-indigo-300 focus:border-indigo-400 focus:outline-none cursor-pointer shadow-lg shadow-indigo-950/20"
                 >
-                  <span>✋</span> Manual
-                </button>
+                  {(statementSource === "APARTMENT" ||
+                    statementSource === "APARTMENT_MAINTENANCE" ||
+                    statementSource === "APARTMENT_WATER") && (
+                    <option value="APARTMENT">🏢 Apartment Portal (Homefy Auto Reconcile)</option>
+                  )}
+                  {statementSource === "TNEB" && (
+                    <option value="TNEB">⚡ TNEB Portal (EB Receipts Auto Reconcile)</option>
+                  )}
+                  {statementSource === "CHENNAI_WATER" && (
+                    <option value="CHENNAI_WATER">💧 Metro Water Portal (CMWSSB Auto Reconcile)</option>
+                  )}
+                  {isPrepaid && (
+                    <option value="PREPAID_INVOICE">⚡ Prepaid / Invoice (Auto-Settled)</option>
+                  )}
+                  <option value="EMAIL">✉️ Gmail (Debit Alerts & Receipts)</option>
+                  <option value="SMS">💬 SMS (Bank Account Debit Alerts)</option>
+                  <option value="MANUAL">✋ Manual (Mark Paid & Ledger Overrides)</option>
+                </select>
               </div>
             </div>
 
             {/* 2. Query Filters based on Source */}
-            {paymentSource === "PREPAID_INVOICE" ? (
+            {paymentSource === "APARTMENT" ? (
+              <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 font-bold text-xs">
+                      🏢
+                    </span>
+                    <span className="font-bold text-indigo-300 text-xs">
+                      Apartment Portal (Homefy) Auto-Reconciliation Active
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                    Automatic Settlement
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Homefy tracks both billing dues and payment approval status. When your maintenance or water bill is marked as <strong className="text-emerald-300 font-semibold">PAID</strong> or <strong className="text-emerald-300 font-semibold">APPROVAL_PENDING</strong> in Homefy, this subscription cycle is automatically reconciled as <strong className="text-emerald-300 font-semibold">FULLY PAID</strong> with payment date and receipt proof.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Reconcile Category *
+                    </label>
+                    <select
+                      value={apartmentCategory}
+                      onChange={(e) => {
+                        setApartmentCategory(e.target.value);
+                      }}
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-indigo-400 focus:outline-none cursor-pointer"
+                    >
+                      <option value="Maintenance Bill">Maintenance Bill (Quarterly)</option>
+                      <option value="Water Bill">Water & Corpus Combined</option>
+                      <option value="Corpus Fund">Corpus Fund Only</option>
+                      <option value="ALL">All Bills Combined</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <Link
+                      href="/apartment"
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 underline pb-2"
+                    >
+                      <span>Open Apartment Dashboard ↗</span>
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-white/5 bg-slate-900/60 p-2.5 text-[10px] text-slate-400">
+                  💡 <strong>Want Email/SMS tracking instead?</strong> If you prefer cross-matching your bank debit receipt email (e.g. from <span className="font-mono text-cyan-300">contact@homefy.co.in</span>) or bank SMS debit alerts, simply switch the <strong>Method</strong> dropdown above to <strong>Gmail</strong> or <strong>SMS</strong>.
+                </div>
+              </div>
+            ) : paymentSource === "TNEB" ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 font-bold text-xs">
+                      ⚡
+                    </span>
+                    <span className="font-bold text-amber-300 text-xs">
+                      TNEB Portal Collection Receipts Active
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                    Automatic Settlement
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  TNEB portal tracks bill payments and online collection receipts automatically. Synced cycles are settled directly from the official TNEB database.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Reconcile Receipts for Consumer *
+                    </label>
+                    <select
+                      value={tnebConsumerNo}
+                      onChange={(e) => {
+                        setTnebConsumerNo(e.target.value);
+                        if (!name || name.startsWith("TNEB")) {
+                          const match = tnebTrackedList.find((t) => t.consumerNumber === e.target.value);
+                          if (match && match.nickname) {
+                            setName(`TNEB - ${match.nickname}`);
+                          } else {
+                            setName(`TNEB EB #${e.target.value}`);
+                          }
+                        }
+                      }}
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-mono text-white focus:border-amber-400 focus:outline-none cursor-pointer"
+                    >
+                      {tnebTrackedList.map((t) => (
+                        <option key={t.consumerNumber} value={t.consumerNumber}>
+                          #{t.consumerNumber} {t.nickname ? `(${t.nickname})` : ""}
+                        </option>
+                      ))}
+                      {!tnebTrackedList.some((t) => t.consumerNumber === tnebConsumerNo) && (
+                        <option value={tnebConsumerNo}>#{tnebConsumerNo} (Custom)</option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Consumer Number
+                    </label>
+                    <input
+                      type="text"
+                      value={tnebConsumerNo}
+                      onChange={(e) => setTnebConsumerNo(e.target.value)}
+                      placeholder="09299011890"
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-mono text-white focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-amber-500/20 bg-slate-900/60 p-2.5 flex items-center justify-between text-[11px] text-slate-300">
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-amber-400 font-bold font-mono">#{tnebConsumerNo}</span>
+                    <span className="text-slate-400">matching collection receipts will settle the cycle directly</span>
+                  </span>
+                  <Link
+                    href="/tneb"
+                    target="_blank"
+                    className="inline-flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 underline"
+                  >
+                    <span>View Receipts ↗</span>
+                  </Link>
+                </div>
+              </div>
+            ) : paymentSource === "CHENNAI_WATER" ? (
+              <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs">
+                      💧
+                    </span>
+                    <span className="font-bold text-sky-300 text-xs">
+                      Chennai Metro Water Portal Receipts Active
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                    Automatic Settlement
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  CMWSSB portal records payment receipts against your property assessment. Synced cycles are settled directly from the Metro Water ledger.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                      Reconcile Receipts for Bill Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={chennaiWaterBillNo}
+                      onChange={(e) => setChennaiWaterBillNo(e.target.value)}
+                      placeholder="15-193-097538"
+                      className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-mono text-white focus:border-sky-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Link
+                      href="/chennai-water"
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 underline pb-2"
+                    >
+                      <span>Open Metro Water Dashboard ↗</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : paymentSource === "PREPAID_INVOICE" ? (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">
                 <span className="font-bold flex items-center gap-1 mb-0.5">
                   <span>⚡</span> Auto-Settled Upon Invoice Receipt
@@ -1503,41 +1910,15 @@ export function SubscriptionModal({
                 })()}
 
                 {/* Dynamic Payment Parser Config Fields */}
-                {(() => {
-                  const selected = availableParsers.find((p) => p.id === paymentParserModule);
-                  if (!selected?.configFields || selected.configFields.length === 0) return null;
-                  return (
-                    <div className="rounded-lg border border-indigo-500/20 bg-indigo-950/40 p-2.5 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 block">
-                        ⚙️ Additional Parser Configuration (e.g. VPA Filter)
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {selected.configFields.map((field) => (
-                          <div key={field.key} className="space-y-0.5">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-300">
-                              {field.label}
-                            </label>
-                            <input
-                              type="text"
-                              placeholder={field.placeholder || ""}
-                              value={paymentParserConfig[field.key] || ""}
-                              onChange={(e) =>
-                                setPaymentParserConfig((prev) => ({
-                                  ...prev,
-                                  [field.key]: e.target.value,
-                                }))
-                              }
-                              className="w-full min-h-[34px] font-mono text-xs rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none"
-                            />
-                            {field.description && (
-                              <span className="text-[9px] text-slate-400 block">{field.description}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+                <ParserConfigFields
+                  title="Additional Parser Configuration (e.g. VPA Filter)"
+                  accentColor="indigo"
+                  fields={availableParsers.find((p) => p.id === paymentParserModule)?.configFields}
+                  values={paymentParserConfig}
+                  onChange={(key, val) =>
+                    setPaymentParserConfig((prev) => ({ ...prev, [key]: val }))
+                  }
+                />
 
                 {/* Custom Regex Pattern for Payment */}
                 {paymentParserModule === "CustomRegexParser" && (

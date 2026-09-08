@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
 import { RawSmsRecord } from "@/lib/subscriptionTypes";
 import { runSmsSyncEngine } from "@/lib/sms/smsSyncEngine";
+import { saveSyncLogFile } from "@/lib/sync/syncFileLogger";
 
 interface IncomingSmsPayload {
   userId?: string;
@@ -30,8 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const defaultUserId = data.userId || "default_user";
-    const batch = db.batch();
-    let newOrUpdatedCount = 0;
+    const docsToCommit: { docRef: FirebaseFirestore.DocumentReference; record: RawSmsRecord }[] = [];
     let effectiveUserId = defaultUserId;
 
     for (const msg of messages) {
@@ -65,11 +65,21 @@ export async function POST(request: NextRequest) {
         createdAt: new Date().toISOString(),
       };
 
-      batch.set(docRef, record, { merge: true });
-      newOrUpdatedCount++;
+      docsToCommit.push({ docRef, record });
     }
 
-    await batch.commit();
+    // Chunk Firestore batch writes (Firestore limit is 500 operations per batch)
+    const BATCH_SIZE = 400;
+    for (let i = 0; i < docsToCommit.length; i += BATCH_SIZE) {
+      const chunk = docsToCommit.slice(i, i + BATCH_SIZE);
+      const batch = db.batch();
+      for (const { docRef, record } of chunk) {
+        batch.set(docRef, record, { merge: true });
+      }
+      await batch.commit();
+    }
+
+    const newOrUpdatedCount = docsToCommit.length;
 
     // Automatically trigger sync reconciliation in background
     let syncSummary = null;
@@ -82,6 +92,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    saveSyncLogFile({
+      actionName: "SMS Ingestion Batch",
+      logName: `SMS Ingestion (${newOrUpdatedCount} msgs)`,
+      userId: effectiveUserId,
+      status: "SUCCESS",
+      summary: `Ingested ${newOrUpdatedCount} bank SMS messages into raw_sms collection. ${syncSummary || ""}`,
+      events: [
+        {
+          timestamp: new Date().toISOString(),
+          level: "info",
+          message: `Received payload with ${messages.length} raw SMS messages for user ${effectiveUserId}`,
+        },
+        {
+          timestamp: new Date().toISOString(),
+          level: "save",
+          message: `Committed ${newOrUpdatedCount} SMS documents to Firestore in chunked batches`,
+          details: { sampleSenders: Array.from(new Set(docsToCommit.map((d) => d.record.sender))).slice(0, 8) },
+        },
+        ...(syncSummary
+          ? [
+              {
+                timestamp: new Date().toISOString(),
+                level: "success" as const,
+                message: `Background loan reconciliation: ${syncSummary}`,
+              },
+            ]
+          : []),
+      ],
+      stats: {
+        ingestedCount: newOrUpdatedCount,
+        syncSummary,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       ingestedCount: newOrUpdatedCount,
@@ -90,6 +134,20 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("POST /api/sync/sms error:", error);
+    saveSyncLogFile({
+      actionName: "SMS Ingestion Batch",
+      logName: "SMS Ingestion Error",
+      userId: "unknown",
+      status: "FAILED",
+      summary: (error as Error).message || "Failed to ingest SMS messages",
+      events: [
+        {
+          timestamp: new Date().toISOString(),
+          level: "error",
+          message: (error as Error).message || "Failed to ingest SMS messages",
+        },
+      ],
+    });
     return NextResponse.json(
       { error: (error as Error).message || "Failed to ingest SMS messages" },
       { status: 500 },
@@ -101,13 +159,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId") || "default_user";
-    const limitParam = parseInt(searchParams.get("limit") || "50", 10);
+    const limitParam = parseInt(searchParams.get("limit") || "100", 10);
 
     const { db } = getFirebaseAdmin();
     const snap = await db
       .collection("raw_sms")
       .where("userId", "==", userId)
-      .limit(limitParam)
       .get();
 
     const messages = snap.docs.map((doc) => ({
@@ -115,10 +172,15 @@ export async function GET(request: NextRequest) {
       ...doc.data(),
     }));
 
+    // Ensure sorted by timestamp descending (newest first)
+    messages.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    const pagedMessages = messages.slice(0, limitParam);
+
     return NextResponse.json({
       success: true,
-      totalCount: snap.size,
-      messages,
+      totalCount: messages.length,
+      messages: pagedMessages,
     });
   } catch (error) {
     console.error("GET /api/sync/sms error:", error);

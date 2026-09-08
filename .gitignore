@@ -66,3 +66,9 @@ android/local.properties
 *.hprof
 .idea/
 android/.idea/
+
+# local runtime data & scratch
+.data/
+scratch/
+*.mhtml
+*.traineddata

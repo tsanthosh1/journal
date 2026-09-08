@@ -1,6 +1,7 @@
 import { getFirebaseAdmin } from "../firebaseAdmin";
 import { sanitizeForFirestore } from "../emailStorage";
 import { Subscription, CycleState, HistoricalCycle } from "../subscriptionTypes";
+import { getCycleDocId } from "../subscriptionUtils";
 import { getTnebAccount, getTnebBillsForConsumer } from "./storage";
 import { TnebBillRecord, TnebConsumerAccount } from "./types";
 
@@ -51,13 +52,14 @@ export async function syncTnebToSubscriptions(
           updatedAt: new Date().toISOString(),
         });
 
-        // Also backfill cycles subcollection
+        // Backfill cycles to subscription_cycles collection (single source of truth)
         const batch = db.batch();
         for (const bill of bills) {
           const bIsPaid = bill.isPaid || bill.amountPaid >= bill.totalCharges;
           const bRemaining = bIsPaid ? 0 : bill.amountToBePaid || Math.max(0, bill.totalCharges - bill.amountPaid);
+          const cycleDocId = getCycleDocId(doc.id, bill.cycleMonth);
           const histCycle: HistoricalCycle = {
-            id: `${doc.id}_${bill.cycleMonth}`,
+            id: cycleDocId,
             subscriptionId: doc.id,
             subscriptionName: sub.name,
             currency: sub.currency || "INR",
@@ -74,7 +76,7 @@ export async function syncTnebToSubscriptions(
             updatedAt: bill.updatedAt || new Date().toISOString(),
           };
 
-          const cycleRef = doc.ref.collection("cycles").doc(bill.cycleMonth);
+          const cycleRef = db.collection("subscription_cycles").doc(cycleDocId);
           batch.set(cycleRef, sanitizeForFirestore(histCycle), { merge: true });
         }
         await batch.commit();
@@ -174,13 +176,14 @@ export async function createSubscriptionForTnebConsumer(
   const cleanSub = sanitizeForFirestore(subData);
   const docRef = await db.collection("subscriptions").add(cleanSub);
 
-  // Add historical cycles
+  // Add historical cycles to subscription_cycles collection (single source of truth)
   if (bills.length > 0) {
     const batch = db.batch();
     for (const bill of bills) {
       const bIsPaid = bill.isPaid || bill.amountPaid >= bill.totalCharges;
+      const cycleDocId = getCycleDocId(docRef.id, bill.cycleMonth);
       const histCycle: HistoricalCycle = {
-        id: `${docRef.id}_${bill.cycleMonth}`,
+        id: cycleDocId,
         subscriptionId: docRef.id,
         subscriptionName: displayName,
         currency: "INR",
@@ -197,7 +200,7 @@ export async function createSubscriptionForTnebConsumer(
         updatedAt: bill.updatedAt || todayIso,
       };
 
-      const cycleRef = docRef.collection("cycles").doc(bill.cycleMonth);
+      const cycleRef = db.collection("subscription_cycles").doc(cycleDocId);
       batch.set(cycleRef, sanitizeForFirestore(histCycle), { merge: true });
     }
     await batch.commit();

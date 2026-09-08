@@ -8,6 +8,7 @@ import {
   formatCycleMonth,
   formatDisplayDate,
 } from "@/lib/subscriptionTypes";
+import { getNextStatementInfo } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { ManualOverrideModal } from "./ManualOverrideModal";
 import { SyncConsoleModal } from "./SyncConsoleModal";
@@ -136,6 +137,7 @@ export function SubscriptionDetailView({
   const isSkipped = current.status === "SKIPPED";
   const isPartiallyPaid = current.status === "PARTIALLY_PAID";
   const isUnpaid = current.status === "UNPAID";
+  const nextStatement = getNextStatementInfo(subscription);
 
   return (
     <div className="space-y-6">
@@ -303,8 +305,25 @@ export function SubscriptionDetailView({
           <div className="space-y-2 pt-2 text-xs text-slate-300">
             <div className="flex justify-between py-1 border-b border-white/5">
               <span className="text-slate-400">Statement Date:</span>
-              <span className="font-medium text-white">{current.statementDate ? formatDisplayDate(current.statementDate) : "Not Generated"}</span>
+              <span className="font-medium text-white">
+                {current.statementDate
+                  ? formatDisplayDate(current.statementDate)
+                  : subscription.statementDayOfMonth
+                  ? `Day ${subscription.statementDayOfMonth} of month`
+                  : "Not Set"}
+              </span>
             </div>
+            {nextStatement && (
+              <div className="flex justify-between py-1 border-b border-white/5 bg-cyan-500/10 px-2 rounded-lg items-center">
+                <span className="text-cyan-300 font-semibold flex items-center gap-1">
+                  <span>📄</span>
+                  <span>Next Statement:</span>
+                </span>
+                <span className="font-bold text-cyan-200 font-mono text-xs">
+                  {nextStatement.displayText} ({nextStatement.formattedDate})
+                </span>
+              </div>
+            )}
             <div className="flex justify-between py-1 border-b border-white/5">
               <span className="text-slate-400">Payment Due Date:</span>
               <span className="font-medium text-white">{current.dueDate ? formatDisplayDate(current.dueDate) : `Day ${subscription.dueDayOfMonth || "N/A"}`}</span>

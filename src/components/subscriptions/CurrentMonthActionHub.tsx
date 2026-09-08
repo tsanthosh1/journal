@@ -7,6 +7,7 @@ import {
   formatCycleMonth,
   calculatePrepaidRenewalInfo,
 } from "@/lib/subscriptionTypes";
+import { isPrepaidSubscription, isFixedTenure, getNextStatementInfo, NextStatementInfo } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 
 interface CurrentMonthActionHubProps {
@@ -29,6 +30,7 @@ interface PrioritizedItem {
   isAwaitingBill: boolean;
   isNoStatementService?: boolean;
   isPrepaid: boolean;
+  nextStatement: NextStatementInfo | null;
 }
 
 export function CurrentMonthActionHub({
@@ -53,17 +55,14 @@ export function CurrentMonthActionHub({
     let totalPaidAmount = 0;
 
     const prioritized: PrioritizedItem[] = subscriptions.map((sub) => {
-      const isPrepaid =
-        Boolean(sub.isPrepaid) ||
-        sub.category === "Entertainment" ||
-        (!sub.dueDayOfMonth &&
-          sub.billingType === "BILL_GENERATED" &&
-          !sub.emailConfig?.paymentQuery);
+      const isPrepaid = isPrepaidSubscription(sub);
 
       const cycle = sub.currentCycle;
       const isTneb = sub.source === "TNEB_MODULE";
-      const isFixed = sub.billingType === "FIXED_TENURE" || sub.category === "Loans & EMIs";
-      const hasStatementConfig = isTneb || Boolean(
+      const isApartment = sub.source === "APARTMENT_MODULE";
+      const isChennaiWater = sub.source === "CHENNAI_WATER_MODULE";
+      const isFixed = isFixedTenure(sub);
+      const hasStatementConfig = isTneb || isApartment || isChennaiWater || Boolean(
         sub.emailConfig?.statementQuery && sub.emailConfig.statementQuery.trim(),
       );
       const hasStatementTotal = cycle.statementTotal !== undefined && cycle.statementTotal > 0;
@@ -73,7 +72,11 @@ export function CurrentMonthActionHub({
       const isNoStatementService = !isPrepaid && !isFixed && !hasStatementConfig;
       const isAwaitingBill = !isPrepaid && !isFixed && hasStatementConfig && !hasStatementTotal;
 
-      const total = hasStatementTotal ? cycle.statementTotal : isFixed ? (sub.defaultAmount || 0) : 0;
+      const total = hasStatementTotal
+        ? cycle.statementTotal
+        : isFixed || !hasStatementConfig
+        ? (sub.defaultAmount || 0)
+        : 0;
       const paid = isPrepaid ? (cycle.paidAmount || total) : (cycle.paidAmount || 0);
       const isPaid = isPrepaid || cycle.status === "FULLY_PAID" || (total > 0 && paid >= total);
       const isSkipped = cycle.status === "SKIPPED" || cycle.status === "PAUSED";
@@ -124,6 +127,8 @@ export function CurrentMonthActionHub({
         }
       }
 
+      const nextStatement = getNextStatementInfo(sub, todayIso);
+
       return {
         subscription: sub,
         group,
@@ -134,6 +139,7 @@ export function CurrentMonthActionHub({
         isAwaitingBill,
         isNoStatementService,
         isPrepaid,
+        nextStatement,
       };
     });
 
@@ -301,6 +307,7 @@ export function CurrentMonthActionHub({
             isAwaitingBill,
             isNoStatementService,
             isPrepaid,
+            nextStatement,
           }) => {
             const isSettled = group === "SETTLED" || group === "SKIPPED";
           const isOverdue = group === "OVERDUE";
@@ -362,12 +369,21 @@ export function CurrentMonthActionHub({
                           );
                         })()
                       ) : isSettled ? (
-                        <span className="text-emerald-400 font-medium flex items-center gap-1">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span>Paid on {cycle.lastPaymentDate ? formatDisplayDate(cycle.lastPaymentDate) : "Time"}</span>
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-emerald-400 font-medium flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Paid on {cycle.lastPaymentDate ? formatDisplayDate(cycle.lastPaymentDate) : "Time"}</span>
+                          </span>
+                          {nextStatement && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-cyan-500/10 border border-cyan-500/25 px-2 py-0.5 text-[11px] font-semibold text-cyan-300">
+                              <span>📄</span>
+                              <span>{nextStatement.displayText}</span>
+                              <span className="text-slate-400 font-normal">({nextStatement.formattedDate})</span>
+                            </span>
+                          )}
+                        </div>
                       ) : isOverdue ? (
                         <span className="text-rose-400 font-bold flex items-center gap-1">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -382,6 +398,20 @@ export function CurrentMonthActionHub({
                           </svg>
                           <span>Due {daysDiff === 0 ? "Today" : `in ${daysDiff} day${daysDiff! > 1 ? "s" : ""}`}</span>
                         </span>
+                      ) : isAwaitingBill ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-slate-400 font-medium flex items-center gap-1">
+                            <span>⏳</span>
+                            <span>Awaiting bill</span>
+                          </span>
+                          {nextStatement && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[11px] font-bold text-cyan-200 animate-pulse">
+                              <span>📄</span>
+                              <span>{nextStatement.displayText}</span>
+                              <span className="text-slate-300 font-normal">({nextStatement.formattedDate})</span>
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-slate-400 font-medium">
                           Due {cycle.dueDate ? formatDisplayDate(cycle.dueDate) : `Day ${sub.dueDayOfMonth || "N/A"}`}
@@ -445,13 +475,17 @@ export function CurrentMonthActionHub({
                     {isPrepaid
                       ? "⚡ PREPAID ACTIVE"
                       : isSettled
-                      ? "FULLY PAID"
+                      ? nextStatement
+                        ? `FULLY PAID • ${nextStatement.displayText.toUpperCase()}`
+                        : "FULLY PAID"
                       : isOverdue
                       ? "OVERDUE"
                       : isDueSoon
                       ? "DUE SOON"
                       : isAwaitingBill
-                      ? "⏳ AWAITING BILL"
+                      ? nextStatement
+                        ? `⏳ AWAITING BILL • ${nextStatement.displayText.toUpperCase()}`
+                        : "⏳ AWAITING BILL"
                       : isNoStatementService
                       ? "⚡ PAY YOUR DUE"
                       : "PENDING"}

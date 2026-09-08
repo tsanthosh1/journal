@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 
 interface GmailSyncBannerProps {
   isConnected: boolean;
@@ -175,6 +176,15 @@ export function GmailSyncBanner({
                 </svg>
                 <span>{isSyncing ? "Syncing..." : "Sync Gmail"}</span>
               </button>
+
+              <Link
+                href="/sync/logs"
+                className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700/80 hover:text-white transition"
+                title="View file storage audit logs of all past sync sessions"
+              >
+                <span>📋</span>
+                <span>Sync Logs</span>
+              </Link>
 
               {showConfirmDisconnect ? (
                 <div className="flex items-center gap-1">

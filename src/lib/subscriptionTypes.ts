@@ -1,7 +1,7 @@
 // Billing Models & Schema definitions for Subscriptions and Outflow Tracker
 
 export type BillingType = "FIXED_TENURE" | "BILL_GENERATED";
-export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED" | "TNEB_MODULE";
+export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED" | "TNEB_MODULE" | "APARTMENT_MODULE" | "CHENNAI_WATER_MODULE";
 export type BillingCycle = "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "ANNUAL" | "CUSTOM";
 export type PaymentStatus =
   | "UNPAID"
@@ -142,6 +142,21 @@ export interface TnebSubscriptionConfig {
   autoSyncWithEbModule?: boolean;
 }
 
+export interface ApartmentSubscriptionConfig {
+  apartmentId?: string;
+  apartmentName?: string;
+  flatNumber?: string;
+  categoryFilter?: string; // e.g. "Maintenance Bill" | "Water Bill" | "Corpus Fund" | "ALL"
+  autoSyncWithApartmentModule?: boolean;
+}
+
+export interface ChennaiWaterSubscriptionConfig {
+  billNumber?: string; // New Bill Number e.g. "15-193-097538"
+  existingBillNumber?: string; // e.g. "15-193-56648-000"
+  componentType?: "TAX_AND_CHARGES" | "TAX_ONLY" | "CHARGES_ONLY";
+  autoSyncWithMetroWaterModule?: boolean;
+}
+
 export interface Subscription {
   id: string;
   userId: string;
@@ -153,9 +168,13 @@ export interface Subscription {
   defaultAmount: number;
   billingCycle: BillingCycle;
   dueDayOfMonth?: number; // 1-31 (Optional for postpaid bills)
+  statementDayOfMonth?: number; // 1-31 (Optional day of month when statement is generated)
+  statementDate?: string | number; // Alias / optional statement date or day of month
   isEndOfMonthDue?: boolean; // True if due on last day of month (e.g. 28-31)
   allowSkip?: boolean; // True if missed month is skipped without overdue penalty (e.g. jewellery schemes / voluntary SIPs)
   isPrepaid?: boolean; // True for OTTs / services paid upfront for the upcoming period
+  isAdvancePayment?: boolean; // True for schemes where payment IS the statement (e.g. jewellery chits, prepaid deposits)
+  /** @deprecated Use emailConfig.dedupStrategy instead. Kept for backward compatibility. */
   dedupStrategy?: DedupStrategy;
   notes?: string;
   imageUrl?: string; // Custom uploaded image URL or online logo URL
@@ -164,6 +183,8 @@ export interface Subscription {
   emailConfig?: EmailConfig;
   smsConfig?: SmsConfig;
   tnebConfig?: TnebSubscriptionConfig;
+  apartmentConfig?: ApartmentSubscriptionConfig;
+  chennaiWaterConfig?: ChennaiWaterSubscriptionConfig;
   currentCycle: CycleState;
   createdAt: string;
   updatedAt: string;

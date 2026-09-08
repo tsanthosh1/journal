@@ -6,20 +6,16 @@ import {
   Subscription,
   calculatePrepaidRenewalInfo,
 } from "./subscriptionTypes";
-
-function sanitizeForFirestore(obj: any): any {
-  if (obj === undefined) return null;
-  if (obj === null || typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
-
-  const cleaned: Record<string, any> = {};
-  for (const [key, val] of Object.entries(obj)) {
-    if (val !== undefined) {
-      cleaned[key] = sanitizeForFirestore(val);
-    }
-  }
-  return cleaned;
-}
+import {
+  sanitizeForFirestore,
+  isPrepaidSubscription,
+  isFixedTenure,
+  calculateDueDate,
+  computePaymentStatus,
+  computeRemainingBalance,
+  getCurrentCycleMonth,
+  getCycleDocId,
+} from "./subscriptionUtils";
 
 export async function ensureSubscriptionCurrentMonth(
   sub: Subscription,
@@ -31,10 +27,7 @@ export async function ensureSubscriptionCurrentMonth(
   const current = sub.currentCycle;
 
   // 0. Prepaid Validity Check: If current cycle's prepaid period is still active, do NOT roll over!
-  const isPrepaid =
-    sub.isPrepaid ||
-    sub.category === "Entertainment" ||
-    (!sub.dueDayOfMonth && sub.billingType === "BILL_GENERATED" && !sub.emailConfig?.paymentQuery);
+  const isPrepaid = isPrepaidSubscription(sub);
 
   if (isPrepaid && current && (current.statementDate || current.lastPaymentDate)) {
     const pInfo = calculatePrepaidRenewalInfo(current, sub.billingCycle, sub.dueDayOfMonth);
@@ -80,28 +73,10 @@ export async function ensureSubscriptionCurrentMonth(
     }
 
     // 2. Compute new Due Date for current calendar month
-    let calculatedDueDate: string | undefined = undefined;
-    const [yStr, mStr] = currentMonthStr.split("-");
-    const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
-
-    if (sub.dueDayOfMonth) {
-      const validDay = Math.min(sub.dueDayOfMonth, maxDays);
-      calculatedDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
-    } else if (sub.isEndOfMonthDue) {
-      calculatedDueDate = `${yStr}-${mStr}-${String(maxDays).padStart(2, "0")}`;
-    } else if (!sub.isPrepaid) {
-      calculatedDueDate = `${yStr}-${mStr}-15`;
-    }
+    const calculatedDueDate = calculateDueDate(currentMonthStr, sub);
 
     // 3. Compute Statement Total and Paid Amounts
-    const isPrepaid =
-      sub.isPrepaid ||
-      sub.category === "Entertainment" ||
-      (!sub.dueDayOfMonth && sub.billingType === "BILL_GENERATED" && !sub.emailConfig?.paymentQuery);
-
-    const isFixed =
-      sub.billingType === "FIXED_TENURE" ||
-      sub.category === "Loans & EMIs";
+    const isFixed = isFixedTenure(sub);
 
     const statementTotal = isFixed || isPrepaid ? sub.defaultAmount || 0 : 0;
     const paidAmount = isPrepaid ? statementTotal : 0;
@@ -135,7 +110,7 @@ export async function ensureSubscriptionCurrentMonth(
         updatedAt: new Date().toISOString(),
       });
 
-      const newCycleId = `${sub.id}_${currentMonthStr}`;
+      const newCycleId = getCycleDocId(sub.id, currentMonthStr);
       const newCycleRecord: HistoricalCycle = {
         id: newCycleId,
         subscriptionId: sub.id,
@@ -180,9 +155,9 @@ export async function listSubscriptions(userId = "default_user"): Promise<Subscr
     .where("userId", "in", possibleUserIds.slice(0, 10))
     .get();
 
-  // Fallback: If no subscriptions found under user filters, fetch all subscriptions in Firestore
+  // No insecure fallback — return empty if no subscriptions match the user
   if (snap.empty) {
-    snap = await db.collection("subscriptions").limit(100).get();
+    return [];
   }
 
   const rawList: Subscription[] = [];
@@ -190,13 +165,8 @@ export async function listSubscriptions(userId = "default_user"): Promise<Subscr
     rawList.push({ id: doc.id, ...(doc.data() as Omit<Subscription, "id">) });
   });
 
-  // Roll forward any outdated cycles to the current calendar month
-  const list = await Promise.all(
-    rawList.map((sub) => ensureSubscriptionCurrentMonth(sub, db)),
-  );
-
-  // Sort by upcoming dueDate ascending
-  return list.sort((a, b) => {
+  // Pure read: do not perform write-side-effects during read operations
+  return rawList.sort((a, b) => {
     const dA = a.currentCycle?.dueDate || "9999-99-99";
     const dB = b.currentCycle?.dueDate || "9999-99-99";
     return dA.localeCompare(dB);
@@ -207,8 +177,7 @@ export async function getSubscription(id: string): Promise<Subscription | null> 
   const { db } = getFirebaseAdmin();
   const snap = await db.collection("subscriptions").doc(id).get();
   if (!snap.exists) return null;
-  const sub = { id: snap.id, ...(snap.data() as Omit<Subscription, "id">) };
-  return ensureSubscriptionCurrentMonth(sub, db);
+  return { id: snap.id, ...(snap.data() as Omit<Subscription, "id">) };
 }
 
 export async function createSubscription(
@@ -264,9 +233,21 @@ export async function createSubscription(
     defaultAmount: data.defaultAmount || 0,
     billingCycle: data.billingCycle,
     dueDayOfMonth: data.dueDayOfMonth,
+    statementDayOfMonth: data.statementDayOfMonth,
+    statementDate: data.statementDate,
+    isEndOfMonthDue: data.isEndOfMonthDue,
+    allowSkip: data.allowSkip,
+    isPrepaid: data.isPrepaid,
+    isAdvancePayment: data.isAdvancePayment,
+    imageUrl: data.imageUrl,
+    icon: data.icon,
+    color: data.color,
     notes: data.notes,
     emailConfig: data.emailConfig,
     smsConfig: data.smsConfig,
+    tnebConfig: data.tnebConfig,
+    apartmentConfig: data.apartmentConfig,
+    chennaiWaterConfig: data.chennaiWaterConfig,
     currentCycle,
     createdAt: now,
     updatedAt: now,
@@ -359,25 +340,13 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
   const { db } = getFirebaseAdmin();
   const subscription = await getSubscription(subscriptionId);
 
-  // Query primary subscription_cycles collection
-  const snap1 = await db
+  // Single source of truth: subscription_cycles collection
+  const snap = await db
     .collection("subscription_cycles")
     .where("subscriptionId", "==", subscriptionId)
     .get();
 
-  // Query subcollection subscriptions/{id}/cycles
-  const snap2 = await db
-    .collection("subscriptions")
-    .doc(subscriptionId)
-    .collection("cycles")
-    .get();
-
-  const isPrepaidSub =
-    subscription?.isPrepaid ||
-    subscription?.category === "Entertainment" ||
-    (!subscription?.dueDayOfMonth &&
-      subscription?.billingType === "BILL_GENERATED" &&
-      !subscription?.emailConfig?.paymentQuery);
+  const isPrepaidSub = subscription ? isPrepaidSubscription(subscription) : false;
 
   const cycleMap = new Map<string, HistoricalCycle>();
 
@@ -398,10 +367,7 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
 
     let cycleDueDate = data.dueDate;
     if (!cycleDueDate && !isPrepaidSub && subscription?.dueDayOfMonth) {
-      const [yStr, mStr] = month.split("-");
-      const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
-      const validDay = Math.min(subscription.dueDayOfMonth, maxDays);
-      cycleDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+      cycleDueDate = calculateDueDate(month, subscription);
     }
 
     cycleMap.set(month, {
@@ -414,8 +380,8 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       statementDate: data.statementDate,
       statementTotal,
       paidAmount,
-      remainingBalance: remainingBalance ?? Math.max(0, statementTotal - paidAmount),
-      status: status || (paidAmount >= statementTotal && statementTotal > 0 ? "FULLY_PAID" : "UNPAID"),
+      remainingBalance: remainingBalance ?? computeRemainingBalance(statementTotal, paidAmount),
+      status: status || computePaymentStatus(statementTotal, paidAmount, { isPrepaid: isPrepaidSub }),
       lastPaymentDate: data.lastPaymentDate,
       processedMessageIds: data.processedMessageIds || [],
       sourceEmails: data.sourceEmails,
@@ -425,8 +391,7 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
     });
   };
 
-  snap2.forEach((doc) => processDoc(doc.id, doc.data()));
-  snap1.forEach((doc) => processDoc(doc.id, doc.data()));
+  snap.forEach((doc) => processDoc(doc.id, doc.data()));
 
   // Also include currentCycle if present and has actual data
   if (subscription?.currentCycle?.cycleMonth) {
@@ -437,10 +402,10 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       (curCycle.paidAmount && curCycle.paidAmount > 0) ||
       (curCycle.sourceEmails && curCycle.sourceEmails.length > 0) ||
       (curCycle.sourceSms && curCycle.sourceSms.length > 0) ||
-      subscription.billingType === "FIXED_TENURE";
+      isFixedTenure(subscription);
 
     if (!cycleMap.has(curMonth) && hasData) {
-      processDoc(`${subscriptionId}_${curMonth}`, curCycle);
+      processDoc(getCycleDocId(subscriptionId, curMonth), curCycle);
     }
   }
 
@@ -449,7 +414,7 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       (c.statementTotal && c.statementTotal > 0) ||
       (c.paidAmount && c.paidAmount > 0) ||
       (c.sourceEmails && c.sourceEmails.length > 0) ||
-      subscription?.billingType === "FIXED_TENURE",
+      (subscription ? isFixedTenure(subscription) : false),
   );
   return list.sort((a, b) => b.cycleMonth.localeCompare(a.cycleMonth));
 }
@@ -465,31 +430,23 @@ export async function overrideCycleState(
   }
 
   const current = subscription.currentCycle;
-  const targetMonth = updates.cycleMonth || current?.cycleMonth || new Date().toISOString().slice(0, 7);
+  const targetMonth = updates.cycleMonth || current?.cycleMonth || getCurrentCycleMonth();
   const now = new Date().toISOString();
 
   // Try to load existing cycle data for targetMonth
-  const cycleDocId = `${subscriptionId}_${targetMonth}`;
+  const cycleDocId = getCycleDocId(subscriptionId, targetMonth);
   const existingCycleSnap = await db.collection("subscription_cycles").doc(cycleDocId).get();
   const existingData = existingCycleSnap.exists ? (existingCycleSnap.data() as CycleState) : current;
 
   const total = updates.statementTotal ?? existingData.statementTotal ?? subscription.defaultAmount ?? 0;
   const paid = updates.paidAmount ?? existingData.paidAmount ?? 0;
-  const remaining = updates.remainingBalance ?? Math.max(0, Math.round((total - paid) * 100) / 100);
+  const remaining = updates.remainingBalance ?? computeRemainingBalance(total, paid);
 
-  let status = updates.status || existingData.status;
-  if (!updates.status) {
-    if (total > 0 && paid >= total) status = "FULLY_PAID";
-    else if (paid > 0) status = "PARTIALLY_PAID";
-    else status = "UNPAID";
-  }
+  const status = updates.status || computePaymentStatus(total, paid, { currentStatus: existingData.status });
 
   let cycleDueDate = updates.dueDate ?? existingData.dueDate;
-  if (!cycleDueDate && subscription.dueDayOfMonth) {
-    const [yStr, mStr] = targetMonth.split("-");
-    const maxDays = new Date(Number(yStr), Number(mStr), 0).getDate();
-    const validDay = Math.min(subscription.dueDayOfMonth, maxDays);
-    cycleDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
+  if (!cycleDueDate) {
+    cycleDueDate = calculateDueDate(targetMonth, subscription);
   }
 
   const mergedCycle: CycleState = {
@@ -513,21 +470,13 @@ export async function overrideCycleState(
     updatedAt: now,
   };
 
-  // 1. Save to global subscription_cycles
+  // Single source of truth: subscription_cycles collection
   await db
     .collection("subscription_cycles")
     .doc(cycleDocId)
     .set(sanitizeForFirestore(cycleRecord), { merge: true });
 
-  // 2. Save to subcollection subscriptions/{id}/cycles/{month}
-  await db
-    .collection("subscriptions")
-    .doc(subscriptionId)
-    .collection("cycles")
-    .doc(targetMonth)
-    .set(sanitizeForFirestore(cycleRecord), { merge: true });
-
-  // 3. If targetMonth is current cycle or newer, update currentCycle on subscription
+  // Update currentCycle on subscription if targetMonth is current or newer
   let updatedSub = subscription;
   if (!current?.cycleMonth || targetMonth >= current.cycleMonth) {
     updatedSub = await updateSubscription(subscriptionId, {
@@ -548,14 +497,9 @@ export async function deleteSubscriptionCycle(
     throw new Error(`Subscription with ID ${subscriptionId} not found.`);
   }
 
-  const cycleDocId = `${subscriptionId}_${cycleMonth}`;
+  const cycleDocId = getCycleDocId(subscriptionId, cycleMonth);
+  // Single source of truth: only delete from subscription_cycles
   await db.collection("subscription_cycles").doc(cycleDocId).delete();
-  await db
-    .collection("subscriptions")
-    .doc(subscriptionId)
-    .collection("cycles")
-    .doc(cycleMonth)
-    .delete();
 
   let updatedSub = subscription;
   if (subscription.currentCycle?.cycleMonth === cycleMonth) {

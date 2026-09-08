@@ -8,6 +8,7 @@ import {
   formatCycleMonth,
   formatDisplayDate,
 } from "@/lib/subscriptionTypes";
+import { isPrepaidSubscription } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { ManualOverrideModal } from "./ManualOverrideModal";
 import { useAuth } from "@/context/AuthContext";
@@ -94,12 +95,7 @@ export function HistoricalCyclesModal({
 
   if (!isOpen || !subscription) return null;
 
-  const isPrepaidSub =
-    Boolean(subscription.isPrepaid) ||
-    subscription.category === "Entertainment" ||
-    (!subscription.dueDayOfMonth &&
-      subscription.billingType === "BILL_GENERATED" &&
-      !subscription.emailConfig?.paymentQuery);
+  const isPrepaidSub = isPrepaidSubscription(subscription);
 
   const handleTriggerSmsReconciliation = async () => {
     setIsScanningHistorical(true);

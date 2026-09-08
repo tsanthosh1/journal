@@ -6,6 +6,7 @@ import {
   SubscriptionCategory,
   formatDisplayDate,
 } from "@/lib/subscriptionTypes";
+import { isPrepaidSubscription } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { SubscriptionCard } from "./SubscriptionCard";
 
@@ -266,12 +267,7 @@ export function SubscriptionList({
               </thead>
               <tbody className="divide-y divide-white/5 font-medium">
                 {filteredSubscriptions.map((sub) => {
-                  const isPrepaid =
-                    Boolean(sub.isPrepaid) ||
-                    sub.category === "Entertainment" ||
-                    (!sub.dueDayOfMonth &&
-                      sub.billingType === "BILL_GENERATED" &&
-                      !sub.emailConfig?.paymentQuery);
+                  const isPrepaid = isPrepaidSubscription(sub);
 
                   const cycle = sub.currentCycle;
                   const total = cycle.statementTotal > 0 ? cycle.statementTotal : sub.defaultAmount;

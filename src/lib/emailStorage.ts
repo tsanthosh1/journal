@@ -1,5 +1,9 @@
 import { getFirebaseAdmin, getFirebaseStorageBucketName } from "./firebaseAdmin";
 import { SourceEmailRecord } from "./subscriptionTypes";
+import { sanitizeForFirestore } from "./subscriptionUtils";
+
+// Re-export for backward compatibility — all existing consumers import from here
+export { sanitizeForFirestore };
 
 export interface EmailArchiveInput {
   userId: string;
@@ -20,15 +24,6 @@ export interface EmailArchiveInput {
   accountOrCardDigits?: string;
   referenceId?: string;
   rawMatches?: Record<string, string>;
-}
-
-/**
- * Deeply strips undefined properties from an object so Firestore operations never reject it
- */
-export function sanitizeForFirestore<T>(data: T): T {
-  return JSON.parse(
-    JSON.stringify(data, (_, value) => (value === undefined ? null : value)),
-  );
 }
 
 /**

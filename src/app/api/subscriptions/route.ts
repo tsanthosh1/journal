@@ -4,13 +4,25 @@ import {
   listSubscriptions,
 } from "@/lib/serverSubscriptions";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId") || "default_user";
 
     const subscriptions = await listSubscriptions(userId);
-    return NextResponse.json({ subscriptions });
+    return NextResponse.json(
+      { subscriptions },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      },
+    );
   } catch (error) {
     console.error("GET /api/subscriptions error:", error);
     return NextResponse.json(

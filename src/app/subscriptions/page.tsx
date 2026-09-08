@@ -140,7 +140,16 @@ function SubscriptionsPageContent() {
 
     try {
       const qUserId = user?.email || user?.uid || userId || "default_user";
-      const res = await fetch(`/api/subscriptions?userId=${encodeURIComponent(qUserId)}`);
+      const res = await fetch(
+        `/api/subscriptions?userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`,
+        {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+          },
+        },
+      );
       if (res.ok) {
         const data = await res.json();
         setSubscriptions(data.subscriptions || []);
@@ -165,6 +174,12 @@ function SubscriptionsPageContent() {
         body: JSON.stringify({ ...subData, userId: qUserId }),
       });
       if (!res.ok) throw new Error("Failed to update subscription");
+      const data = await res.json();
+      if (data.subscription) {
+        setSubscriptions((prev) =>
+          prev.map((s) => (s.id === editingSubscription.id ? data.subscription : s)),
+        );
+      }
     } else {
       const res = await fetch("/api/subscriptions", {
         method: "POST",
@@ -172,7 +187,13 @@ function SubscriptionsPageContent() {
         body: JSON.stringify({ ...subData, userId: qUserId }),
       });
       if (!res.ok) throw new Error("Failed to create subscription");
+      const data = await res.json();
+      if (data.subscription) {
+        setSubscriptions((prev) => [data.subscription, ...prev]);
+      }
     }
+    setIsSubscriptionModalOpen(false);
+    setEditingSubscription(null);
     await fetchSubscriptions();
   };
 
@@ -187,28 +208,107 @@ function SubscriptionsPageContent() {
     }
   };
 
-  const handleSaveOverride = async (overrideData: any) => {
-    if (!overrideSubscription) return;
-    const res = await fetch(`/api/subscriptions/${overrideSubscription.id}/override`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(overrideData),
-    });
-    if (!res.ok) throw new Error("Failed to override subscription");
-    await fetchSubscriptions();
+  const handleSaveOverride = async (subIdOrData: any, maybeUpdates?: any) => {
+    const subId = typeof subIdOrData === "string" ? subIdOrData : overrideSubscription?.id;
+    const updates = typeof subIdOrData === "string" ? maybeUpdates : subIdOrData;
+
+    if (!subId) return;
+    try {
+      const res = await fetch(`/api/subscriptions/${subId}/cycle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to override subscription");
+      }
+      const data = await res.json();
+      if (data.subscription) {
+        setSubscriptions((prev) =>
+          prev.map((s) => (s.id === subId ? data.subscription : s)),
+        );
+      }
+      setIsOverrideModalOpen(false);
+      setOverrideSubscription(null);
+      await fetchSubscriptions();
+    } catch (err) {
+      console.error("Save override error:", err);
+      throw err;
+    }
   };
 
   const handleQuickMarkPaid = async (sub: Subscription) => {
-    const total = sub.currentCycle.statementTotal || sub.defaultAmount || 0;
+    const total =
+      (sub.currentCycle?.statementTotal && sub.currentCycle.statementTotal > 0)
+        ? sub.currentCycle.statementTotal
+        : (sub.defaultAmount || 0);
+
+    const targetMonth = sub.currentCycle?.cycleMonth || new Date().toISOString().slice(0, 7);
+    const todayIso = new Date().toISOString().split("T")[0];
+
+    // 1. Optimistic UI update so card and button immediately transition to PAID
+    const optimisticCycle = {
+      ...sub.currentCycle,
+      cycleMonth: targetMonth,
+      statementTotal: total,
+      paidAmount: total,
+      remainingBalance: 0,
+      lastPaymentDate: todayIso,
+      status: "FULLY_PAID" as const,
+      updatedAt: new Date().toISOString(),
+    };
+    const optimisticSub: Subscription = {
+      ...sub,
+      currentCycle: optimisticCycle,
+    };
+
+    setSubscriptions((prev) =>
+      prev.map((s) => (s.id === sub.id ? optimisticSub : s)),
+    );
+
     try {
-      await handleSaveOverride({
-        statementTotal: total,
-        paidAmount: total,
-        dueDate: sub.currentCycle.dueDate,
-        status: "FULLY_PAID",
+      const res = await fetch(`/api/subscriptions/${sub.id}/cycle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cycleMonth: targetMonth,
+          statementTotal: total,
+          paidAmount: total,
+          remainingBalance: 0,
+          lastPaymentDate: todayIso,
+          dueDate: sub.currentCycle?.dueDate,
+          status: "FULLY_PAID",
+        }),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to mark as paid");
+      }
+
+      const resData = await res.json();
+      if (resData.subscription) {
+        setSubscriptions((prev) =>
+          prev.map((s) => (s.id === sub.id ? resData.subscription : s)),
+        );
+      }
+
+      setBannerNotice({
+        type: "success",
+        message: `Successfully marked "${sub.name}" as fully paid for ${targetMonth}!`,
+      });
+
+      // Background re-fetch to ensure all server aggregates stay in perfect sync
+      await fetchSubscriptions();
     } catch (err) {
       console.error("Failed to mark as paid:", err);
+      // Revert to server state on error
+      await fetchSubscriptions();
+      setBannerNotice({
+        type: "error",
+        message: `Failed to mark "${sub.name}" as paid: ${(err as Error).message}`,
+      });
     }
   };
 

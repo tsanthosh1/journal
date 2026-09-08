@@ -8,6 +8,7 @@ import {
   formatDisplayDate,
   calculatePrepaidRenewalInfo,
 } from "@/lib/subscriptionTypes";
+import { isPrepaidSubscription, isFixedTenure, getNextStatementInfo } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 
 interface SubscriptionCardProps {
@@ -35,12 +36,7 @@ export function SubscriptionCard({
 }: SubscriptionCardProps) {
   const [copied, setCopied] = useState(false);
 
-  const isPrepaid =
-    Boolean(subscription.isPrepaid) ||
-    subscription.category === "Entertainment" ||
-    (!subscription.dueDayOfMonth &&
-      subscription.billingType === "BILL_GENERATED" &&
-      !subscription.emailConfig?.paymentQuery);
+  const isPrepaid = isPrepaidSubscription(subscription);
 
   const cycle = subscription.currentCycle;
   const isPaid = isPrepaid || cycle.status === "FULLY_PAID";
@@ -48,20 +44,26 @@ export function SubscriptionCard({
   const isReview = cycle.status === "MISMATCH_REVIEW";
   const isPaused = cycle.status === "PAUSED";
 
-  const isFixed =
-    subscription.billingType === "FIXED_TENURE" ||
-    subscription.category === "Loans & EMIs";
+  const isFixed = isFixedTenure(subscription);
+
+  const hasStatementConfig = Boolean(
+    subscription.source === "TNEB_MODULE" ||
+      subscription.source === "APARTMENT_MODULE" ||
+      subscription.source === "CHENNAI_WATER_MODULE" ||
+      (subscription.emailConfig?.statementQuery && subscription.emailConfig.statementQuery.trim()),
+  );
 
   const total =
     cycle.statementTotal > 0
       ? cycle.statementTotal
-      : isFixed
+      : isFixed || !hasStatementConfig
       ? subscription.defaultAmount || 0
       : 0;
 
   const paid = isPrepaid ? total : cycle.paidAmount || 0;
   const remaining = isPrepaid ? 0 : cycle.remainingBalance !== undefined && cycle.remainingBalance > 0 ? cycle.remainingBalance : Math.max(0, total - paid);
   const percentPaid = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : isPaid ? 100 : 0;
+  const nextStatement = getNextStatementInfo(subscription);
 
   const handleCopyConfig = async () => {
     const configPayload = {
@@ -74,6 +76,7 @@ export function SubscriptionCard({
       billingCycle: subscription.billingCycle,
       isPrepaid: subscription.isPrepaid,
       dueDayOfMonth: subscription.dueDayOfMonth,
+      statementDayOfMonth: subscription.statementDayOfMonth,
       emailConfig: subscription.emailConfig
         ? {
             enabled: subscription.emailConfig.enabled,
@@ -95,14 +98,7 @@ export function SubscriptionCard({
     }
   };
 
-  const isFixedCommitment =
-    subscription.billingType === "FIXED_TENURE" ||
-    subscription.category === "Loans & EMIs";
-
-  const hasStatementConfig = Boolean(
-    subscription.emailConfig?.statementQuery &&
-      subscription.emailConfig.statementQuery.trim(),
-  );
+  const isFixedCommitment = isFixed;
 
   const isNoStatementService =
     !isPrepaid && !isPaid && !isFixedCommitment && !hasStatementConfig;
@@ -140,6 +136,11 @@ export function SubscriptionCard({
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
         Fully Paid
+        {nextStatement && (
+          <span className="text-cyan-300 font-normal ml-1 border-l border-white/10 pl-1.5 text-[10px]">
+            {nextStatement.displayText}
+          </span>
+        )}
       </span>
     );
   } else if (isNoStatementService) {
@@ -153,7 +154,7 @@ export function SubscriptionCard({
     statusBadge = (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-xs font-medium text-slate-300">
         <span className="h-1.5 w-1.5 rounded-full bg-cyan-400/80" />
-        ⏳ Awaiting Bill
+        {nextStatement ? nextStatement.displayText : "⏳ Awaiting Bill"}
       </span>
     );
   } else if (isPartiallyPaid) {
@@ -218,6 +219,18 @@ export function SubscriptionCard({
                   <span className="inline-flex items-center gap-1 rounded-lg bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[11px] font-bold text-amber-300">
                     ⚡ TNEB Portal
                   </span>
+                ) : subscription.source === "APARTMENT_MODULE" ? (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 border border-indigo-500/40 px-2 py-0.5 text-[11px] font-bold text-indigo-300">
+                    🏢 Apartment
+                  </span>
+                ) : subscription.source === "CHENNAI_WATER_MODULE" ? (
+                  <Link
+                    href="/chennai-water"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded-lg bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 text-[11px] font-bold text-sky-300 hover:bg-sky-500/30 transition"
+                  >
+                    💧 Metro Water
+                  </Link>
                 ) : subscription.source === "SMS_AUTOMATED" ? (
                   <span className="inline-flex items-center gap-1 rounded-lg bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[11px] font-medium text-teal-300">
                     💬 SMS Sync
@@ -339,9 +352,28 @@ export function SubscriptionCard({
               </div>
               <div className="text-right">
                 <span className="text-slate-500 block text-[11px]">Cycle Month</span>
-                <span className="font-medium text-slate-200">{formatCycleMonth(cycle.cycleMonth)}</span>
+                <span className="font-medium text-slate-200">
+                  {formatCycleMonth(cycle.cycleMonth)}
+                  {!isPrepaid && cycle.cycleMonth && cycle.cycleMonth < new Date().toISOString().slice(0, 7) && (
+                    <span className="ml-1.5 text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded font-normal">
+                      Prior
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
+
+            {nextStatement && (isPaid || isAwaitingBill) && (
+              <div className="mt-2.5 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs">
+                <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                  <span>📄</span>
+                  <span>Next Statement</span>
+                </span>
+                <span className="font-semibold text-cyan-300 font-mono text-[11px] bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-md">
+                  {nextStatement.displayText} ({nextStatement.formattedDate})
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -358,6 +390,23 @@ export function SubscriptionCard({
               onClick={(e) => e.stopPropagation()}
             >
               <span>View EB Ledger 📊 →</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Apartment Module actions */}
+        {subscription.source === "APARTMENT_MODULE" && (
+          <div className="mt-2.5 flex items-center justify-between text-xs text-slate-400 px-1">
+            <span className="text-[11px] text-indigo-300/90 font-medium flex items-center gap-1">
+              <span>🏢</span>
+              <span>{subscription.apartmentConfig?.flatNumber ? `Flat ${subscription.apartmentConfig.flatNumber}` : subscription.apartmentConfig?.apartmentName || "Apartment"}</span>
+            </span>
+            <Link
+              href="/apartment"
+              className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer flex items-center gap-1 text-[11px] hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span>View Apartment Bills 📋 →</span>
             </Link>
           </div>
         )}

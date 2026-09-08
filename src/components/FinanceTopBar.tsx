@@ -12,7 +12,10 @@ export function FinanceTopBar({ title }: { title?: string }) {
 
   const navLinks = [
     { href: "/subscriptions", label: "Subscriptions & Bills", badge: "Sync" },
+    { href: "/sync/logs", label: "Sync Logs", badge: "Files" },
     { href: "/tneb", label: "EB Bills", badge: "TNEB" },
+    { href: "/apartment", label: "Apartment", badge: "Homefy" },
+    { href: "/chennai-water", label: "Metro Water", badge: "CMWSSB" },
     { href: "/statements", label: "Statements" },
     { href: "/parsers", label: "Parsers", badge: "Labs" },
     { href: "/import", label: "Import" },

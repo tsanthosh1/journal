@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { overrideSubscriptionCycle, deleteSubscriptionCycle } from "@/lib/serverSubscriptions";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -14,7 +17,14 @@ export async function POST(
       return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ subscription: updated });
+    return NextResponse.json(
+      { subscription: updated },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        },
+      },
+    );
   } catch (error) {
     console.error("POST /api/subscriptions/[id]/cycle error:", error);
     return NextResponse.json(
