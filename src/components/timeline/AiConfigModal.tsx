@@ -208,10 +208,10 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none cursor-pointer"
               >
-                <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended - Latest &amp; Fastest)</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended - Fastest &amp; Most Accurate)</option>
+                <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Ultra-Low Latency &lt; 1s)</option>
+                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
               </select>
             ) : (
               <select

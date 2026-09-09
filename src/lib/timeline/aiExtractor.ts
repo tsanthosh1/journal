@@ -353,14 +353,20 @@ async function extractWithGemini(
   audioBase64?: string,
   audioMimeType?: string
 ): Promise<{ parsed: any; transcript?: string; modelUsed: string }> {
-  // Candidate flash models in order of stability and recency
+  const normalizedModel = (model || "").toLowerCase();
+  // Automatically upgrade retired/deprecated 1.5/2.5 models to active 3.6 flash
+  const primaryModel = (normalizedModel.includes("1.5") || normalizedModel.includes("2.5") || !normalizedModel)
+    ? "gemini-3.6-flash"
+    : model;
+
+  // Active, verified flash models in order of speed and stability
   const candidateModels = Array.from(new Set([
-    model,
-    "gemini-2.5-flash",
-    "gemini-flash-latest",
+    primaryModel,
     "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
     "gemini-3.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-3.7-flash",
   ])).filter(Boolean);
 
   const userParts: any[] = [];
