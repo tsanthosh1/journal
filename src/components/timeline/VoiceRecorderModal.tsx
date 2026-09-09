@@ -76,7 +76,7 @@ export function VoiceRecorderModal({
   }, [isOpen]);
 
   // Start raw microphone audio capture
-  const startAudioCapture = async () => {
+  const startAudioCapture = async (): Promise<boolean> => {
     try {
       audioChunksRef.current = [];
       audioBase64Ref.current = null;
@@ -122,13 +122,20 @@ export function VoiceRecorderModal({
 
         recorder.start(250);
         mediaRecorderRef.current = recorder;
+        return true;
       }
+      return false;
     } catch (err: any) {
       console.warn("[VoiceRecorder] MediaRecorder capture error:", err);
       if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
-        setError("Microphone permission denied. Please allow microphone access in your browser settings.");
+        setError(
+          "Microphone permission blocked by macOS. Please open System Settings > Privacy & Security > Microphone and ensure Google Chrome is toggled ON."
+        );
         setIsRecording(false);
+      } else {
+        setError(`Microphone error: ${err.message || err.name || "Access denied"}`);
       }
+      return false;
     }
   };
 
@@ -182,9 +189,18 @@ export function VoiceRecorderModal({
 
       recognition.onerror = (event: any) => {
         console.warn("[VoiceRecorder] Speech error:", event.error);
+        // If raw audio is currently capturing, don't abort the session on speech service error!
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          console.log("[VoiceRecorder] Raw audio capture is active; Gemini will transcribe from audio.");
+          return;
+        }
         if (event.error === "not-allowed") {
-          setError("Microphone permission denied. Please allow microphone access in your browser settings.");
+          setError(
+            "Microphone permission blocked. Please check macOS System Settings > Privacy & Security > Microphone to allow Google Chrome."
+          );
           setIsRecording(false);
+        } else if (event.error === "network") {
+          console.warn("[VoiceRecorder] Speech recognition network error; continuing with audio recording if available.");
         }
       };
 
@@ -221,16 +237,11 @@ export function VoiceRecorderModal({
       }
     } catch (err: any) {
       console.warn("[VoiceRecorder] Microphone permission request error:", err);
-      setError("Microphone permission denied. Please allow microphone access in your browser settings (click the icon in your address bar).");
+      setError("Microphone permission denied in macOS. Open System Settings > Privacy & Security > Microphone and toggle Google Chrome ON.");
     }
   };
 
-  const toggleRecording = () => {
-    if (!speechSupported) {
-      alert("Web Speech API is not supported in this browser. You can type your notes directly!");
-      return;
-    }
-
+  const toggleRecording = async () => {
     setError(null);
     if (isRecording) {
       setIsRecording(false);
@@ -238,15 +249,23 @@ export function VoiceRecorderModal({
       try {
         recognitionRef.current?.stop();
       } catch (e) {}
-    } else {
-      startAudioCapture();
+      return;
+    }
+
+    // Try media recorder audio capture
+    const captureOk = await startAudioCapture();
+
+    // Also attempt Web Speech API for real-time live transcription
+    if (speechSupported && recognitionRef.current) {
       try {
-        recognitionRef.current?.start();
-        setIsRecording(true);
+        recognitionRef.current.start();
       } catch (e) {
-        console.error("Failed to start speech recognition:", e);
-        setIsRecording(false);
+        console.warn("Speech recognition start skipped:", e);
       }
+    }
+
+    if (captureOk) {
+      setIsRecording(true);
     }
   };
 
@@ -419,7 +438,7 @@ export function VoiceRecorderModal({
               </div>
               {error.includes("Microphone") && (
                 <p className="text-[11px] text-rose-300/80 border-t border-rose-500/20 pt-1.5 leading-relaxed">
-                  <strong>How to enable:</strong> Click the padlock / tune settings icon next to <code>localhost:3000</code> in your browser address bar and change <strong>Microphone</strong> to <strong>Allow</strong>. You can also type your notes directly in the box below!
+                  <strong>Why this happens on Mac:</strong> Even if Chrome site settings say &quot;Allow&quot;, macOS blocks audio unless granted at the OS level. Open your Mac&apos;s <strong>System Settings &gt; Privacy &amp; Security &gt; Microphone</strong> and make sure <strong>Google Chrome</strong> is turned <strong>ON</strong>.
                 </p>
               )}
             </div>
