@@ -257,17 +257,7 @@ export function getNextStatementInfo(
     }
   }
 
-  // Fallback: If no explicit statementDayOfMonth, check cycle.statementDate day
-  if (!statementDay && sub.currentCycle?.statementDate) {
-    const parts = sub.currentCycle.statementDate.split(/[-/]/);
-    if (parts.length >= 3) {
-      const dayPart = parseInt(parts[2].slice(0, 2), 10);
-      if (!isNaN(dayPart) && dayPart >= 1 && dayPart <= 31) {
-        statementDay = dayPart;
-      }
-    }
-  }
-
+  // Only calculate next statement if explicitly configured on the subscription
   if (!statementDay) return null;
 
   const today = todayIso || getTodayIso();

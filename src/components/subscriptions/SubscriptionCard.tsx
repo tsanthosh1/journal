@@ -136,11 +136,6 @@ export function SubscriptionCard({
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
         Fully Paid
-        {nextStatement && (
-          <span className="text-cyan-300 font-normal ml-1 border-l border-white/10 pl-1.5 text-[10px]">
-            {nextStatement.displayText}
-          </span>
-        )}
       </span>
     );
   } else if (isNoStatementService) {
@@ -154,7 +149,7 @@ export function SubscriptionCard({
     statusBadge = (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-xs font-medium text-slate-300">
         <span className="h-1.5 w-1.5 rounded-full bg-cyan-400/80" />
-        {nextStatement ? nextStatement.displayText : "⏳ Awaiting Bill"}
+        ⏳ Awaiting Bill
       </span>
     );
   } else if (isPartiallyPaid) {

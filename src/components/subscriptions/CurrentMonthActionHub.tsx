@@ -475,24 +475,16 @@ export function CurrentMonthActionHub({
                     {isPrepaid
                       ? "⚡ PREPAID ACTIVE"
                       : isSettled
-                      ? nextStatement
-                        ? `FULLY PAID • ${nextStatement.displayText.toUpperCase()}`
-                        : "FULLY PAID"
+                      ? "FULLY PAID"
                       : isOverdue
                       ? "OVERDUE"
                       : isDueSoon
                       ? "DUE SOON"
                       : isAwaitingBill
-                      ? nextStatement
-                        ? `⏳ AWAITING BILL • ${nextStatement.displayText.toUpperCase()}`
-                        : "⏳ AWAITING BILL"
+                      ? "⏳ AWAITING BILL"
                       : isNoStatementService
                       ? "⚡ PAY YOUR DUE"
                       : "PENDING"}
-                  </span>
-
-                  <span className="text-[11px] text-slate-400 group-hover:text-slate-200 transition">
-                    View details & history →
                   </span>
                 </div>
 
