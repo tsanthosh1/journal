@@ -17,6 +17,10 @@ export default function SyncLogsPage() {
   const [sourceFilter, setSourceFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
+  // Worker state
+  const [workerStatus, setWorkerStatus] = useState<any>(null);
+  const [isTriggeringWorker, setIsTriggeringWorker] = useState(false);
+
   // Detail Modal
   const [selectedLog, setSelectedLog] = useState<SyncFileLogSummary | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,12 +35,35 @@ export default function SyncLogsPage() {
       }
       const data = await res.json();
       setLogs(data.logs || []);
+      if (data.worker) {
+        setWorkerStatus(data.worker);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to fetch logs");
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const handleTriggerWorkerNow = async () => {
+    setIsTriggeringWorker(true);
+    try {
+      const res = await fetch("/api/sync/worker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run_now" }),
+      });
+      const data = await res.json();
+      if (data.worker) {
+        setWorkerStatus(data.worker);
+      }
+      await fetchLogs();
+    } catch (err: any) {
+      alert(`Failed to trigger worker: ${err.message}`);
+    } finally {
+      setIsTriggeringWorker(false);
+    }
+  };
 
   useEffect(() => {
     fetchLogs();
@@ -73,6 +100,7 @@ export default function SyncLogsPage() {
         const actionLower = log.actionName.toLowerCase();
         const logLower = log.logName.toLowerCase();
         const target = sourceFilter.toLowerCase();
+        if (target === "scheduled" && !actionLower.includes("scheduled") && !logLower.includes("scheduled")) return false;
         if (target === "unified" && !actionLower.includes("unified")) return false;
         if (target === "sms" && !actionLower.includes("sms") && !logLower.includes("sms")) return false;
         if (target === "gmail" && !actionLower.includes("gmail") && !logLower.includes("gmail")) return false;
@@ -169,6 +197,85 @@ export default function SyncLogsPage() {
           </div>
         </div>
 
+        {/* Background Sync Worker Banner */}
+        {workerStatus && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-950/40 via-slate-900/60 to-blue-950/40 p-3.5 sm:p-4 shadow-md backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-3 w-3 shrink-0">
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+                    workerStatus.isSyncing ? "bg-amber-400 opacity-75" : "bg-emerald-400 opacity-75"
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex rounded-full h-3 w-3 ${
+                    workerStatus.isSyncing ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-white">
+                    Built-in Node Background Worker
+                  </span>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                      workerStatus.isSyncing
+                        ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                        : "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                    }`}
+                  >
+                    {workerStatus.isSyncing ? "SYNCING..." : "ACTIVE"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <span>
+                    Cadence: <strong className="text-slate-200">Every {workerStatus.intervalMinutes}m</strong>
+                  </span>
+                  {workerStatus.nextRunAt && (
+                    <span>
+                      Next run:{" "}
+                      <strong className="text-slate-200">
+                        {new Date(workerStatus.nextRunAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </strong>
+                    </span>
+                  )}
+                  <span>
+                    Total runs: <strong className="text-slate-200">{workerStatus.totalRuns}</strong>
+                  </span>
+                  {workerStatus.lastRunAt && (
+                    <span>
+                      Last run:{" "}
+                      <strong className="text-slate-200">
+                        {new Date(workerStatus.lastRunAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={isTriggeringWorker || workerStatus.isSyncing}
+                onClick={handleTriggerWorkerNow}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/25 active:scale-95 transition disabled:opacity-50 cursor-pointer shadow-sm"
+                title="Immediately run background sync job"
+              >
+                <span>{isTriggeringWorker || workerStatus.isSyncing ? "⏳" : "⚡"}</span>
+                <span>{isTriggeringWorker || workerStatus.isSyncing ? "Worker Syncing..." : "Trigger Sync Now"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <div className="rounded-2xl border border-white/5 bg-slate-900/50 p-3.5 sm:p-4 shadow-sm backdrop-blur-md">
@@ -222,6 +329,7 @@ export default function SyncLogsPage() {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none text-xs">
             {[
               { id: "ALL", label: "All Logs" },
+              { id: "scheduled", label: "⏰ Scheduled" },
               { id: "unified", label: "Unified" },
               { id: "sms", label: "SMS Engine" },
               { id: "gmail", label: "Gmail" },

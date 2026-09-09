@@ -23,6 +23,7 @@ export interface UnifiedSyncOptions {
   subscriptionId?: string;
   mode?: "current" | "historical";
   maxStatements?: number;
+  trigger?: "MANUAL" | "SCHEDULED" | "WEBHOOK";
 }
 
 export interface UnifiedSyncResult {
@@ -77,9 +78,10 @@ export async function runUnifiedSync(
   const userId = options.userId || "default_user";
   const requestedSources = options.sources && options.sources.length > 0
     ? options.sources
-    : (["GMAIL", "SMS", "TNEB"] as UnifiedSyncSource[]);
+    : (["GMAIL", "SMS", "TNEB", "APARTMENT", "CHENNAI_WATER"] as UnifiedSyncSource[]);
 
-  log("info", `Unified Sync Orchestrator initiated for user "${userId}" [Sources: ${requestedSources.join(", ")}]`);
+  const isScheduled = options.trigger === "SCHEDULED";
+  log("info", `${isScheduled ? "⏰ [SCHEDULED BACKGROUND RUN] " : ""}Unified Sync Orchestrator initiated for user "${userId}" [Sources: ${requestedSources.join(", ")}]`);
 
   const { db } = getFirebaseAdmin();
   const errors: string[] = [];
@@ -364,8 +366,8 @@ export async function runUnifiedSync(
   log("success", `Unified synchronization completed in ${(durationMs / 1000).toFixed(1)}s across [${sourcesRun.join(", ")}]`);
 
   saveSyncLogFile({
-    actionName: `Unified Sync [${sourcesRun.join(", ")}]`,
-    logName: `Unified Sync (${sourcesRun.join(", ")})`,
+    actionName: `${isScheduled ? "[Scheduled] " : ""}Unified Sync [${sourcesRun.join(", ")}]`,
+    logName: isScheduled ? `Scheduled Sync (${sourcesRun.join(", ")})` : `Unified Sync (${sourcesRun.join(", ")})`,
     userId,
     status: errors.length > 0 ? (sourcesRun.length > errors.length ? "WARNING" : "FAILED") : "SUCCESS",
     summary: errors.length > 0

@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listSyncLogs, clearAllSyncLogs } from "@/lib/sync/syncFileLogger";
+import {
+  ensureBackgroundSyncWorkerRunning,
+  getBackgroundSyncWorkerStatus,
+} from "@/lib/sync/backgroundSyncWorker";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    ensureBackgroundSyncWorkerRunning();
+    const workerStatus = getBackgroundSyncWorkerStatus();
+
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const action = searchParams.get("action");
@@ -18,6 +25,7 @@ export async function GET(request: NextRequest) {
       success: true,
       totalCount: logs.length,
       logs,
+      worker: workerStatus,
     });
   } catch (error) {
     console.error("GET /api/sync/logs error:", error);
