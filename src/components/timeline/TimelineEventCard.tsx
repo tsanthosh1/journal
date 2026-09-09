@@ -10,41 +10,6 @@ interface TimelineEventCardProps {
   density?: "comfortable" | "compact";
 }
 
-/**
- * Extract up to 2 concise key metrics (numbers, scores, short values <= 20 chars)
- * to prevent long sentences from polluting compact tag lines.
- */
-function getConciseMetrics(attributes: Record<string, any> = {}) {
-  const IGNORED_KEYS = new Set([
-    "description",
-    "notes",
-    "keyTakeaway",
-    "decisions",
-    "gratitude",
-    "actionItems",
-    "dietaryNotes",
-    "foodItems",
-    "collaborators",
-  ]);
-
-  const metrics: Array<{ key: string; label: string }> = [];
-  for (const [k, v] of Object.entries(attributes)) {
-    if (v === null || v === undefined || v === "") continue;
-    if (typeof v === "object" && !Array.isArray(v)) continue;
-    if (IGNORED_KEYS.has(k)) continue;
-
-    const str = Array.isArray(v) ? v.join(", ") : String(v);
-    if (str.length <= 20) {
-      metrics.push({
-        key: k,
-        label: `${k.replace(/([A-Z])/g, " $1")}: ${str}`,
-      });
-    }
-    if (metrics.length >= 2) break;
-  }
-  return metrics;
-}
-
 export function TimelineEventCard({
   event,
   onEdit,
@@ -68,7 +33,6 @@ export function TimelineEventCard({
 
   const hasAttributes = event.attributes && Object.keys(event.attributes).length > 0;
   const isCompact = density === "compact";
-  const conciseMetrics = isCompact ? getConciseMetrics(event.attributes) : [];
 
   // ─────────────────────────────────────────────────────────────
   // COMPACT VIEW: Two-Line Structured Layout (Linear / Reminders)
@@ -172,52 +136,19 @@ export function TimelineEventCard({
               </div>
             </div>
 
-            {/* LINE 2: Structured Metadata & Tags Sub-Row */}
-            <div className="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">
-              {/* Category Badge */}
-              <span
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold ${meta.badgeColor} shrink-0`}
-              >
-                <span>{meta.icon}</span>
-                <span>{meta.name}</span>
-              </span>
-
-              {/* Mood Badge */}
-              {event.mood && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-teal-500/15 border border-teal-500/30 px-2 py-0.5 text-[10px] font-semibold text-teal-300 shrink-0">
-                  <span>😊</span>
-                  <span>{event.mood}</span>
-                </span>
-              )}
-
-              {/* Structured Keyword Hashtags */}
-              {event.tags && event.tags.length > 0 && (
-                <div className="flex items-center gap-1 flex-wrap">
-                  {event.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-md bg-slate-950/70 border border-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-300 font-mono"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Concise Key Metric Pills (short numbers / outcomes only) */}
-              {conciseMetrics.length > 0 && (
-                <div className="hidden sm:flex items-center gap-1">
-                  {conciseMetrics.map((m) => (
-                    <span
-                      key={m.key}
-                      className="inline-flex items-center gap-1 rounded-md bg-slate-950/90 border border-white/10 px-2 py-0.5 text-[10px] text-slate-300"
-                    >
-                      <span className="font-mono text-cyan-300 font-semibold">{m.label}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* LINE 2: Only Hashtags in Compact Mode */}
+            {event.tags && event.tags.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">
+                {event.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-md bg-slate-950/70 border border-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400 font-mono"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Compact Inline Expansion (reveals full description, full attributes, raw speech) */}
