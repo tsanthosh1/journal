@@ -348,13 +348,15 @@ async function extractWithGemini(
   audioBase64?: string,
   audioMimeType?: string
 ): Promise<{ parsed: any; transcript?: string; modelUsed: string }> {
-  // Candidate flash models in order of recency
+  // Candidate flash models in order of stability and recency
   const candidateModels = Array.from(new Set([
-    model || "gemini-3.6-flash",
-    "gemini-3.6-flash",
+    model,
     "gemini-2.5-flash",
-    "gemini-1.5-flash",
-  ])).filter((m) => m.startsWith("gemini-"));
+    "gemini-flash-latest",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash-lite",
+  ])).filter(Boolean);
 
   const userParts: any[] = [];
 
@@ -405,17 +407,21 @@ async function extractWithGemini(
 
       if (!response.ok) {
         const errText = await response.text();
-        if (response.status === 404) {
-          console.warn(`[aiExtractor] Gemini model ${candidateModel} returned 404, trying next candidate...`);
-          lastError = new Error(`Google Gemini model ${candidateModel} not found.`);
-          continue;
-        }
 
         // Handle prepayment credits depletion
-        if (errText.includes("prepayment credits are depleted") || (response.status === 429 && errText.includes("RESOURCE_EXHAUSTED"))) {
+        if (errText.includes("prepayment credits are depleted")) {
           throw new Error(
             `Google Gemini: Prepayment credits are depleted on this project. To use Gemini 100% Free, create a key in Google AI Studio (aistudio.google.com) under a default project without Cloud billing attached, or switch to OpenRouter in AI Settings.`
           );
+        }
+
+        // If high demand (503), rate limit (429), not found (404), or gateway errors (502/504),
+        // seamlessly fall back to the next candidate model in the chain
+        if ([404, 429, 500, 502, 503, 504].includes(response.status)) {
+          console.warn(`[aiExtractor] Gemini model "${candidateModel}" returned status ${response.status}. Falling back to next candidate model...`);
+          lastError = new Error(`Google Gemini API error (${response.status}): ${errText}`);
+          await new Promise((r) => setTimeout(r, 400));
+          continue;
         }
 
         throw new Error(`Google Gemini API error (${response.status}): ${errText}`);
@@ -441,7 +447,7 @@ async function extractWithGemini(
         modelUsed: `Google ${candidateModel}`,
       };
     } catch (err: any) {
-      if (err.message.includes("Prepayment credits") || err.message.includes("API error")) {
+      if (err.message.includes("Prepayment credits")) {
         throw err;
       }
       lastError = err;
