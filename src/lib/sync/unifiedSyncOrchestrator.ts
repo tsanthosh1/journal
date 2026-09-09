@@ -134,7 +134,7 @@ export async function runUnifiedSync(
       sourcesRun.push("SMS");
       log("info", `Running SMS sync for loan/EMI subscription: ${sub.name}`);
       try {
-        const smsRes = await runSmsSyncEngine(userId);
+        const smsRes = await runSmsSyncEngine(userId, sub.id);
         smsResultSummary = smsRes;
       } catch (err: any) {
         const msg = `SMS sync error: ${err.message}`;

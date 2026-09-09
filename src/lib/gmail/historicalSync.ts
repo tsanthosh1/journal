@@ -167,6 +167,7 @@ export async function syncHistoricalSubscriptionWithGmail(
   const dedupStrat =
     subscription.dedupStrategy ||
     subscription.emailConfig?.dedupStrategy ||
+    subscription.smsConfig?.dedupStrategy ||
     "SAME_DAY_SAME_AMOUNT";
 
   const deduplicatedPayments: ParsedPaymentRecord[] = [];

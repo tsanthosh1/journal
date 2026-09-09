@@ -89,6 +89,7 @@ export interface RawSmsRecord {
   extractedAmount?: number;
   extractedDate?: string;
   accountReference?: string;
+  isDuplicate?: boolean;
   createdAt: string;
 }
 
@@ -111,6 +112,7 @@ export interface SourceEmailRecord {
   accountOrCardDigits?: string;
   referenceId?: string;
   rawMatches?: Record<string, string>;
+  isDuplicate?: boolean;
   createdAt: string;
 }
 

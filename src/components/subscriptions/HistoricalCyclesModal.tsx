@@ -596,6 +596,7 @@ export function HistoricalCyclesModal({
                                         extractedAmount: sms.extractedAmount,
                                         extractedDate: sms.extractedDate,
                                         accountOrCardDigits: sms.accountReference,
+                                        isDuplicate: sms.isDuplicate,
                                         createdAt: sms.createdAt || new Date().toISOString(),
                                       }));
                                       onViewSourceEmail(

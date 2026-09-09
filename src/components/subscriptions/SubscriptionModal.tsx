@@ -125,6 +125,7 @@ export function SubscriptionModal({
       setDedupStrategy(
         (initialData.dedupStrategy as DedupStrategy) ||
           (initialData.emailConfig?.dedupStrategy as DedupStrategy) ||
+          (initialData.smsConfig?.dedupStrategy as DedupStrategy) ||
           "SAME_DAY_SAME_AMOUNT",
       );
       setCurrency(initialData.currency || "INR");

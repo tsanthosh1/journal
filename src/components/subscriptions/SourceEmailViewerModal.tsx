@@ -80,6 +80,7 @@ export function SourceEmailViewerModal({
               extractedAmount: sms.extractedAmount,
               extractedDate: sms.extractedDate,
               accountOrCardDigits: sms.accountReference,
+              isDuplicate: sms.isDuplicate,
               createdAt: sms.createdAt,
             });
           });
@@ -190,15 +191,22 @@ export function SourceEmailViewerModal({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1 mb-1">
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
-                          isStmt
-                            ? "bg-indigo-500/20 text-indigo-300"
-                            : "bg-emerald-500/20 text-emerald-300"
-                        }`}
-                      >
-                        {e.type}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                            isStmt
+                              ? "bg-indigo-500/20 text-indigo-300"
+                              : "bg-emerald-500/20 text-emerald-300"
+                          }`}
+                        >
+                          {e.type}
+                        </span>
+                        {e.isDuplicate && (
+                          <span className="rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            DUPLICATE
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-slate-400">
                         {formatDisplayDate(e.date || e.extractedDate)}
                       </span>
@@ -207,13 +215,22 @@ export function SourceEmailViewerModal({
                     {e.extractedAmount !== undefined && (
                       <div className="mt-1 flex items-center justify-between text-[11px]">
                         <span className="text-slate-400">Extracted:</span>
-                        <span
-                          className={`font-bold ${
-                            isStmt ? "text-cyan-300" : "text-emerald-300"
-                          }`}
-                        >
-                          ₹{e.extractedAmount.toLocaleString("en-IN")}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={`font-bold ${
+                              e.isDuplicate
+                                ? "text-slate-400 line-through"
+                                : isStmt
+                                ? "text-cyan-300"
+                                : "text-emerald-300"
+                            }`}
+                          >
+                            ₹{e.extractedAmount.toLocaleString("en-IN")}
+                          </span>
+                          {e.isDuplicate && (
+                            <span className="text-[9px] text-amber-400">(Ignored)</span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </button>
@@ -232,18 +249,34 @@ export function SourceEmailViewerModal({
                     <h3 className="text-sm sm:text-base font-bold text-white">
                       {selectedEmail.subject}
                     </h3>
-                    <span
-                      className={`self-start sm:self-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        selectedEmail.type === "STATEMENT"
-                          ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                          : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                      }`}
-                    >
-                      {selectedEmail.type === "STATEMENT"
-                        ? "📄 Statement Email"
-                        : "💳 Payment Confirmation"}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`self-start sm:self-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          selectedEmail.type === "STATEMENT"
+                            ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                            : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        }`}
+                      >
+                        {selectedEmail.type === "STATEMENT"
+                          ? "📄 Statement Email"
+                          : "💳 Payment Confirmation"}
+                      </span>
+                      {selectedEmail.isDuplicate && (
+                        <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          ⚠️ Duplicate (Ignored)
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {selectedEmail.isDuplicate && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 flex items-center gap-2">
+                      <span className="text-base shrink-0">⚠️</span>
+                      <span>
+                        <strong>Duplicate Transaction Ignored:</strong> This alert matched another payment on the same date with the same amount under the <code>SAME_DAY_SAME_AMOUNT</code> deduplication strategy. Its amount was excluded from the cycle total.
+                      </span>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-300 pt-1 border-t border-white/5">
                     {selectedEmail.from && (

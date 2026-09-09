@@ -280,6 +280,7 @@ export async function syncSubscriptionWithGmail(
           const dedupStrat =
             subscription.dedupStrategy ||
             subscription.emailConfig?.dedupStrategy ||
+            subscription.smsConfig?.dedupStrategy ||
             "SAME_DAY_SAME_AMOUNT";
 
           const isDuplicatePayment = (() => {
@@ -343,6 +344,7 @@ export async function syncSubscriptionWithGmail(
             accountOrCardDigits: payParsed.accountOrCardDigits,
             referenceId: payParsed.referenceId,
             rawMatches: payParsed.rawMatches,
+            isDuplicate: isDuplicatePayment,
           });
 
           log("save", `Archived payment receipt snapshot (${pMsg.id}) to Storage`, subCtx);

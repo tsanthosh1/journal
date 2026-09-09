@@ -24,6 +24,7 @@ export interface EmailArchiveInput {
   accountOrCardDigits?: string;
   referenceId?: string;
   rawMatches?: Record<string, string>;
+  isDuplicate?: boolean;
 }
 
 /**
@@ -60,6 +61,7 @@ export async function saveEmailSnapshot(
           accountOrCardDigits: input.accountOrCardDigits || null,
           referenceId: input.referenceId || null,
           rawMatches: input.rawMatches || {},
+          isDuplicate: input.isDuplicate ?? false,
           archivedAt: new Date().toISOString(),
         },
         null,
@@ -102,6 +104,7 @@ export async function saveEmailSnapshot(
     accountOrCardDigits: input.accountOrCardDigits || "",
     referenceId: input.referenceId || "",
     rawMatches: input.rawMatches || {},
+    isDuplicate: input.isDuplicate ?? false,
     createdAt: now,
   };
 

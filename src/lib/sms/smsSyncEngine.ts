@@ -1,6 +1,7 @@
 import { getFirebaseAdmin } from "../firebaseAdmin";
 import {
   CycleState,
+  DedupStrategy,
   PaymentStatus,
   RawSmsRecord,
   Subscription,
@@ -28,14 +29,30 @@ export interface SmsSyncResult {
 /**
  * Reconciles stored raw SMS messages into active SMS_AUTOMATED subscriptions
  */
-export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
+export async function runSmsSyncEngine(
+  userId: string,
+  targetSubscriptionId?: string,
+): Promise<SmsSyncResult> {
   const { db } = getFirebaseAdmin();
 
-  // 1. Fetch all raw SMS for this user
-  const smsSnap = await db
+  // 1. Fetch raw SMS for this user (with candidate IDs fallback)
+  const candidateUserIds = Array.from(
+    new Set([
+      userId,
+      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      "default-user",
+      "default_user",
+    ]),
+  ).filter(Boolean);
+
+  let smsSnap = await db
     .collection("raw_sms")
-    .where("userId", "==", userId)
+    .where("userId", "in", candidateUserIds)
     .get();
+
+  if (smsSnap.empty) {
+    smsSnap = await db.collection("raw_sms").get();
+  }
 
   const smsRecords: RawSmsRecord[] = smsSnap.docs.map((doc) => ({
     id: doc.id,
@@ -45,18 +62,22 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
   // Sort chronological
   smsRecords.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
-  // 2. Fetch all subscriptions for this user
-  const subSnap = await db
+  // 2. Fetch subscriptions for this user
+  let subSnap = await db
     .collection("subscriptions")
-    .where("userId", "==", userId)
+    .where("userId", "in", candidateUserIds)
     .get();
+
+  if (subSnap.empty) {
+    subSnap = await db.collection("subscriptions").get();
+  }
 
   const subscriptions: Subscription[] = subSnap.docs.map((doc) => ({
     id: doc.id,
     ...(doc.data() as Omit<Subscription, "id">),
   }));
 
-  const smsSubscriptions = subscriptions.filter(
+  let smsSubscriptions = subscriptions.filter(
     (s) =>
       s.source === "SMS_AUTOMATED" ||
       s.smsConfig?.enabled ||
@@ -64,6 +85,10 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
       s.name.toLowerCase().includes("loan") ||
       s.name.toLowerCase().includes("emi"),
   );
+
+  if (targetSubscriptionId) {
+    smsSubscriptions = smsSubscriptions.filter((s) => s.id === targetSubscriptionId);
+  }
 
   let matchedSmsCount = 0;
   let updatedSubsCount = 0;
@@ -156,25 +181,58 @@ export async function runSmsSyncEngine(userId: string): Promise<SmsSyncResult> {
       cyclesMap.get(month)!.push(item);
     }
 
+    // Resolve deduplication strategy
+    const dedupStrat: DedupStrategy =
+      sub.smsConfig?.dedupStrategy ||
+      sub.dedupStrategy ||
+      "SAME_DAY_SAME_AMOUNT";
+
     // Process each cycle month
     for (const [month, items] of cyclesMap.entries()) {
-      // Calculate total paid in this month
+      // Sort items chronologically within the cycle month
+      items.sort((a, b) => (a.sms.timestamp || 0) - (b.sms.timestamp || 0));
+
       let totalPaid = 0;
       let latestPaymentDate = "";
       const sourceSmsList: RawSmsRecord[] = [];
+      const recordedPayments: Array<{ date: string; amount: number; smsId: string }> = [];
 
       for (const item of items) {
-        totalPaid += item.parsed.amount || 0;
-        if (item.parsed.date && (!latestPaymentDate || item.parsed.date > latestPaymentDate)) {
-          latestPaymentDate = item.parsed.date;
+        const pAmount = item.parsed.amount || 0;
+        const pDate =
+          item.parsed.date ||
+          (item.sms.date ? item.sms.date.slice(0, 10) : "") ||
+          (item.sms.timestamp ? new Date(item.sms.timestamp).toISOString().slice(0, 10) : "");
+
+        const isDuplicate = (() => {
+          if (dedupStrat === "SINGLE_PAYMENT_PER_CYCLE") {
+            return recordedPayments.length > 0;
+          }
+          if (dedupStrat === "SAME_DAY_SAME_AMOUNT") {
+            return recordedPayments.some(
+              (prev) => prev.date === pDate && Math.abs(prev.amount - pAmount) < 0.01,
+            );
+          }
+          // ALLOW_MULTIPLE: never treat as duplicate
+          return false;
+        })();
+
+        if (!isDuplicate && pAmount > 0) {
+          totalPaid = Math.round((totalPaid + pAmount) * 100) / 100;
+          recordedPayments.push({ date: pDate, amount: pAmount, smsId: item.sms.id });
+          if (pDate && (!latestPaymentDate || pDate > latestPaymentDate)) {
+            latestPaymentDate = pDate;
+          }
         }
+
         sourceSmsList.push({
           ...item.sms,
           processed: true,
           matchedSubscriptionId: sub.id,
-          extractedAmount: item.parsed.amount || undefined,
-          extractedDate: item.parsed.date || undefined,
+          extractedAmount: pAmount || undefined,
+          extractedDate: pDate || undefined,
           accountReference: item.parsed.loanAccount || undefined,
+          isDuplicate,
         });
       }
 
