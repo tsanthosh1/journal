@@ -55,38 +55,15 @@ export function TimelineEventCard({
           className={`rounded-xl border ${meta.borderColor} bg-slate-900/85 hover:bg-slate-900 px-3.5 py-2.5 sm:px-4 sm:py-3 shadow-sm backdrop-blur-md transition-all duration-150 hover:border-white/20`}
         >
           <div className="flex flex-col gap-1.5">
-            {/* LINE 1: Time badge + Full Prominent Title + Actions */}
+            {/* LINE 1: Event Title (Perfect horizontal alignment across all rows) + Actions */}
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                {/* Time Badge */}
-                <span className="shrink-0 font-mono text-[11px] font-bold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/5">
-                  {event.startTime ? (
-                    <>
-                      <span>{event.startTime}</span>
-                      {event.endTime && (
-                        <span className="text-slate-500 font-normal"> - {event.endTime}</span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-slate-500">All day</span>
-                  )}
-                </span>
-
-                {event.durationMinutes && (
-                  <span className="shrink-0 font-mono text-[10px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded">
-                    {event.durationMinutes}m
-                  </span>
-                )}
-
-                {/* Event Title (Full text, no premature truncation) */}
-                <span
-                  onClick={() => onEdit(event)}
-                  className="font-bold text-white text-sm sm:text-[15px] hover:text-cyan-300 cursor-pointer transition leading-snug flex-1 break-words"
-                  title={event.title}
-                >
-                  {event.title}
-                </span>
-              </div>
+              <span
+                onClick={() => onEdit(event)}
+                className="font-bold text-white text-sm sm:text-base hover:text-cyan-300 cursor-pointer transition leading-snug flex-1 break-words"
+                title={event.title}
+              >
+                {event.title}
+              </span>
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1 shrink-0">
@@ -136,19 +113,43 @@ export function TimelineEventCard({
               </div>
             </div>
 
-            {/* LINE 2: Only Hashtags in Compact Mode */}
-            {event.tags && event.tags.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">
-                {event.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-md bg-slate-950/70 border border-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400 font-mono"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* LINE 2: Time Badge + Duration + Hashtags */}
+            <div className="flex items-center gap-2 flex-wrap text-xs pt-0.5">
+              {/* Time Badge */}
+              <span className="shrink-0 font-mono text-[11px] font-bold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/5">
+                {event.startTime ? (
+                  <>
+                    <span>{event.startTime}</span>
+                    {event.endTime && (
+                      <span className="text-slate-500 font-normal"> - {event.endTime}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-slate-500">All day</span>
+                )}
+              </span>
+
+              {/* Duration Pill */}
+              {event.durationMinutes && (
+                <span className="shrink-0 font-mono text-[10px] text-slate-400 bg-white/5 border border-white/5 px-1.5 py-0.5 rounded">
+                  ⏱️ {event.durationMinutes}m
+                </span>
+              )}
+
+              {/* Hashtags */}
+              {event.tags && event.tags.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {event.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md bg-slate-950/70 border border-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400 font-mono"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Compact Inline Expansion (reveals full description, full attributes, raw speech) */}
