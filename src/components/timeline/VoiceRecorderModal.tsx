@@ -44,10 +44,95 @@ export function VoiceRecorderModal({
   const [extractionResult, setExtractionResult] = useState<AiExtractionResult | null>(null);
   const [candidateEvents, setCandidateEvents] = useState<ExtractedEventCandidate[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [activeProvider, setActiveProvider] = useState<"gemini" | "openrouter">("gemini");
+  const [hasAiKey, setHasAiKey] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const isRecordingRef = useRef(false);
   isRecordingRef.current = isRecording;
+
+  // Audio recording refs for direct multimodal Gemini ingestion
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioBase64Ref = useRef<string | null>(null);
+  const audioMimeTypeRef = useRef<string>("audio/webm");
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  // Load AI configuration status
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/timeline/ai-config")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.config) {
+            if (data.config.provider) setActiveProvider(data.config.provider);
+            setHasAiKey(Boolean(data.config.isConfigured));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
+  // Start raw microphone audio capture
+  const startAudioCapture = async () => {
+    try {
+      audioChunksRef.current = [];
+      audioBase64Ref.current = null;
+      if (typeof window !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+
+        audioMimeTypeRef.current = mimeType || "audio/webm";
+        const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          if (audioChunksRef.current.length > 0) {
+            const blob = new Blob(audioChunksRef.current, { type: audioMimeTypeRef.current });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64data = reader.result as string;
+              if (base64data) {
+                const base64 = base64data.split(",")[1];
+                audioBase64Ref.current = base64;
+              }
+            };
+            reader.readAsDataURL(blob);
+          }
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+            mediaStreamRef.current = null;
+          }
+        };
+
+        recorder.start(250);
+        mediaRecorderRef.current = recorder;
+      }
+    } catch (err) {
+      console.warn("[VoiceRecorder] MediaRecorder capture error:", err);
+    }
+  };
+
+  const stopAudioCapture = () => {
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+    } catch (e) {}
+  };
 
   // Initialize Web Speech API with selected accent
   useEffect(() => {
@@ -145,10 +230,12 @@ export function VoiceRecorderModal({
     setError(null);
     if (isRecording) {
       setIsRecording(false);
+      stopAudioCapture();
       try {
         recognitionRef.current?.stop();
       } catch (e) {}
     } else {
+      startAudioCapture();
       try {
         recognitionRef.current?.start();
         setIsRecording(true);
@@ -161,7 +248,7 @@ export function VoiceRecorderModal({
 
   const handleProcessWithAi = async () => {
     const fullText = (transcript + " " + interimText).trim();
-    if (!fullText) {
+    if (!fullText && !audioBase64Ref.current) {
       setError("Please speak or type something before processing.");
       return;
     }
@@ -169,10 +256,14 @@ export function VoiceRecorderModal({
     // Stop recording if active
     if (isRecording) {
       setIsRecording(false);
+      stopAudioCapture();
       try {
         recognitionRef.current?.stop();
       } catch (e) {}
     }
+
+    // Brief delay to allow MediaRecorder onstop to finalize base64 blob conversion
+    await new Promise((r) => setTimeout(r, 200));
 
     setIsProcessing(true);
     setError(null);
@@ -183,8 +274,11 @@ export function VoiceRecorderModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           spokenText: fullText,
+          audioBase64: audioBase64Ref.current || undefined,
+          audioMimeType: audioMimeTypeRef.current,
           targetDate,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          autoEvolveSchema: true,
         }),
       });
 
@@ -196,6 +290,12 @@ export function VoiceRecorderModal({
       const data = await res.json();
       setExtractionResult(data.result);
       setCandidateEvents(data.result.events || []);
+
+      // If Gemini returned a verbatim transcript, update local state
+      if (data.result?.rawTranscript) {
+        setTranscript(data.result.rawTranscript);
+        setInterimText("");
+      }
     } catch (err: any) {
       setError(err.message || "Failed to process speech");
     } finally {
@@ -289,13 +389,13 @@ export function VoiceRecorderModal({
           {error && (
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-center justify-between">
               <span>⚠️ {error}</span>
-              {onOpenAiSettings && error.includes("OpenRouter") && (
+              {onOpenAiSettings && (
                 <button
                   type="button"
                   onClick={onOpenAiSettings}
-                  className="underline font-bold text-cyan-300 hover:text-white cursor-pointer ml-2"
+                  className="underline font-bold text-cyan-300 hover:text-white cursor-pointer ml-2 shrink-0"
                 >
-                  Configure Key
+                  Configure AI Key
                 </button>
               )}
             </div>
@@ -354,10 +454,21 @@ export function VoiceRecorderModal({
                   <p className="text-sm font-bold text-white">
                     {isRecording ? "Listening in " + (speechLang === "en-IN" ? "Indian English" : speechLang === "en-US" ? "US English" : "UK English") + "..." : "Tap microphone to speak"}
                   </p>
-                  <p className="text-[11px] text-cyan-300/80 max-w-sm mt-0.5 flex items-center justify-center gap-1">
-                    <span>✨</span>
-                    <span>Phonetic AI auto-corrects accents, gaming terms &amp; brand names.</span>
-                  </p>
+                  <div className="flex items-center justify-center gap-2 mt-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+                      <span>✨</span>
+                      <span>{activeProvider === "gemini" ? "Gemini 2.0 Flash (Direct Audio Multimodal)" : "OpenRouter AI Engine"}</span>
+                    </span>
+                    {onOpenAiSettings && (
+                      <button
+                        type="button"
+                        onClick={onOpenAiSettings}
+                        className="text-[10px] text-slate-400 hover:text-cyan-300 underline cursor-pointer"
+                      >
+                        Change AI Provider
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

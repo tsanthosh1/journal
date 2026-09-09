@@ -124,7 +124,7 @@ export interface TimelineDaySummary {
 }
 
 export interface AiConfig {
-  provider: "openrouter" | "gemini_direct";
+  provider: "gemini" | "openrouter";
   apiKey?: string;
   isConfigured: boolean;
   model: string;

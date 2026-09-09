@@ -103,6 +103,8 @@ export async function extractLifeEventsFromSpeech(
     targetDate?: string;
     timezone?: string;
     autoEvolveSchema?: boolean;
+    audioBase64?: string;
+    audioMimeType?: string;
   } = {}
 ): Promise<AiExtractionResult> {
   const startTime = Date.now();
@@ -114,12 +116,12 @@ export async function extractLifeEventsFromSpeech(
 
   // If no API key is provided, gracefully use intelligent heuristic fallback
   if (!aiConfig.isConfigured || !aiConfig.apiKey) {
-    console.log("[aiExtractor] No OpenRouter API key configured. Using heuristic fallback parser.");
+    console.log("[aiExtractor] No AI API key configured. Using heuristic fallback parser.");
     const fallbackEvents = heuristicSpeechParser(spokenText, targetDate);
     return {
       events: fallbackEvents,
       rawTranscript: spokenText,
-      summaryOfNarration: `Parsed ${fallbackEvents.length} event(s) using heuristic engine (OpenRouter key not configured).`,
+      summaryOfNarration: `Parsed ${fallbackEvents.length} event(s) using heuristic engine (AI key not configured).`,
       modelUsed: "Heuristic Fallback Engine",
       executionDurationMs: Date.now() - startTime,
     };
@@ -148,7 +150,7 @@ Standard Activity Types to assign:
 RULES:
 1. Split the user's speech into discrete individual events.
 2. For each event:
-   - "title": Short, crisp, and descriptive (3-6 words, e.g. "5km Morning Run in Park", "Sprint Planning Meeting", "Oats & Almonds Breakfast").
+   - "title": Short, crisp, and descriptive (3-6 words, e.g. "5km Morning Run in Park", "Won Colonist.io Online Match", "Oats & Almonds Breakfast").
    - "description": Complete context and narrative details mentioned for that specific event.
    - "activityType": Pick the best matching activity type from above.
    - "date": "${targetDate}" unless explicitly stated otherwise (e.g. yesterday, last night).
@@ -156,25 +158,26 @@ RULES:
    - "endTime": 24-hour HH:MM if duration is given (e.g. started at 8:00 and ran for 30 min -> endTime: "08:30").
    - "durationMinutes": Number of minutes spent if stated or calculated.
    - "mood": One of ["Energized", "Focused", "Happy", "Calm", "Tired", "Stressed", "Reflective"] or null if neutral.
-   - "tags": Array of 2-4 clean keyword tags (lowercase, e.g. ["running", "cardio", "morning"]).
-   - "attributes": Key-value dictionary. Use standard attribute keys from the schema whenever applicable   - "newAttributesDiscovered": If the user mentions relevant attributes that are NOT part of the standard attributes for that activity type (e.g. "blood pressure", "coffee rating", "shoes used", "podcast listened to"), list them in "newAttributesDiscovered" so our system can evolve the activity's JSON Schema!
-     - "fieldKey": camelCase identifier (e.g. "bloodPressure", "coffeeRating")
-     - "label": Human readable label (e.g. "Blood Pressure", "Coffee Rating")
+   - "tags": Array of 2-4 clean keyword tags (lowercase, e.g. ["gaming", "colonist", "online"]).
+   - "attributes": Key-value dictionary. Use standard attribute keys from the schema whenever applicable.
+   - "newAttributesDiscovered": If the user mentions relevant attributes that are NOT part of the standard attributes for that activity type (e.g. "gameName", "roundsPlayed", "bloodPressure"), list them in "newAttributesDiscovered" so our system can evolve the activity's JSON Schema!
+     - "fieldKey": camelCase identifier (e.g. "gameName", "roundsPlayed")
+     - "label": Human readable label (e.g. "Game Name", "Rounds Played")
      - "suggestedType": "string" | "number" | "boolean" | "list" | "unit_number"
-     - "unit": optional unit (e.g. "bpm", "mmHg", "stars")
+     - "unit": optional unit
      - "sampleValue": The extracted value
 
-PHONETIC SPEECH-TO-TEXT NORMALIZATION & HOMOPHONE CORRECTION:
-The user narration is captured via microphone speech recognition. It may contain phonetic homophones, speech recognition artifacts, brand name misspellings, or accented English slips.
+PHONETIC SPEECH-TO-TEXT NORMALIZATION & ACCENT UNDERSTANDING:
+The narration may contain phonetic homophones, speech recognition artifacts, brand name misspellings, or accented English slips.
 Examples:
 - "colonist.in online inversion" -> "Colonist.io online version"
-- "I want the game" (when recounting a score/session) -> "I won the game"
+- "I want the game" (when recounting score/session) -> "I won the game"
 - "one origo" -> "one round" or "one match"
-- "swiggy/zomato", "biryani", etc.
-Intelligently infer the speaker's true intent, reconstruct the actual events and proper names, and extract accurate life events!
+Intelligently infer the speaker's true intent, reconstruct actual proper names, and extract accurate life events!
 
 Respond ONLY in valid JSON format matching this structure:
 {
+  "transcript": "Exact verbatim transcription of what was said in the audio",
   "summary": "Brief 1-sentence summary of the entire log",
   "events": [
     {
@@ -194,72 +197,97 @@ Respond ONLY in valid JSON format matching this structure:
 }`;
 
   try {
-    console.log(`[aiExtractor] Invoking OpenRouter model "${aiConfig.model}"...`);
-    const isFreeRouter = !aiConfig.model || aiConfig.model === "openrouter/free" || aiConfig.model.endsWith(":free");
-    
-    // Construct clean OpenRouter payload.
-    // Note: Do NOT use response_format: { type: "json_object" } for free tier models as many free open-weights
-    // providers do not support OpenAI schema mode and will return 400 or empty message content.
-    const requestBody: any = {
-      model: aiConfig.model || "openrouter/free",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: spokenText },
-      ],
-      temperature: 0.2,
-    };
+    let parsed: any;
+    let finalTranscript = spokenText;
+    let modelUsed = aiConfig.model;
 
-    // If using free router, supply active free conversational models to prevent OpenRouter
-    // from routing to moderation filters like nvidia/nemotron-3.5-content-safety:free
-    if (isFreeRouter) {
-      requestBody.models = [
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "inclusionai/ling-3.0-flash-fin:free",
-        "google/gemma-4-31b-it:free",
-      ];
+    const isGemini = aiConfig.provider === "gemini" || aiConfig.apiKey?.startsWith("AIzaSy");
+
+    if (isGemini) {
+      // ─────────────────────────────────────────────────────────────
+      // Google Gemini 2.0 Flash Engine (Direct Audio + JSON)
+      // ─────────────────────────────────────────────────────────────
+      const geminiModel = aiConfig.model && aiConfig.model.includes("gemini") ? aiConfig.model : "gemini-2.0-flash";
+      console.log(`[aiExtractor] Invoking Google Gemini (${geminiModel}) - Audio Multimodal: ${Boolean(options.audioBase64)}...`);
+
+      const geminiRes = await extractWithGemini(
+        aiConfig.apiKey,
+        geminiModel,
+        systemPrompt,
+        spokenText,
+        options.audioBase64,
+        options.audioMimeType
+      );
+
+      parsed = geminiRes.parsed;
+      if (geminiRes.transcript) {
+        finalTranscript = geminiRes.transcript;
+      }
+      modelUsed = geminiRes.modelUsed;
+    } else {
+      // ─────────────────────────────────────────────────────────────
+      // OpenRouter Engine
+      // ─────────────────────────────────────────────────────────────
+      console.log(`[aiExtractor] Invoking OpenRouter model "${aiConfig.model}"...`);
+      const isFreeRouter = !aiConfig.model || aiConfig.model === "openrouter/free" || aiConfig.model.endsWith(":free");
+      
+      const requestBody: any = {
+        model: aiConfig.model || "openrouter/free",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: spokenText },
+        ],
+        temperature: 0.2,
+      };
+
+      if (isFreeRouter) {
+        requestBody.models = [
+          "nvidia/nemotron-3-super-120b-a12b:free",
+          "inclusionai/ling-3.0-flash-fin:free",
+          "google/gemma-4-31b-it:free",
+        ];
+      }
+
+      if (!isFreeRouter && (aiConfig.model.includes("gpt-4") || aiConfig.model.includes("claude-3-5"))) {
+        requestBody.response_format = { type: "json_object" };
+      }
+
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${aiConfig.apiKey}`,
+          "HTTP-Referer": "http://localhost:3000",
+          "X-Title": "Track Everything AI - Life Events Diary",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
+      }
+
+      const resData = await response.json();
+      const choice = resData.choices?.[0];
+      
+      let rawContent = choice?.message?.content || choice?.message?.reasoning || choice?.text || "";
+
+      if (!rawContent || !rawContent.trim()) {
+        throw new Error(`OpenRouter returned empty message content (model: ${resData.model || aiConfig.model}).`);
+      }
+
+      let cleanContent = rawContent.trim();
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error(`Model (${resData.model || aiConfig.model}) returned non-JSON output: "${cleanContent.slice(0, 100)}"`);
+      }
+      cleanContent = jsonMatch[0];
+
+      parsed = JSON.parse(cleanContent);
+      modelUsed = resData.model || aiConfig.model;
     }
 
-    // If using strict commercial models that support response_format, we can optionally pass it,
-    // otherwise prompt-enforced JSON is universally reliable.
-    if (!isFreeRouter && (aiConfig.model.includes("gpt-4") || aiConfig.model.includes("claude-3-5"))) {
-      requestBody.response_format = { type: "json_object" };
-    }
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${aiConfig.apiKey}`,
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "Track Everything AI - Life Events Diary",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
-    }
-
-    const resData = await response.json();
-    const choice = resData.choices?.[0];
-    
-    // Check multiple candidate response locations: content, reasoning, or text
-    let rawContent = choice?.message?.content || choice?.message?.reasoning || choice?.text || "";
-
-    if (!rawContent || !rawContent.trim()) {
-      throw new Error(`OpenRouter returned empty message content (model: ${resData.model || aiConfig.model}).`);
-    }
-
-    // Extract JSON string safely even if wrapped in markdown fences or reasoning blocks
-    let cleanContent = rawContent.trim();
-    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error(`Model (${resData.model || aiConfig.model}) returned non-JSON output: "${cleanContent.slice(0, 100)}"`);
-    }
-    cleanContent = jsonMatch[0];
-
-    const parsed = JSON.parse(cleanContent);
     const events: ExtractedEventCandidate[] = parsed.events || [];
 
     // Auto-evolve schemas if new attributes were discovered
@@ -289,22 +317,104 @@ Respond ONLY in valid JSON format matching this structure:
 
     return {
       events,
-      rawTranscript: spokenText,
-      summaryOfNarration: parsed.summary || `Extracted ${events.length} event(s) from spoken transcript.`,
-      modelUsed: resData.model || aiConfig.model,
+      rawTranscript: finalTranscript,
+      summaryOfNarration: parsed.summary || `Extracted ${events.length} event(s) from narration.`,
+      modelUsed,
       executionDurationMs: Date.now() - startTime,
     };
   } catch (err: any) {
-    console.error("[aiExtractor] OpenRouter API extraction failed:", err);
+    console.error("[aiExtractor] AI API extraction failed:", err);
     console.log("[aiExtractor] Falling back to heuristic parser due to API error.");
 
     const fallbackEvents = heuristicSpeechParser(spokenText, targetDate);
     return {
       events: fallbackEvents,
       rawTranscript: spokenText,
-      summaryOfNarration: `Extracted ${fallbackEvents.length} event(s) via heuristic fallback (OpenRouter error: ${err.message}).`,
+      summaryOfNarration: `Extracted ${fallbackEvents.length} event(s) via heuristic fallback (${err.message}).`,
       modelUsed: `Fallback Heuristic Engine (${err.message})`,
       executionDurationMs: Date.now() - startTime,
     };
   }
+}
+
+/**
+ * Direct Google Gemini REST API caller with multimodal audio support
+ */
+async function extractWithGemini(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  spokenText: string,
+  audioBase64?: string,
+  audioMimeType?: string
+): Promise<{ parsed: any; transcript?: string; modelUsed: string }> {
+  const geminiModel = model && model.includes("gemini") ? model : "gemini-2.0-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
+
+  const userParts: any[] = [];
+
+  if (audioBase64) {
+    userParts.push({
+      inline_data: {
+        mime_type: audioMimeType || "audio/webm",
+        data: audioBase64,
+      },
+    });
+    userParts.push({
+      text: spokenText
+        ? `Here is the user's recorded microphone audio. Browser live speech preview captured: "${spokenText}". Accurately transcribe the exact spoken words from the audio (comprehending Indian accents and gaming names like Colonist.io), and extract into the life events JSON matching the schema.`
+        : "Accurately transcribe this audio recording (comprehending accents, slang, and brand names) and extract into the life events JSON matching the schema.",
+    });
+  } else {
+    userParts.push({
+      text: spokenText,
+    });
+  }
+
+  const payload: any = {
+    system_instruction: {
+      parts: [{ text: systemPrompt }],
+    },
+    contents: [
+      {
+        role: "user",
+        parts: userParts,
+      },
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.2,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Google Gemini API error (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!textContent || !textContent.trim()) {
+    throw new Error("Google Gemini returned empty response content.");
+  }
+
+  let clean = textContent.trim();
+  const jsonMatch = clean.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    clean = jsonMatch[0];
+  }
+
+  const parsed = JSON.parse(clean);
+  return {
+    parsed,
+    transcript: parsed.transcript || spokenText,
+    modelUsed: `Google ${geminiModel}`,
+  };
 }

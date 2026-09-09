@@ -7,10 +7,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const spokenText = body.spokenText || body.text || "";
+    const audioBase64 = body.audioBase64;
+    const audioMimeType = body.audioMimeType || "audio/webm";
 
-    if (!spokenText.trim()) {
+    if (!spokenText.trim() && !audioBase64) {
       return NextResponse.json(
-        { error: "No spoken text or transcript provided." },
+        { error: "No spoken text or audio recording provided." },
         { status: 400 }
       );
     }
@@ -19,12 +21,14 @@ export async function POST(request: NextRequest) {
     const timezone = body.timezone || "Asia/Kolkata";
     const autoEvolveSchema = body.autoEvolveSchema !== false;
 
-    console.log(`[POST /api/timeline/process-speech] Processing speech for date ${targetDate} (${spokenText.length} chars)`);
+    console.log(`[POST /api/timeline/process-speech] Processing speech for date ${targetDate} (text: ${spokenText.length} chars, audio: ${Boolean(audioBase64)})`);
 
     const result = await extractLifeEventsFromSpeech(spokenText, {
       targetDate,
       timezone,
       autoEvolveSchema,
+      audioBase64,
+      audioMimeType,
     });
 
     return NextResponse.json({

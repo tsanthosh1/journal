@@ -33,13 +33,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const updated = await saveAiConfig({
+      provider: body.provider,
       apiKey: body.apiKey,
       model: body.model,
     });
 
     return NextResponse.json({
       success: true,
-      message: "OpenRouter AI configuration updated",
+      message: `${updated.provider === "gemini" ? "Google Gemini" : "OpenRouter"} AI configuration updated`,
       config: {
         provider: updated.provider,
         isConfigured: updated.isConfigured,

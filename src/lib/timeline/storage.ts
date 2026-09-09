@@ -292,21 +292,25 @@ export async function evolveActivitySchema(
 }
 
 // ─────────────────────────────────────────────────────────────
-// AI Configuration Storage (OpenRouter)
+// AI Configuration Storage (Google Gemini & OpenRouter)
 // ─────────────────────────────────────────────────────────────
 
 export async function getAiConfig(): Promise<AiConfig> {
-  const envKey = process.env.OPENROUTER_API_KEY;
-  const defaultModel = process.env.OPENROUTER_MODEL || "openrouter/free";
+  const geminiEnvKey = process.env.GEMINI_API_KEY;
+  const openRouterEnvKey = process.env.OPENROUTER_API_KEY;
 
   try {
     const { db } = getFirebaseAdmin();
     const doc = await db.collection(SETTINGS_COLLECTION).doc(AI_CONFIG_DOC).get();
     if (doc.exists) {
       const data = doc.data() as any;
-      const key = data.apiKey || envKey;
+      const provider = (data.provider as "gemini" | "openrouter") || (data.apiKey?.startsWith("AIzaSy") ? "gemini" : "openrouter");
+      const defaultKey = provider === "gemini" ? geminiEnvKey : openRouterEnvKey;
+      const key = data.apiKey || defaultKey || geminiEnvKey || openRouterEnvKey;
+      const defaultModel = provider === "gemini" ? "gemini-2.0-flash" : "openrouter/free";
+
       return {
-        provider: "openrouter",
+        provider,
         apiKey: key,
         isConfigured: Boolean(key && key.trim().length > 0),
         model: data.model || defaultModel,
@@ -317,23 +321,35 @@ export async function getAiConfig(): Promise<AiConfig> {
     console.warn("[storage] Could not read ai_config doc, using env:", err);
   }
 
+  // Default fallback if no doc stored yet
+  const hasGemini = Boolean(geminiEnvKey && geminiEnvKey.trim().length > 0);
+  const provider = hasGemini ? "gemini" : "openrouter";
+  const key = hasGemini ? geminiEnvKey : openRouterEnvKey;
+
   return {
-    provider: "openrouter",
-    apiKey: envKey,
-    isConfigured: Boolean(envKey && envKey.trim().length > 0),
-    model: defaultModel,
+    provider,
+    apiKey: key,
+    isConfigured: Boolean(key && key.trim().length > 0),
+    model: provider === "gemini" ? "gemini-2.0-flash" : "openrouter/free",
   };
 }
 
-export async function saveAiConfig(config: { apiKey?: string; model?: string }): Promise<AiConfig> {
+export async function saveAiConfig(config: {
+  provider?: "gemini" | "openrouter";
+  apiKey?: string;
+  model?: string;
+}): Promise<AiConfig> {
   const { db } = getFirebaseAdmin();
   const now = new Date().toISOString();
   const existing = await getAiConfig();
 
+  const provider = config.provider || (config.apiKey?.startsWith("AIzaSy") ? "gemini" : existing.provider) || "gemini";
+  const defaultModel = provider === "gemini" ? "gemini-2.0-flash" : "openrouter/free";
+
   const toSave: AiConfig = {
-    provider: "openrouter",
+    provider,
     apiKey: config.apiKey !== undefined ? config.apiKey.trim() : existing.apiKey,
-    model: config.model || existing.model || "openrouter/free",
+    model: config.model || (config.provider && config.provider !== existing.provider ? defaultModel : existing.model) || defaultModel,
     isConfigured: false,
     updatedAt: now,
   };
