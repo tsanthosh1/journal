@@ -10,6 +10,41 @@ interface TimelineEventCardProps {
   density?: "comfortable" | "compact";
 }
 
+/**
+ * Extract up to 2 concise key metrics (numbers, scores, short values <= 20 chars)
+ * to prevent long sentences from polluting compact tag lines.
+ */
+function getConciseMetrics(attributes: Record<string, any> = {}) {
+  const IGNORED_KEYS = new Set([
+    "description",
+    "notes",
+    "keyTakeaway",
+    "decisions",
+    "gratitude",
+    "actionItems",
+    "dietaryNotes",
+    "foodItems",
+    "collaborators",
+  ]);
+
+  const metrics: Array<{ key: string; label: string }> = [];
+  for (const [k, v] of Object.entries(attributes)) {
+    if (v === null || v === undefined || v === "") continue;
+    if (typeof v === "object" && !Array.isArray(v)) continue;
+    if (IGNORED_KEYS.has(k)) continue;
+
+    const str = Array.isArray(v) ? v.join(", ") : String(v);
+    if (str.length <= 20) {
+      metrics.push({
+        key: k,
+        label: `${k.replace(/([A-Z])/g, " $1")}: ${str}`,
+      });
+    }
+    if (metrics.length >= 2) break;
+  }
+  return metrics;
+}
+
 export function TimelineEventCard({
   event,
   onEdit,
@@ -33,13 +68,14 @@ export function TimelineEventCard({
 
   const hasAttributes = event.attributes && Object.keys(event.attributes).length > 0;
   const isCompact = density === "compact";
+  const conciseMetrics = isCompact ? getConciseMetrics(event.attributes) : [];
 
   // ─────────────────────────────────────────────────────────────
-  // COMPACT VIEW RENDER (Aligned Titles & Responsive Mobile Layout)
+  // COMPACT VIEW: Two-Line Structured Layout (Linear / Reminders)
   // ─────────────────────────────────────────────────────────────
   if (isCompact) {
     return (
-      <div className="relative pl-6 sm:pl-8 pb-2.5 last:pb-1 group">
+      <div className="relative pl-6 sm:pl-8 pb-3 last:pb-1 group">
         {/* Compact Spine Connector */}
         <div className="absolute left-0 top-2 bottom-0 w-px bg-slate-800 group-last:bg-transparent" />
         <div
@@ -52,134 +88,14 @@ export function TimelineEventCard({
 
         {/* Compact Card Container */}
         <div
-          className={`rounded-xl border ${meta.borderColor} bg-slate-900/85 hover:bg-slate-900 px-3 py-2 sm:px-4 sm:py-2.5 shadow-sm backdrop-blur-md transition-all duration-150 hover:border-white/20`}
+          className={`rounded-xl border ${meta.borderColor} bg-slate-900/85 hover:bg-slate-900 px-3.5 py-2.5 sm:px-4 sm:py-3 shadow-sm backdrop-blur-md transition-all duration-150 hover:border-white/20`}
         >
-          {/* ──────── DESKTOP & TABLET VIEW (sm and up) ──────── */}
-          {/* Grid guarantees ALL event titles are aligned in a straight line! */}
-          <div className="hidden sm:grid sm:grid-cols-[148px_minmax(180px,1fr)_auto_auto] sm:items-center sm:gap-3">
-            {/* Column 1: Fixed-Width Time Slot (148px) */}
-            <div className="flex items-center gap-1.5 shrink-0 overflow-hidden">
-              <span className="font-mono text-[11px] font-bold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/5 truncate shrink-0">
-                {event.startTime ? (
-                  <>
-                    <span>{event.startTime}</span>
-                    {event.endTime && (
-                      <span className="text-slate-500 font-normal"> - {event.endTime}</span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-slate-500">All day</span>
-                )}
-              </span>
-
-              {event.durationMinutes && (
-                <span className="font-mono text-[10px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded shrink-0">
-                  {event.durationMinutes}m
-                </span>
-              )}
-            </div>
-
-            {/* Column 2: Event Title (Aligned in a straight column) */}
-            <div className="min-w-0">
-              <span
-                onClick={() => onEdit(event)}
-                className="font-bold text-white text-xs sm:text-sm truncate block cursor-pointer hover:text-cyan-300 transition"
-                title={event.title}
-              >
-                {event.title}
-              </span>
-            </div>
-
-            {/* Column 3: Category, Mood & Attributes Badges */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${meta.badgeColor} shrink-0`}
-              >
-                {meta.name}
-              </span>
-
-              {event.mood && (
-                <span className="rounded-full bg-teal-500/15 border border-teal-500/30 px-2 py-0.5 text-[10px] font-semibold text-teal-300 shrink-0">
-                  {event.mood}
-                </span>
-              )}
-
-              {/* Snippet of key attributes on large screens */}
-              {hasAttributes && (
-                <span className="hidden xl:inline-flex items-center gap-1.5 text-[10px] text-slate-400 truncate max-w-xs">
-                  {Object.entries(event.attributes)
-                    .slice(0, 2)
-                    .map(([k, v]) => {
-                      if (v === undefined || v === null || v === "") return null;
-                      return (
-                        <span
-                          key={k}
-                          className="inline-flex items-center gap-1 bg-slate-950/60 px-1.5 py-0.5 rounded border border-white/5 text-slate-300"
-                        >
-                          <span className="text-slate-500">{k}:</span>
-                          <span className="font-semibold text-white font-mono">{String(v)}</span>
-                        </span>
-                      );
-                    })}
-                </span>
-              )}
-            </div>
-
-            {/* Column 4: Actions (Chevron, Edit, Delete) */}
-            <div className="flex items-center gap-1 shrink-0">
-              {(event.description || hasAttributes || event.rawSpokenText) && (
-                <button
-                  type="button"
-                  onClick={() => setExpanded(!expanded)}
-                  className="px-1.5 py-1 rounded-lg text-[11px] text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition cursor-pointer"
-                  title={expanded ? "Collapse details" : "Expand details"}
-                >
-                  {expanded ? "▲" : "▼"}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => onEdit(event)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
-                title="Edit event"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleDelete}
-                className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer disabled:opacity-50"
-                title="Delete event"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* ──────── MOBILE VIEW (< sm) ──────── */}
-          {/* Structured 2-row layout designed for phones */}
-          <div className="flex flex-col gap-1.5 sm:hidden">
-            {/* Row 1: Time badge, duration, category badge & actions */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                <span className="font-mono text-[11px] font-bold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/5 shrink-0">
+          <div className="flex flex-col gap-1.5">
+            {/* LINE 1: Time badge + Full Prominent Title + Actions */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {/* Time Badge */}
+                <span className="shrink-0 font-mono text-[11px] font-bold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/5">
                   {event.startTime ? (
                     <>
                       <span>{event.startTime}</span>
@@ -193,35 +109,38 @@ export function TimelineEventCard({
                 </span>
 
                 {event.durationMinutes && (
-                  <span className="font-mono text-[10px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded shrink-0">
+                  <span className="shrink-0 font-mono text-[10px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded">
                     {event.durationMinutes}m
                   </span>
                 )}
 
+                {/* Event Title (Full text, no premature truncation) */}
                 <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${meta.badgeColor} shrink-0`}
+                  onClick={() => onEdit(event)}
+                  className="font-bold text-white text-sm sm:text-[15px] hover:text-cyan-300 cursor-pointer transition leading-snug flex-1 break-words"
+                  title={event.title}
                 >
-                  {meta.name}
+                  {event.title}
                 </span>
               </div>
 
-              {/* Action buttons (always cleanly aligned on top-right on mobile) */}
+              {/* Action Buttons */}
               <div className="flex items-center gap-1 shrink-0">
                 {(event.description || hasAttributes || event.rawSpokenText) && (
                   <button
                     type="button"
                     onClick={() => setExpanded(!expanded)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition cursor-pointer"
                     title={expanded ? "Collapse details" : "Expand details"}
                   >
-                    <span className="text-xs">{expanded ? "▲" : "▼"}</span>
+                    <span className="text-xs font-bold">{expanded ? "▲" : "▼"}</span>
                   </button>
                 )}
 
                 <button
                   type="button"
                   onClick={() => onEdit(event)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
                   title="Edit event"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -238,7 +157,7 @@ export function TimelineEventCard({
                   type="button"
                   disabled={isDeleting}
                   onClick={handleDelete}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition disabled:opacity-50"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer disabled:opacity-50"
                   title="Delete event"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -253,32 +172,64 @@ export function TimelineEventCard({
               </div>
             </div>
 
-            {/* Row 2: Title and Mood */}
-            <div className="flex items-center justify-between gap-2 pt-0.5">
+            {/* LINE 2: Structured Metadata & Tags Sub-Row */}
+            <div className="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">
+              {/* Category Badge */}
               <span
-                onClick={() => onEdit(event)}
-                className="font-bold text-white text-xs sm:text-sm truncate flex-1 cursor-pointer hover:text-cyan-300 transition"
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold ${meta.badgeColor} shrink-0`}
               >
-                {event.title}
+                <span>{meta.icon}</span>
+                <span>{meta.name}</span>
               </span>
 
+              {/* Mood Badge */}
               {event.mood && (
-                <span className="shrink-0 rounded-full bg-teal-500/15 border border-teal-500/30 px-2 py-0.2 text-[10px] font-semibold text-teal-300">
-                  {event.mood}
+                <span className="inline-flex items-center gap-1 rounded-md bg-teal-500/15 border border-teal-500/30 px-2 py-0.5 text-[10px] font-semibold text-teal-300 shrink-0">
+                  <span>😊</span>
+                  <span>{event.mood}</span>
                 </span>
+              )}
+
+              {/* Structured Keyword Hashtags */}
+              {event.tags && event.tags.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {event.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md bg-slate-950/70 border border-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-300 font-mono"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Concise Key Metric Pills (short numbers / outcomes only) */}
+              {conciseMetrics.length > 0 && (
+                <div className="hidden sm:flex items-center gap-1">
+                  {conciseMetrics.map((m) => (
+                    <span
+                      key={m.key}
+                      className="inline-flex items-center gap-1 rounded-md bg-slate-950/90 border border-white/10 px-2 py-0.5 text-[10px] text-slate-300"
+                    >
+                      <span className="font-mono text-cyan-300 font-semibold">{m.label}</span>
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           </div>
 
-          {/* Compact Inline Expansion (if toggled) */}
+          {/* Compact Inline Expansion (reveals full description, full attributes, raw speech) */}
           {expanded && (
-            <div className="mt-2.5 pt-2 border-t border-white/5 space-y-2 text-xs">
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5 text-xs">
               {event.description && (
-                <p className="text-slate-300 leading-relaxed text-xs">
+                <p className="text-slate-300 leading-relaxed text-xs sm:text-sm">
                   {event.description}
                 </p>
               )}
 
+              {/* Full Attributes Grid */}
               {hasAttributes && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                   {Object.entries(event.attributes).map(([key, value]) => {
@@ -287,7 +238,7 @@ export function TimelineEventCard({
                     return (
                       <div
                         key={key}
-                        className="inline-flex items-center gap-1 rounded-lg bg-slate-950/80 border border-white/10 px-2 py-0.5 text-[11px] text-slate-300"
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-950/80 border border-white/10 px-2.5 py-1 text-[11px] text-slate-300"
                       >
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                           {key.replace(/([A-Z])/g, " $1")}:
@@ -299,18 +250,8 @@ export function TimelineEventCard({
                 </div>
               )}
 
-              {event.tags && event.tags.length > 0 && (
-                <div className="flex items-center gap-1.5 pt-1">
-                  {event.tags.map((tag) => (
-                    <span key={tag} className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-slate-400">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
               {event.rawSpokenText && (
-                <div className="rounded-lg bg-slate-950/80 border border-white/5 p-2 text-[10px] text-slate-400 italic">
+                <div className="rounded-lg bg-slate-950/80 border border-white/5 p-2 text-[11px] text-slate-400 italic">
                   "{event.rawSpokenText}"
                 </div>
               )}
