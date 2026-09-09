@@ -198,10 +198,9 @@ Respond ONLY in valid JSON format matching this structure:
       temperature: 0.2,
     };
 
-    // If using the free router, configure fallback chain across top free models
+    // If using the free router, configure fallback chain (max 3 items per OpenRouter limit)
     if (isFreeRouter) {
       requestBody.models = [
-        "openrouter/free",
         "google/gemini-2.0-flash-exp:free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "qwen/qwen-2.5-72b-instruct:free",
@@ -231,7 +230,12 @@ Respond ONLY in valid JSON format matching this structure:
       throw new Error("OpenRouter returned empty message content.");
     }
 
-    const parsed = JSON.parse(content);
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith("```")) {
+      cleanContent = cleanContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    }
+
+    const parsed = JSON.parse(cleanContent);
     const events: ExtractedEventCandidate[] = parsed.events || [];
 
     // Auto-evolve schemas if new attributes were discovered
