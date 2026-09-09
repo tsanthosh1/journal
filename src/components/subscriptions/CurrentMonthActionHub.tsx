@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Subscription,
+  SubscriptionCategory,
   formatDisplayDate,
   formatCycleMonth,
   calculatePrepaidRenewalInfo,
@@ -16,6 +17,9 @@ interface CurrentMonthActionHubProps {
   onQuickMarkPaid: (sub: Subscription) => Promise<void>;
   onOverride: (sub: Subscription) => void;
   onViewHistory: (sub: Subscription) => void;
+  onEdit: (sub: Subscription) => void;
+  onDelete: (id: string) => void;
+  onTestParser?: (sub: Subscription) => void;
 }
 
 type PriorityGroup = "OVERDUE" | "DUE_SOON" | "UPCOMING" | "AWAITING_BILL" | "SETTLED" | "SKIPPED";
@@ -39,9 +43,76 @@ export function CurrentMonthActionHub({
   onQuickMarkPaid,
   onOverride,
   onViewHistory,
+  onEdit,
+  onDelete,
+  onTestParser,
 }: CurrentMonthActionHubProps) {
   const [filter, setFilter] = useState<"ALL" | "ACTION_REQUIRED" | "OVERDUE" | "SETTLED">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<"priority" | "dueDate" | "amountDesc" | "amountAsc" | "name">("priority");
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isMarkingPaidId, setIsMarkingPaidId] = useState<string | null>(null);
+
+  const categories: SubscriptionCategory[] = [
+    "Credit Cards",
+    "Utilities",
+    "Services",
+    "Entertainment",
+    "Loans & EMIs",
+    "Housing & Rent",
+    "Savings & Schemes",
+    "Insurance",
+    "Software & Tools",
+    "Other",
+  ];
+
+  useEffect(() => {
+    const handleCloseMenu = () => setActiveMenuId(null);
+    window.addEventListener("click", handleCloseMenu);
+    return () => window.removeEventListener("click", handleCloseMenu);
+  }, []);
+
+  const handleCopyConfig = async (sub: Subscription) => {
+    const configPayload = {
+      name: sub.name,
+      category: sub.category,
+      billingType: sub.billingType,
+      source: sub.source,
+      currency: sub.currency,
+      defaultAmount: sub.defaultAmount,
+      billingCycle: sub.billingCycle,
+      isPrepaid: sub.isPrepaid,
+      dueDayOfMonth: sub.dueDayOfMonth,
+      statementDayOfMonth: sub.statementDayOfMonth,
+      emailConfig: sub.emailConfig
+        ? {
+            enabled: sub.emailConfig.enabled,
+            statementQuery: sub.emailConfig.statementQuery,
+            paymentQuery: sub.emailConfig.paymentQuery,
+            parserModule: sub.emailConfig.parserModule,
+            customRegex: sub.emailConfig.customRegex,
+          }
+        : undefined,
+      smsConfig: sub.smsConfig,
+      tnebConfig: sub.tnebConfig,
+      apartmentConfig: sub.apartmentConfig,
+      chennaiWaterConfig: sub.chennaiWaterConfig,
+      notes: sub.notes,
+    };
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(configPayload, null, 2));
+      setCopiedId(sub.id);
+      setTimeout(() => {
+        setCopiedId(null);
+        setActiveMenuId(null);
+      }, 1500);
+    } catch (err) {
+      console.error("Failed to copy config JSON:", err);
+    }
+  };
 
   const todayIso = new Date().toISOString().split("T")[0];
   const currentMonthStr = todayIso.slice(0, 7);
@@ -181,17 +252,62 @@ export function CurrentMonthActionHub({
   }, [subscriptions, todayIso, currentMonthStr]);
 
   const filteredItems = useMemo(() => {
-    if (filter === "OVERDUE") {
-      return items.filter((i) => i.group === "OVERDUE");
-    }
-    if (filter === "ACTION_REQUIRED") {
-      return items.filter((i) => i.group === "OVERDUE" || i.group === "DUE_SOON" || i.group === "UPCOMING");
-    }
-    if (filter === "SETTLED") {
-      return items.filter((i) => i.group === "SETTLED");
-    }
-    return items;
-  }, [items, filter]);
+    return items
+      .filter((item) => {
+        const sub = item.subscription;
+
+        // 1. Status Filter Tab
+        if (filter === "OVERDUE" && item.group !== "OVERDUE") return false;
+        if (
+          filter === "ACTION_REQUIRED" &&
+          item.group !== "OVERDUE" &&
+          item.group !== "DUE_SOON" &&
+          item.group !== "UPCOMING"
+        )
+          return false;
+        if (filter === "SETTLED" && item.group !== "SETTLED" && item.group !== "SKIPPED")
+          return false;
+
+        // 2. Category Filter
+        if (selectedCategory !== "ALL" && sub.category !== selectedCategory) {
+          return false;
+        }
+
+        // 3. Search Query Filter
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchName = sub.name.toLowerCase().includes(q);
+          const matchCat = sub.category?.toLowerCase().includes(q);
+          const matchNotes = sub.notes?.toLowerCase().includes(q);
+          const matchEb = sub.tnebConfig?.consumerNumber?.toLowerCase().includes(q);
+          const matchFlat = sub.apartmentConfig?.flatNumber?.toLowerCase().includes(q);
+          const matchWater = sub.chennaiWaterConfig?.billNumber?.toLowerCase().includes(q);
+          if (!matchName && !matchCat && !matchNotes && !matchEb && !matchFlat && !matchWater) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "dueDate") {
+          const dA = a.subscription.currentCycle?.dueDate || "9999-99-99";
+          const dB = b.subscription.currentCycle?.dueDate || "9999-99-99";
+          return dA.localeCompare(dB);
+        }
+        if (sortBy === "amountDesc") {
+          return b.displayAmount - a.displayAmount;
+        }
+        if (sortBy === "amountAsc") {
+          return a.displayAmount - b.displayAmount;
+        }
+        if (sortBy === "name") {
+          return a.subscription.name.localeCompare(b.subscription.name);
+        }
+        // "priority" urgency sort is already preserved from `items`
+        return 0;
+      });
+  }, [items, filter, selectedCategory, searchQuery, sortBy]);
 
   const handleQuickPay = async (e: React.MouseEvent, sub: Subscription) => {
     e.stopPropagation();
@@ -211,7 +327,7 @@ export function CurrentMonthActionHub({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                Action Hub • {formatCycleMonth(currentMonthStr)}
+                Commitments • {formatCycleMonth(currentMonthStr)}
               </span>
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-slate-300">
                 {stats.settledCount}/{stats.totalCount} Settled
@@ -292,6 +408,66 @@ export function CurrentMonthActionHub({
           >
             ✅ Cleared ({stats.settledCount})
           </button>
+        </div>
+      </div>
+
+      {/* Search, Category & Sort Toolbar */}
+      <div className="rounded-2xl sm:rounded-3xl border border-white/10 bg-slate-900/70 p-3 sm:p-4 shadow-xl backdrop-blur-md">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search commitments, notes, consumer or bill numbers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full min-h-[40px] rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 py-2 pl-10 pr-9 text-xs sm:text-sm text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Filter Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Category Dropdown */}
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="min-h-[38px] rounded-xl sm:rounded-2xl border border-white/10 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 focus:border-cyan-400 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+
+            {/* Sort Dropdown */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="min-h-[38px] rounded-xl sm:rounded-2xl border border-white/10 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 focus:border-cyan-400 focus:outline-none cursor-pointer"
+            >
+              <option value="priority">Sort: Urgency / Priority</option>
+              <option value="dueDate">Sort: Due Date (Earliest)</option>
+              <option value="amountDesc">Sort: Amount (Highest)</option>
+              <option value="amountAsc">Sort: Amount (Lowest)</option>
+              <option value="name">Sort: Name (A-Z)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -526,6 +702,97 @@ export function CurrentMonthActionHub({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </button>
+
+                  {/* Triple dot popover menu */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenuId(activeMenuId === sub.id ? null : sub.id);
+                      }}
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:bg-white/15 hover:text-white hover:border-white/25 transition cursor-pointer"
+                      title="More options"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                      </svg>
+                    </button>
+
+                    {activeMenuId === sub.id && (
+                      <div
+                        className="absolute right-0 bottom-full mb-2 w-48 rounded-2xl border border-white/15 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl z-30 space-y-1 text-xs"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleCopyConfig(sub)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-medium text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-300 transition cursor-pointer"
+                        >
+                          <span>{copiedId === sub.id ? "✓" : "📋"}</span>
+                          <span>{copiedId === sub.id ? "Copied!" : "Copy Sub Config"}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveMenuId(null);
+                            onEdit(sub);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-medium text-slate-200 hover:bg-white/10 hover:text-white transition cursor-pointer"
+                        >
+                          <span>✏️</span>
+                          <span>Edit Sub Config</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveMenuId(null);
+                            onOverride(sub);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-medium text-slate-200 hover:bg-white/10 hover:text-white transition cursor-pointer"
+                        >
+                          <span>⚙️</span>
+                          <span>Manual Override</span>
+                        </button>
+
+                        {onTestParser && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onTestParser(sub);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-medium text-indigo-300 hover:bg-indigo-500/20 transition cursor-pointer"
+                          >
+                            <span>🧪</span>
+                            <span>Test Parser Sandbox</span>
+                          </button>
+                        )}
+
+                        <div className="border-t border-white/10 my-1"></div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveMenuId(null);
+                            if (
+                              window.confirm(
+                                `Are you sure you want to delete "${sub.name}"? This action cannot be undone.`,
+                              )
+                            ) {
+                              onDelete(sub.id);
+                            }
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-medium text-rose-400 hover:bg-rose-500/20 transition cursor-pointer"
+                        >
+                          <span>🗑️</span>
+                          <span>Delete Config</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

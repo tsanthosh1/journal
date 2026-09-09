@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
 import { FinancialSummaryCards } from "@/components/subscriptions/FinancialSummaryCards";
 import { OutflowsTimeline } from "@/components/subscriptions/OutflowsTimeline";
-import { SubscriptionList } from "@/components/subscriptions/SubscriptionList";
 import { CurrentMonthActionHub } from "@/components/subscriptions/CurrentMonthActionHub";
 import { SubscriptionDetailView } from "@/components/subscriptions/SubscriptionDetailView";
 import { SubscriptionModal } from "@/components/subscriptions/SubscriptionModal";
@@ -42,11 +41,13 @@ function SubscriptionsPageContent() {
   const [isSmsSyncing, setIsSmsSyncing] = useState(false);
   const [syncSummary, setSyncSummary] = useState<string | null>(null);
 
-  const initialTab = (searchParams.get("tab") as any) || "action-hub";
+  const initialTab = (searchParams.get("tab") as any) || "commitments";
   const initialSubId = searchParams.get("subId");
 
-  const [activeView, setActiveView] = useState<"action-hub" | "subscriptions" | "timeline" | "split">(
-    ["action-hub", "subscriptions", "timeline", "split"].includes(initialTab) ? initialTab : "action-hub",
+  const [activeView, setActiveView] = useState<"commitments" | "action-hub" | "timeline" | "split">(
+    ["commitments", "action-hub", "timeline", "split"].includes(initialTab)
+      ? initialTab === "action-hub" ? "commitments" : initialTab
+      : "commitments",
   );
   const [selectedSubId, setSelectedSubId] = useState<string | null>(initialSubId || null);
 
@@ -54,17 +55,22 @@ function SubscriptionsPageContent() {
     const tabParam = searchParams.get("tab");
     const subIdParam = searchParams.get("subId");
 
-    if (tabParam && ["action-hub", "subscriptions", "timeline", "split"].includes(tabParam)) {
-      setActiveView(tabParam as any);
+    if (tabParam) {
+      if (tabParam === "action-hub" || tabParam === "subscriptions" || tabParam === "commitments") {
+        setActiveView("commitments");
+      } else if (tabParam === "timeline" || tabParam === "split") {
+        setActiveView(tabParam);
+      }
     }
     setSelectedSubId(subIdParam || null);
   }, [searchParams]);
 
-  const handleSwitchTab = (tab: "action-hub" | "subscriptions" | "timeline" | "split") => {
-    setActiveView(tab);
+  const handleSwitchTab = (tab: "commitments" | "action-hub" | "timeline" | "split") => {
+    const normalizedTab = tab === "action-hub" ? "commitments" : tab;
+    setActiveView(normalizedTab);
     setSelectedSubId(null);
     const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", tab);
+    params.set("tab", normalizedTab);
     params.delete("subId");
     router.push(`/subscriptions?${params.toString()}`);
   };
@@ -503,30 +509,19 @@ function SubscriptionsPageContent() {
           />
         ) : (
           <>
-            {/* View Switcher: Action Hub vs Subscriptions List vs Outflows Timeline vs Split */}
+            {/* View Switcher: Commitments vs Outflows Timeline vs Split */}
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto">
                 <button
                   type="button"
-                  onClick={() => handleSwitchTab("action-hub")}
+                  onClick={() => handleSwitchTab("commitments")}
                   className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
-                    activeView === "action-hub"
+                    activeView === "commitments" || activeView === "action-hub"
                       ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  🎯 Due This Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSwitchTab("subscriptions")}
-                  className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
-                    activeView === "subscriptions"
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  📋 All Commitments
+                  📋 Commitments
                 </button>
                 <button
                   type="button"
@@ -557,19 +552,13 @@ function SubscriptionsPageContent() {
               </span>
             </div>
 
-            {/* Main View Area (Primary Focus: Due This Month / All Commitments List) */}
-            {activeView === "action-hub" ? (
-              <CurrentMonthActionHub
+            {/* Main View Area */}
+            {activeView === "timeline" ? (
+              <OutflowsTimeline
                 subscriptions={subscriptions}
-                onSelectSubscription={handleSelectSubscription}
-                onQuickMarkPaid={handleQuickMarkPaid}
-                onOverride={(sub) => {
+                onOpenOverride={(sub) => {
                   setOverrideSubscription(sub);
                   setIsOverrideModalOpen(true);
-                }}
-                onViewHistory={(sub) => {
-                  setHistorySubscription(sub);
-                  setIsHistoryModalOpen(true);
                 }}
               />
             ) : activeView === "split" ? (
@@ -584,8 +573,10 @@ function SubscriptionsPageContent() {
                   />
                 </div>
                 <div className="lg:col-span-8">
-                  <SubscriptionList
+                  <CurrentMonthActionHub
                     subscriptions={subscriptions}
+                    onSelectSubscription={handleSelectSubscription}
+                    onQuickMarkPaid={handleQuickMarkPaid}
                     onEdit={(sub) => {
                       setEditingSubscription(sub);
                       setIsSubscriptionModalOpen(true);
@@ -595,32 +586,23 @@ function SubscriptionsPageContent() {
                       setIsOverrideModalOpen(true);
                     }}
                     onDelete={handleDeleteSubscription}
-                    onQuickMarkPaid={handleQuickMarkPaid}
-                    onSelectSubscription={handleSelectSubscription}
+                    onViewHistory={(sub) => {
+                      setHistorySubscription(sub);
+                      setIsHistoryModalOpen(true);
+                    }}
                     onTestParser={(sub) => {
                       setSandboxModule(sub.emailConfig?.parserModule || "AxisCardParser");
                       setSandboxRegex(sub.emailConfig?.customRegex);
                       setIsSandboxModalOpen(true);
                     }}
-                    onViewHistory={(sub) => {
-                      setHistorySubscription(sub);
-                      setIsHistoryModalOpen(true);
-                    }}
-                    onViewSourceEmail={handleOpenSourceEmailViewer}
                   />
                 </div>
               </div>
-            ) : activeView === "timeline" ? (
-              <OutflowsTimeline
-                subscriptions={subscriptions}
-                onOpenOverride={(sub) => {
-                  setOverrideSubscription(sub);
-                  setIsOverrideModalOpen(true);
-                }}
-              />
             ) : (
-              <SubscriptionList
+              <CurrentMonthActionHub
                 subscriptions={subscriptions}
+                onSelectSubscription={handleSelectSubscription}
+                onQuickMarkPaid={handleQuickMarkPaid}
                 onEdit={(sub) => {
                   setEditingSubscription(sub);
                   setIsSubscriptionModalOpen(true);
@@ -630,18 +612,15 @@ function SubscriptionsPageContent() {
                   setIsOverrideModalOpen(true);
                 }}
                 onDelete={handleDeleteSubscription}
-                onQuickMarkPaid={handleQuickMarkPaid}
-                onSelectSubscription={handleSelectSubscription}
+                onViewHistory={(sub) => {
+                  setHistorySubscription(sub);
+                  setIsHistoryModalOpen(true);
+                }}
                 onTestParser={(sub) => {
                   setSandboxModule(sub.emailConfig?.parserModule || "AxisCardParser");
                   setSandboxRegex(sub.emailConfig?.customRegex);
                   setIsSandboxModalOpen(true);
                 }}
-                onViewHistory={(sub) => {
-                  setHistorySubscription(sub);
-                  setIsHistoryModalOpen(true);
-                }}
-                onViewSourceEmail={handleOpenSourceEmailViewer}
               />
             )}
 
