@@ -407,8 +407,9 @@ export function VoiceRecorderModal({
               {/* Pulsing Mic Hero */}
               <div className="flex flex-col items-center justify-center py-4 space-y-3">
                 {/* Language / Accent Selector */}
-                <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950/80 border border-white/10 shadow-inner">
+                <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950/80 border border-white/10 shadow-inner flex-wrap justify-center">
                   {[
+                    { id: "ta-IN", label: "🇮🇳 தமிழ் (Tamil)" },
                     { id: "en-IN", label: "🇮🇳 Indian English" },
                     { id: "en-US", label: "🇺🇸 US English" },
                     { id: "en-GB", label: "🇬🇧 UK English" },
@@ -452,7 +453,7 @@ export function VoiceRecorderModal({
 
                 <div className="text-center">
                   <p className="text-sm font-bold text-white">
-                    {isRecording ? "Listening in " + (speechLang === "en-IN" ? "Indian English" : speechLang === "en-US" ? "US English" : "UK English") + "..." : "Tap microphone to speak"}
+                    {isRecording ? "Listening in " + (speechLang === "ta-IN" ? "தமிழ் (Tamil)" : speechLang === "en-IN" ? "Indian English" : speechLang === "en-US" ? "US English" : "UK English") + "..." : "Tap microphone to speak"}
                   </p>
                   <div className="flex items-center justify-center gap-2 mt-1.5 flex-wrap">
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">

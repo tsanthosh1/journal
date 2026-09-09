@@ -167,6 +167,11 @@ RULES:
      - "unit": optional unit
      - "sampleValue": The extracted value
 
+MULTILINGUAL & TAMIL (தமிழ் / TANGLISH) COMPREHENSION:
+The user narration can be spoken in Tamil (தமிழ்), Tanglish (Tamil words written in English/Latin script or mixed Tamil-English), or English.
+- Seamlessly comprehend Tamil vocabulary, times, activities, food items (e.g. இட்லி / idli, தோசை / dosa, சாம்பார் / sambar), workouts, meetings, and feelings.
+- When Tamil/Tanglish is spoken, output clear, crisp English titles and descriptions (preserving authentic cultural/food terms where appropriate) so events remain searchable and categorized properly.
+
 PHONETIC SPEECH-TO-TEXT NORMALIZATION & ACCENT UNDERSTANDING:
 The narration may contain phonetic homophones, speech recognition artifacts, brand name misspellings, or accented English slips.
 Examples:
