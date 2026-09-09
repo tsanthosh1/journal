@@ -123,8 +123,12 @@ export function VoiceRecorderModal({
         recorder.start(250);
         mediaRecorderRef.current = recorder;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("[VoiceRecorder] MediaRecorder capture error:", err);
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+        setError("Microphone permission denied. Please allow microphone access in your browser settings.");
+        setIsRecording(false);
+      }
     }
   };
 
@@ -206,6 +210,20 @@ export function VoiceRecorderModal({
       }
     };
   }, []);
+
+  const handleRequestMicrophone = async () => {
+    setError(null);
+    try {
+      if (typeof window !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+        toggleRecording();
+      }
+    } catch (err: any) {
+      console.warn("[VoiceRecorder] Microphone permission request error:", err);
+      setError("Microphone permission denied. Please allow microphone access in your browser settings (click the icon in your address bar).");
+    }
+  };
 
   const toggleRecording = () => {
     if (!speechSupported) {
@@ -373,18 +391,36 @@ export function VoiceRecorderModal({
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {error && (
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> {error}
-              </span>
-              {onOpenAiSettings && (
-                <button
-                  type="button"
-                  onClick={onOpenAiSettings}
-                  className="underline font-bold text-cyan-300 hover:text-white cursor-pointer ml-2 shrink-0"
-                >
-                  Configure AI Key
-                </button>
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" /> {error}
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {error.includes("Microphone") && (
+                    <button
+                      type="button"
+                      onClick={handleRequestMicrophone}
+                      className="rounded-lg bg-rose-500/20 border border-rose-500/40 px-2.5 py-1 text-[11px] font-semibold text-rose-200 hover:bg-rose-500/30 cursor-pointer"
+                    >
+                      Retry Permission
+                    </button>
+                  )}
+                  {error.includes("AI key") && onOpenAiSettings && (
+                    <button
+                      type="button"
+                      onClick={onOpenAiSettings}
+                      className="underline font-bold text-cyan-300 hover:text-white cursor-pointer ml-2"
+                    >
+                      Configure AI Key
+                    </button>
+                  )}
+                </div>
+              </div>
+              {error.includes("Microphone") && (
+                <p className="text-[11px] text-rose-300/80 border-t border-rose-500/20 pt-1.5 leading-relaxed">
+                  <strong>How to enable:</strong> Click the padlock / tune settings icon next to <code>localhost:3000</code> in your browser address bar and change <strong>Microphone</strong> to <strong>Allow</strong>. You can also type your notes directly in the box below!
+                </p>
               )}
             </div>
           )}
