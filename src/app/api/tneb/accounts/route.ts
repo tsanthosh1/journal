@@ -1,9 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAllTnebAccounts } from "@/lib/tneb/storage";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to access electricity accounts", {
+      count: 0,
+      accounts: [],
+    });
+  }
+
   try {
     const accounts = await getAllTnebAccounts();
     return NextResponse.json({

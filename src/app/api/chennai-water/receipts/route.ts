@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStoredReceipts, getChennaiWaterSession, saveReceipts, INITIAL_PROPERTY_SEED } from "@/lib/chennaiWater/storage";
 import { fetchReceipts } from "@/lib/chennaiWater/client";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
+  if (!isAuthorizedUser(req)) {
+    return unauthorizedResponse("Authentication required to access water receipts", {
+      receipts: [],
+      count: 0,
+    });
+  }
+
   try {
     const session = await getChennaiWaterSession();
     const activePropertyId = session?.activePropertyId || INITIAL_PROPERTY_SEED.id;

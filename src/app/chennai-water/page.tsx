@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 import {
   ChennaiWaterProperty,
   ChennaiWaterReceipt,
@@ -14,6 +16,9 @@ import { ChennaiWaterInsights } from "@/components/chennaiWater/ChennaiWaterInsi
 type ViewTab = "ASSESSMENT" | "RECEIPTS" | "INSIGHTS";
 
 export default function ChennaiWaterPage() {
+  const { user, userId, isSignedIn } = useAuth();
+  const qUserId = user?.email || user?.uid || userId || "";
+
   const [session, setSession] = useState<ChennaiWaterSession | null>(null);
   const [properties, setProperties] = useState<ChennaiWaterProperty[]>([]);
   const [activeProperty, setActiveProperty] = useState<ChennaiWaterProperty | null>(null);
@@ -33,7 +38,7 @@ export default function ChennaiWaterPage() {
 
   // Auth Modal state
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [mobileOrEmail, setMobileOrEmail] = useState<string>("7094641568");
+  const [mobileOrEmail, setMobileOrEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(false);
@@ -41,18 +46,22 @@ export default function ChennaiWaterPage() {
   // Receipt PDF Modal state
   const [selectedPdfReceipt, setSelectedPdfReceipt] = useState<ChennaiWaterReceipt | null>(null);
 
-  // Initial fetch
-  useEffect(() => {
-    loadAllData();
-  }, []);
-
   const loadAllData = async (refresh: boolean = false) => {
+    if (!isSignedIn) {
+      setSession(null);
+      setProperties([]);
+      setReceipts([]);
+      setDuesData(null);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
     if (refresh) setIsRefreshing(true);
     else setIsLoading(true);
 
     try {
       // 1. Fetch session
-      const sessionRes = await fetch("/api/chennai-water/auth/session");
+      const sessionRes = await fetch(`/api/chennai-water/auth/session?userId=${encodeURIComponent(qUserId)}`);
       const sessionJson = await sessionRes.json();
       if (sessionJson.success && sessionJson.session) {
         setSession(sessionJson.session);
@@ -62,7 +71,7 @@ export default function ChennaiWaterPage() {
       }
 
       // 2. Fetch properties
-      const propRes = await fetch("/api/chennai-water/properties");
+      const propRes = await fetch(`/api/chennai-water/properties?userId=${encodeURIComponent(qUserId)}`);
       const propJson = await propRes.json();
       if (propJson.success && propJson.properties) {
         setProperties(propJson.properties);
@@ -74,7 +83,7 @@ export default function ChennaiWaterPage() {
       }
 
       // 3. Fetch dues & ledger
-      const duesRes = await fetch("/api/chennai-water/ledger");
+      const duesRes = await fetch(`/api/chennai-water/ledger?userId=${encodeURIComponent(qUserId)}`);
       const duesJson = await duesRes.json();
       if (duesJson.success) {
         setDuesData(duesJson.dues);
@@ -84,7 +93,7 @@ export default function ChennaiWaterPage() {
       }
 
       // 4. Fetch receipts
-      const recRes = await fetch("/api/chennai-water/receipts");
+      const recRes = await fetch(`/api/chennai-water/receipts?userId=${encodeURIComponent(qUserId)}`);
       const recJson = await recRes.json();
       if (recJson.success && recJson.receipts) {
         setReceipts(recJson.receipts);
@@ -96,6 +105,19 @@ export default function ChennaiWaterPage() {
       setIsRefreshing(false);
     }
   };
+
+  // Initial fetch on auth change
+  useEffect(() => {
+    if (isSignedIn) {
+      loadAllData();
+    } else {
+      setSession(null);
+      setProperties([]);
+      setReceipts([]);
+      setDuesData(null);
+      setIsLoading(false);
+    }
+  }, [isSignedIn, qUserId]);
 
   // Switch property
   const handlePropertyChange = async (propertyId: string | number) => {
@@ -248,8 +270,14 @@ export default function ChennaiWaterPage() {
     "SANTHOSH T";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-sky-500/30">
-      <FinanceTopBar />
+    <AuthGuard
+      title="Chennai Metro Water Ledger"
+      description="Private CMWSSB water tax assessments, consumer cards, and payment receipts. Sign in with your authorized Google account to access."
+      icon="💧"
+      badge="Private & Encrypted"
+    >
+      <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-sky-500/30">
+        <FinanceTopBar title="Metro Water" />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
         {/* Top Header & Executive Property Banner */}
@@ -745,7 +773,7 @@ export default function ChennaiWaterPage() {
                   required
                   value={mobileOrEmail}
                   onChange={(e) => setMobileOrEmail(e.target.value)}
-                  placeholder="7094641568"
+                  placeholder="9876543210 or email@example.com"
                   className="w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-xs font-mono text-white focus:border-sky-500 focus:outline-none"
                 />
               </div>
@@ -847,5 +875,6 @@ export default function ChennaiWaterPage() {
         </div>
       )}
     </div>
+    </AuthGuard>
   );
 }

@@ -3,10 +3,15 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 import { ApartmentInsights } from "@/components/apartment/ApartmentInsights";
 import { HomefyBillRecord, HomefyApartment } from "@/lib/apartment/types";
 
 export default function ApartmentPage() {
+  const { user, userId, isSignedIn } = useAuth();
+  const qUserId = user?.email || user?.uid || userId || "";
+
   const [bills, setBills] = useState<HomefyBillRecord[]>([]);
   const [activeTab, setActiveTab] = useState<"BILLS" | "INSIGHTS">("BILLS");
   const [isLoadingBills, setIsLoadingBills] = useState(true);
@@ -55,8 +60,12 @@ export default function ApartmentPage() {
 
   // 1. Fetch Session Status
   const fetchSession = async () => {
+    if (!isSignedIn) {
+      setSession(null);
+      return;
+    }
     try {
-      const res = await fetch("/api/apartment/auth/session");
+      const res = await fetch(`/api/apartment/auth/session?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && data.session) {
         setSession(data.session);
@@ -72,6 +81,12 @@ export default function ApartmentPage() {
 
   // 2. Fetch Bills
   const fetchBills = async (realtime = true) => {
+    if (!isSignedIn) {
+      setBills([]);
+      setIsLoadingBills(false);
+      setIsRefreshingRealtime(false);
+      return;
+    }
     if (realtime) {
       setIsRefreshingRealtime(true);
     } else {
@@ -79,7 +94,7 @@ export default function ApartmentPage() {
     }
 
     try {
-      const res = await fetch(`/api/apartment/bills?realtime=${realtime}`);
+      const res = await fetch(`/api/apartment/bills?realtime=${realtime}&userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.bills)) {
         setBills(data.bills);
@@ -101,9 +116,13 @@ export default function ApartmentPage() {
 
   // 3. Fetch Flats for switching
   const fetchFlats = async () => {
+    if (!isSignedIn) {
+      setApartments([]);
+      return;
+    }
     setIsLoadingFlats(true);
     try {
-      const res = await fetch("/api/apartment/flats");
+      const res = await fetch(`/api/apartment/flats?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.apartments)) {
         setApartments(data.apartments);
@@ -117,9 +136,16 @@ export default function ApartmentPage() {
   };
 
   useEffect(() => {
-    fetchSession();
-    fetchBills(true);
-  }, []);
+    if (isSignedIn) {
+      fetchSession();
+      fetchBills(true);
+    } else {
+      setSession(null);
+      setBills([]);
+      setApartments([]);
+      setIsLoadingBills(false);
+    }
+  }, [isSignedIn, qUserId]);
 
   // OTP: Send
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -380,8 +406,14 @@ export default function ApartmentPage() {
   }, [bills]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white pb-24">
-      <FinanceTopBar title="Apartment Management" />
+    <AuthGuard
+      title="Apartment Maintenance Ledger"
+      description="Private Homefy society records, flat maintenance dues, water charges, and payment receipts. Sign in with your authorized Google account to access."
+      icon="🏢"
+      badge="Private & Encrypted"
+    >
+      <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white pb-24">
+        <FinanceTopBar title="Apartment Management" />
 
       {/* Main Container */}
       <main className="mx-auto max-w-7xl px-4 sm:px-8 lg:px-12 py-6 space-y-6">
@@ -1217,5 +1249,6 @@ export default function ApartmentPage() {
         </div>
       )}
     </div>
+    </AuthGuard>
   );
 }

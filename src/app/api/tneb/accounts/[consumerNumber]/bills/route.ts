@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTnebAccount, getTnebBillsForConsumer } from "@/lib/tneb/storage";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ consumerNumber: string }> },
 ) {
+  if (!isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to view electricity bills", {
+      count: 0,
+      bills: [],
+    });
+  }
+
   try {
     const { consumerNumber } = await params;
     if (!consumerNumber) {

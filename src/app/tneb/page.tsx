@@ -3,9 +3,14 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 import { TnebBillRecord, TnebConsumerAccount, TnebConfig, TnebTrackedConsumer } from "@/lib/tneb/types";
 
 export default function TnebPage() {
+  const { user, userId, isSignedIn } = useAuth();
+  const qUserId = user?.email || user?.uid || userId || "";
+
   const [accounts, setAccounts] = useState<TnebConsumerAccount[]>([]);
   const [selectedConsumerNo, setSelectedConsumerNo] = useState<string | null>(null);
   const [bills, setBills] = useState<TnebBillRecord[]>([]);
@@ -41,9 +46,14 @@ export default function TnebPage() {
 
   // Load Accounts
   const fetchAccounts = async () => {
+    if (!isSignedIn) {
+      setAccounts([]);
+      setIsLoadingAccounts(false);
+      return;
+    }
     setIsLoadingAccounts(true);
     try {
-      const res = await fetch("/api/tneb/accounts");
+      const res = await fetch(`/api/tneb/accounts?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.accounts)) {
         setAccounts(data.accounts);
@@ -60,8 +70,12 @@ export default function TnebPage() {
 
   // Load Config
   const fetchConfig = async () => {
+    if (!isSignedIn) {
+      setConfig(null);
+      return;
+    }
     try {
-      const res = await fetch("/api/tneb/config");
+      const res = await fetch(`/api/tneb/config?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && data.config) {
         setConfig(data.config);
@@ -77,13 +91,20 @@ export default function TnebPage() {
   };
 
   useEffect(() => {
-    fetchAccounts();
-    fetchConfig();
-  }, []);
+    if (isSignedIn) {
+      fetchAccounts();
+      fetchConfig();
+    } else {
+      setAccounts([]);
+      setConfig(null);
+      setBills([]);
+      setIsLoadingAccounts(false);
+    }
+  }, [isSignedIn, qUserId]);
 
   // Load Bills for selected consumer
   useEffect(() => {
-    if (!selectedConsumerNo) {
+    if (!selectedConsumerNo || !isSignedIn) {
       setBills([]);
       return;
     }
@@ -91,7 +112,7 @@ export default function TnebPage() {
     const fetchBills = async () => {
       setIsLoadingBills(true);
       try {
-        const res = await fetch(`/api/tneb/accounts/${selectedConsumerNo}/bills`);
+        const res = await fetch(`/api/tneb/accounts/${selectedConsumerNo}/bills?userId=${encodeURIComponent(qUserId)}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.bills)) {
           setBills(data.bills);
@@ -107,7 +128,7 @@ export default function TnebPage() {
     };
 
     fetchBills();
-  }, [selectedConsumerNo]);
+  }, [selectedConsumerNo, isSignedIn, qUserId]);
 
   const selectedAccount = useMemo(() => {
     return accounts.find((a) => a.consumerNumber === selectedConsumerNo) || accounts[0] || null;
@@ -382,8 +403,14 @@ export default function TnebPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-black">
-      <FinanceTopBar title="Tamil Nadu EB Bills ⚡" />
+    <AuthGuard
+      title="TNEB Electricity Ledger"
+      description="Private Tamil Nadu electricity utility bills, consumer numbers, and payment receipts. Sign in with your authorized Google account to access."
+      icon="⚡"
+      badge="Private & Encrypted"
+    >
+      <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-black">
+        <FinanceTopBar title="Tamil Nadu EB Bills ⚡" />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
         {/* Top Header & Actions */}
@@ -1263,5 +1290,6 @@ export default function TnebPage() {
         </div>
       )}
     </div>
+    </AuthGuard>
   );
 }

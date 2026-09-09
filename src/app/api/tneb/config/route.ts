@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTnebConfig, saveTnebConfig } from "@/lib/tneb/storage";
 import { TnebConfig } from "@/lib/tneb/types";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to view TNEB config");
+  }
+
   try {
     const config = await getTnebConfig();
     return NextResponse.json({
@@ -21,6 +26,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to update TNEB config");
+  }
+
   try {
     const body = (await request.json()) as Partial<TnebConfig>;
 

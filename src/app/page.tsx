@@ -14,7 +14,7 @@ import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
 
 export default function Home() {
   const router = useRouter();
-  const { user, userId, userEmail, isSignedIn, isGmailSynced } = useAuth();
+  const { user, userId, userEmail, isSignedIn, isGmailSynced, signInWithGoogle } = useAuth();
 
   // Core Data States
   const [events, setEvents] = useState<LifeEvent[]>([]);
@@ -70,9 +70,15 @@ export default function Home() {
 
   // Fetch Today's Activities
   const fetchTodayEvents = useCallback(async () => {
+    if (!isSignedIn) {
+      setEvents([]);
+      setDaySummary(null);
+      setIsLoadingEvents(false);
+      return;
+    }
     try {
       setIsLoadingEvents(true);
-      const qUserId = user?.email || user?.uid || userId || "default_user";
+      const qUserId = user?.email || user?.uid || userId || "";
       const res = await fetch(`/api/timeline/events?date=${todayIso}&userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
@@ -84,13 +90,18 @@ export default function Home() {
     } finally {
       setIsLoadingEvents(false);
     }
-  }, [user, userId, todayIso]);
+  }, [isSignedIn, user, userId, todayIso]);
 
   // Fetch Subscriptions & Dues
   const fetchSubscriptions = useCallback(async () => {
+    if (!isSignedIn) {
+      setSubscriptions([]);
+      setIsLoadingSubs(false);
+      return;
+    }
     try {
       setIsLoadingSubs(true);
-      const qUserId = user?.email || user?.uid || userId || "default_user";
+      const qUserId = user?.email || user?.uid || userId || "";
       const res = await fetch(`/api/subscriptions?userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
@@ -101,7 +112,7 @@ export default function Home() {
     } finally {
       setIsLoadingSubs(false);
     }
-  }, [user, userId]);
+  }, [isSignedIn, user, userId]);
 
   useEffect(() => {
     fetchTodayEvents();
@@ -527,54 +538,71 @@ export default function Home() {
               </div>
 
               <h1 className="mt-3 text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white">
-                {greeting}, {user?.displayName ? user.displayName.split(" ")[0] : "Santhosh"}
+                {isSignedIn
+                  ? `${greeting}, ${user?.displayName ? user.displayName.split(" ")[0] : "Santhosh"}`
+                  : "Welcome to Track Everything AI"}
               </h1>
               <p className="mt-2 text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                Your unified personal command center for daily life activities, upcoming dues, and automated commitments.
+                {isSignedIn
+                  ? "Your unified personal command center for daily life activities, upcoming dues, and automated commitments."
+                  : "Your personal private command center. Sign in to access your private diary, utility accounts, and financial commitments."}
               </p>
             </div>
 
             {/* Quick Action Buttons Group */}
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsVoiceModalOpen(true)}
-                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition active:scale-95 cursor-pointer"
-              >
-                <span className="text-base leading-none">🎙️</span>
-                <span>Speak & Log</span>
-              </button>
+              {isSignedIn ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsVoiceModalOpen(true)}
+                    className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition active:scale-95 cursor-pointer"
+                  >
+                    <span className="text-base leading-none">🎙️</span>
+                    <span>Speak & Log</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => setIsChatDrawerOpen(true)}
-                className="flex items-center gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/15 px-3.5 py-2.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/25 hover:border-indigo-500/50 transition active:scale-95 cursor-pointer"
-              >
-                <span className="text-sm">💬</span>
-                <span>Ask Diary AI</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsChatDrawerOpen(true)}
+                    className="flex items-center gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/15 px-3.5 py-2.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/25 hover:border-indigo-500/50 transition active:scale-95 cursor-pointer"
+                  >
+                    <span className="text-sm">💬</span>
+                    <span>Ask Diary AI</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleRunSync}
-                disabled={isSyncing}
-                className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
-                title="Synchronize Gmail statements & bills"
-              >
-                <span className={`text-sm ${isSyncing ? "animate-spin" : ""}`}>⚡</span>
-                <span>{isSyncing ? "Syncing..." : "Sync Bills"}</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={handleRunSync}
+                    disabled={isSyncing}
+                    className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                    title="Synchronize Gmail statements & bills"
+                  >
+                    <span className={`text-sm ${isSyncing ? "animate-spin" : ""}`}>⚡</span>
+                    <span>{isSyncing ? "Syncing..." : "Sync Bills"}</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleRefreshAll}
-                className="flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 p-2.5 text-slate-300 hover:text-white transition cursor-pointer"
-                title="Refresh dashboard metrics"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
+                  <button
+                    type="button"
+                    onClick={handleRefreshAll}
+                    className="flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 p-2.5 text-slate-300 hover:text-white transition cursor-pointer"
+                    title="Refresh dashboard metrics"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => signInWithGoogle()}
+                  className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-xl shadow-cyan-500/25 hover:from-cyan-400 hover:to-indigo-500 transition active:scale-95 cursor-pointer"
+                >
+                  <span className="text-base">🔐</span>
+                  <span>Sign in with Google</span>
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -591,19 +619,25 @@ export default function Home() {
                 Today's Diary
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
-                <span>📔</span>
+                <span>{isSignedIn ? "📔" : "🔒"}</span>
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-extrabold text-white">
-                {isLoadingEvents ? "..." : events.length}
+                {!isSignedIn ? "Locked" : isLoadingEvents ? "..." : events.length}
               </span>
-              <span className="text-xs text-slate-400">events logged</span>
+              <span className="text-xs text-slate-400">{!isSignedIn ? "private" : "events logged"}</span>
             </div>
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-              <span>{daySummary?.totalDurationMinutes ? `${daySummary.totalDurationMinutes}m tracked` : "Chronological stream"}</span>
+              <span>
+                {!isSignedIn
+                  ? "Sign in to view"
+                  : daySummary?.totalDurationMinutes
+                  ? `${daySummary.totalDurationMinutes}m tracked`
+                  : "Chronological stream"}
+              </span>
               <span className="text-cyan-400 group-hover:translate-x-0.5 transition font-medium">
-                Open →
+                {isSignedIn ? "Open →" : "Unlock →"}
               </span>
             </div>
           </Link>
@@ -618,19 +652,23 @@ export default function Home() {
                 Pending Dues
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
-                <span>⏳</span>
+                <span>{isSignedIn ? "⏳" : "🔒"}</span>
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-extrabold text-amber-400">
-                {isLoadingSubs ? "..." : `₹${Math.round(totalPendingAmount).toLocaleString("en-IN")}`}
+                {!isSignedIn ? "Locked" : isLoadingSubs ? "..." : `₹${Math.round(totalPendingAmount).toLocaleString("en-IN")}`}
               </span>
-              <span className="text-xs text-slate-400">to clear</span>
+              <span className="text-xs text-slate-400">{!isSignedIn ? "private" : "to clear"}</span>
             </div>
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-              <span>{pendingItems.length} bill{pendingItems.length !== 1 ? "s" : ""} pending</span>
+              <span>
+                {!isSignedIn
+                  ? "Sign in to view"
+                  : `${pendingItems.length} bill${pendingItems.length !== 1 ? "s" : ""} pending`}
+              </span>
               <span className="text-amber-400 group-hover:translate-x-0.5 transition font-medium">
-                Manage →
+                {isSignedIn ? "Manage →" : "Unlock →"}
               </span>
             </div>
           </Link>
@@ -642,17 +680,19 @@ export default function Home() {
                 Due in ≤ 7 Days
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400">
-                <span>🚨</span>
+                <span>{isSignedIn ? "🚨" : "🔒"}</span>
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-extrabold text-white">
-                {isLoadingSubs ? "..." : dueSoonItems.length}
+                {!isSignedIn ? "Locked" : isLoadingSubs ? "..." : dueSoonItems.length}
               </span>
-              <span className="text-xs text-slate-400">urgent</span>
+              <span className="text-xs text-slate-400">{!isSignedIn ? "private" : "urgent"}</span>
             </div>
             <p className="mt-2 text-[11px] text-slate-400 truncate">
-              {dueSoonItems.length > 0
+              {!isSignedIn
+                ? "Sign in to view urgent dues"
+                : dueSoonItems.length > 0
                 ? `${dueSoonItems[0].sub.name} (₹${Math.round(dueSoonItems[0].remaining).toLocaleString("en-IN")})`
                 : "No imminent dues within 7 days"}
             </p>
@@ -665,17 +705,19 @@ export default function Home() {
                 Paid This Month
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-                <span>✓</span>
+                <span>{isSignedIn ? "✓" : "🔒"}</span>
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400">
-                {isLoadingSubs ? "..." : `₹${Math.round(totalPaidAmount).toLocaleString("en-IN")}`}
+                {!isSignedIn ? "Locked" : isLoadingSubs ? "..." : `₹${Math.round(totalPaidAmount).toLocaleString("en-IN")}`}
               </span>
-              <span className="text-xs text-slate-400">cleared</span>
+              <span className="text-xs text-slate-400">{!isSignedIn ? "private" : "cleared"}</span>
             </div>
             <p className="mt-2 text-[11px] text-slate-400">
-              {settledItems.length} commitment{settledItems.length !== 1 ? "s" : ""} settled
+              {!isSignedIn
+                ? "Sign in to view history"
+                : `${settledItems.length} commitment${settledItems.length !== 1 ? "s" : ""} settled`}
             </p>
           </div>
         </div>
@@ -717,7 +759,27 @@ export default function Home() {
             </div>
 
             {/* Activities List */}
-            {isLoadingEvents ? (
+            {!isSignedIn ? (
+              <div className="rounded-2xl border border-dashed border-cyan-500/20 bg-slate-900/40 p-8 text-center space-y-3">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10 text-2xl">
+                  🔒
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-white">Private Daily Diary</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                  Your timeline, voice recordings, and reflections are strictly confidential. Sign in to view and log your daily activity stream.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => signInWithGoogle()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition cursor-pointer"
+                  >
+                    <span>🔐</span>
+                    <span>Sign in with Google</span>
+                  </button>
+                </div>
+              </div>
+            ) : isLoadingEvents ? (
               <div className="space-y-2.5 py-4">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-16 rounded-2xl bg-white/5 animate-pulse" />
@@ -819,23 +881,25 @@ export default function Home() {
             )}
 
             {/* Quick Text Entry Bar */}
-            <form onSubmit={handleQuickNoteSubmit} className="pt-2 border-t border-white/5 flex items-center gap-2">
-              <input
-                type="text"
-                value={quickNoteText}
-                onChange={(e) => setQuickNoteText(e.target.value)}
-                placeholder="Log a quick activity (e.g. Reviewed PRs, Morning Chai, Gym 45m)..."
-                disabled={isSavingQuickNote}
-                className="flex-1 rounded-xl border border-white/10 bg-slate-950/70 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={!quickNoteText.trim() || isSavingQuickNote}
-                className="rounded-xl bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-40 transition cursor-pointer"
-              >
-                {isSavingQuickNote ? "Saving..." : "Add"}
-              </button>
-            </form>
+            {isSignedIn && (
+              <form onSubmit={handleQuickNoteSubmit} className="pt-2 border-t border-white/5 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={quickNoteText}
+                  onChange={(e) => setQuickNoteText(e.target.value)}
+                  placeholder="Log a quick activity (e.g. Reviewed PRs, Morning Chai, Gym 45m)..."
+                  disabled={isSavingQuickNote}
+                  className="flex-1 rounded-xl border border-white/10 bg-slate-950/70 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!quickNoteText.trim() || isSavingQuickNote}
+                  className="rounded-xl bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-40 transition cursor-pointer"
+                >
+                  {isSavingQuickNote ? "Saving..." : "Add"}
+                </button>
+              </form>
+            )}
           </section>
 
           {/* RIGHT: PENDING DUES & COMMITMENTS (5 Cols) */}
@@ -853,53 +917,77 @@ export default function Home() {
                 </div>
               </div>
 
-              <Link
-                href="/subscriptions?tab=commitments"
-                className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition"
-              >
-                Manage All →
-              </Link>
+              {isSignedIn && (
+                <Link
+                  href="/subscriptions?tab=commitments"
+                  className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition"
+                >
+                  Manage All →
+                </Link>
+              )}
             </div>
 
             {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/80 p-1 border border-white/10 text-xs">
-              <button
-                type="button"
-                onClick={() => setDuesTab("pending")}
-                className={`flex-1 rounded-xl py-1.5 text-center font-semibold transition ${
-                  duesTab === "pending"
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Pending ({pendingItems.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setDuesTab("due_soon")}
-                className={`flex-1 rounded-xl py-1.5 text-center font-semibold transition ${
-                  duesTab === "due_soon"
-                    ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Due ≤7d ({dueSoonItems.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setDuesTab("settled")}
-                className={`flex-1 rounded-xl py-1.5 text-center font-semibold transition ${
-                  duesTab === "settled"
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Settled ({settledItems.length})
-              </button>
-            </div>
+            {isSignedIn && (
+              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950/80 p-1 border border-white/10 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setDuesTab("pending")}
+                  className={`flex-1 rounded-xl py-1.5 text-center font-semibold transition ${
+                    duesTab === "pending"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Pending ({pendingItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuesTab("due_soon")}
+                  className={`flex-1 rounded-xl py-1.5 text-center font-semibold transition ${
+                    duesTab === "due_soon"
+                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Due ≤7d ({dueSoonItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuesTab("settled")}
+                  className={`flex-1 rounded-xl py-1.5 text-center font-semibold transition ${
+                    duesTab === "settled"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Settled ({settledItems.length})
+                </button>
+              </div>
+            )}
 
             {/* Dues Items List */}
-            {isLoadingSubs ? (
+            {!isSignedIn ? (
+              <div className="rounded-2xl border border-dashed border-amber-500/20 bg-slate-900/40 p-8 text-center space-y-3">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-2xl">
+                  🔒
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-white">Private Commitments & Dues</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                  Financial commitments, credit cards, bills, and account balances are protected. Sign in to view and manage upcoming dues.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => signInWithGoogle()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/20 hover:from-amber-400 hover:to-orange-500 transition cursor-pointer"
+                  >
+                    <span>🔐</span>
+                    <span>Sign in with Google</span>
+                  </button>
+                </div>
+              </div>
+            ) : isLoadingSubs ? (
               <div className="space-y-2.5 py-4">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-16 rounded-2xl bg-white/5 animate-pulse" />

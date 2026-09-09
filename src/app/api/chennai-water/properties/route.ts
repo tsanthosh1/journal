@@ -7,8 +7,17 @@ import {
   formatCmcNo,
   formatAddress,
 } from "@/lib/chennaiWater/client";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
+  if (!isAuthorizedUser(req)) {
+    return unauthorizedResponse("Authentication required to access water properties", {
+      properties: [],
+      activePropertyId: null,
+      activeBillNo: null,
+    });
+  }
+
   try {
     const session = await getChennaiWaterSession();
     let properties = await getStoredProperties();

@@ -16,9 +16,9 @@ export const INITIAL_PROPERTY_SEED: ChennaiWaterProperty = {
   id: "193097538",
   prop_no: "15-193-097538",
   cmc_no: "15-193-56648-000",
-  c_name: "SANTHOSH T",
-  addr: "60-4B-C-IVFLR-BLUEMOON CALLIST, ANAND NAGAR, THORAIPAKKAM, THORAIPAKKAM, Chennai - 600097",
-  mobile_no: "7094641568",
+  c_name: "",
+  addr: "",
+  mobile_no: "",
   status: "Active",
   annual_value: "₹11,960.00",
   eff_from_term: "24-25/II (Oct-Mar)",
@@ -130,16 +130,7 @@ export async function getChennaiWaterSession(): Promise<ChennaiWaterSession | nu
   const { db } = getFirebaseAdmin();
   const snap = await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).get();
   if (!snap.exists) {
-    // Return auto-seeded session for seamless out-of-the-box experience
-    return {
-      mobileOrEmail: "7094641568",
-      activePropertyId: "193097538",
-      activeBillNo: "15-193-097538",
-      activeCmcNo: "15-193-56648-000",
-      customerName: "SANTHOSH T",
-      address: "60-4B-C-IVFLR-BLUEMOON CALLIST, ANAND NAGAR, THORAIPAKKAM, THORAIPAKKAM, Chennai - 600097",
-      updatedAt: new Date().toISOString(),
-    };
+    return null;
   }
   const raw = snap.data() as ChennaiWaterSession;
   return {

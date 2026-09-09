@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 import { LifeEvent, TimelineDaySummary, ACTIVITY_META_MAP } from "@/lib/timeline/types";
 import { TimelineEventCard } from "@/components/timeline/TimelineEventCard";
 import { VoiceRecorderModal } from "@/components/timeline/VoiceRecorderModal";
@@ -11,6 +13,8 @@ import { AiConfigModal } from "@/components/timeline/AiConfigModal";
 import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
 
 export default function TimelinePage() {
+  const { user, userId, isSignedIn } = useAuth();
+
   // Current selected date (YYYY-MM-DD)
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().split("T")[0];
@@ -52,10 +56,17 @@ export default function TimelinePage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   const fetchDayEvents = useCallback(async () => {
+    if (!isSignedIn) {
+      setEvents([]);
+      setSummary(null);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/timeline/events?date=${selectedDate}`);
+      const qUserId = user?.email || user?.uid || userId || "";
+      const res = await fetch(`/api/timeline/events?date=${selectedDate}&userId=${encodeURIComponent(qUserId)}`);
       if (!res.ok) {
         throw new Error(`Failed to load timeline for ${selectedDate}`);
       }
@@ -67,7 +78,7 @@ export default function TimelinePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, isSignedIn, user, userId]);
 
   useEffect(() => {
     fetchDayEvents();
@@ -143,8 +154,14 @@ export default function TimelinePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <FinanceTopBar title="Life Events Diary" />
+    <AuthGuard
+      title="Life Events Diary"
+      description="This section contains your private daily life moments, audio recordings, workouts, and personal reflection logs. Sign in with your authorized Google account to view or record events."
+      icon="📔"
+      badge="Private & Encrypted"
+    >
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        <FinanceTopBar title="Life Events Diary" />
 
       <main className="mx-auto flex-1 w-full max-w-5xl px-3 sm:px-8 py-6 pb-28 sm:pb-12 space-y-6">
         {/* Top Control & Hero Banner */}
@@ -538,5 +555,6 @@ export default function TimelinePage() {
         </button>
       </div>
     </div>
+    </AuthGuard>
   );
 }

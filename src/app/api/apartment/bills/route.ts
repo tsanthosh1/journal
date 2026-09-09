@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApartmentSession, getCachedApartmentBills, saveCachedApartmentBills } from "@/lib/apartment/storage";
 import { fetchHomefyBills } from "@/lib/apartment/client";
 import { syncApartmentBillsToSubscriptions } from "@/lib/apartment/subscriptionBridge";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  if (!isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to access apartment bills", {
+      total: 0,
+      bills: [],
+    });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const status = (searchParams.get("status") || "ALL").toUpperCase() as "ALL" | "PENDING" | "PAID";

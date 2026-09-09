@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import {
   getAvailableParsers,
   getStatementParsers,
@@ -399,8 +400,14 @@ export default function ParsersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
-      <FinanceTopBar title="Parser Laboratory" />
+    <AuthGuard
+      title="Parser Testing Sandbox"
+      description="Parser testing environment contains regex extraction diagnostics, bank statement templates, and sensitive parsing rules. Sign in with your authorized Google account to access."
+      icon="🧪"
+      badge="Private & Encrypted"
+    >
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
+        <FinanceTopBar title="Parser Laboratory" />
 
       {/* Hidden File Input */}
       <input
@@ -1205,5 +1212,6 @@ export default function ParsersPage() {
         )}
       </main>
     </div>
+    </AuthGuard>
   );
 }

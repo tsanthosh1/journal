@@ -138,18 +138,18 @@ export async function ensureSubscriptionCurrentMonth(
   return sub;
 }
 
-export async function listSubscriptions(userId = "default_user"): Promise<Subscription[]> {
+export async function listSubscriptions(userId = ""): Promise<Subscription[]> {
+  if (!userId || userId === "default_user" || userId === "default-user") {
+    return [];
+  }
+
   const { db } = getFirebaseAdmin();
 
-  // Support flexible user ID matching (email, normalized email, default_user, and default-user)
+  // Strict user ID matching (email and normalized email only)
   const possibleUserIds = Array.from(
     new Set([
       userId,
       userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-      "default_user",
-      "default-user",
-      "tsanthosh.online@gmail.com",
-      "tsanthosh_online_gmail_com",
     ]),
   ).filter(Boolean);
 
@@ -158,7 +158,7 @@ export async function listSubscriptions(userId = "default_user"): Promise<Subscr
     .where("userId", "in", possibleUserIds.slice(0, 10))
     .get();
 
-  // No insecure fallback — return empty if no subscriptions match the user
+  // Return empty if no subscriptions match the user
   if (snap.empty) {
     return [];
   }

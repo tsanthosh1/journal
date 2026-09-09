@@ -3,10 +3,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 import { SyncFileLogSummary } from "@/lib/sync/syncFileLogger";
 import { SyncLogDetailModal } from "@/components/sync/SyncLogDetailModal";
 
 export default function SyncLogsPage() {
+  const { user, userId, isSignedIn } = useAuth();
   const [logs, setLogs] = useState<SyncFileLogSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
@@ -26,10 +29,16 @@ export default function SyncLogsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchLogs = useCallback(async () => {
+    if (!isSignedIn) {
+      setLogs([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/sync/logs?limit=100");
+      const qUserId = user?.email || user?.uid || userId || "";
+      const res = await fetch(`/api/sync/logs?limit=100&userId=${encodeURIComponent(qUserId)}`);
       if (!res.ok) {
         throw new Error(`Failed to load sync logs (${res.status})`);
       }
@@ -43,7 +52,7 @@ export default function SyncLogsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isSignedIn, user, userId]);
 
   const handleTriggerWorkerNow = async () => {
     setIsTriggeringWorker(true);
@@ -138,8 +147,14 @@ export default function SyncLogsPage() {
   const latestTimestamp = logs.length > 0 ? logs[0].formattedDate : "None yet";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <FinanceTopBar title="Sync Logs" />
+    <AuthGuard
+      title="Sync Diagnostics & Logs"
+      description="Private system execution traces containing synchronization details, account identifiers, and parsed communications. Sign in with your authorized Google account to access."
+      icon="📋"
+      badge="Private & Encrypted"
+    >
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        <FinanceTopBar title="Sync Logs" />
 
       <main className="mx-auto flex-1 w-full max-w-7xl px-4 py-6 sm:px-8 lg:px-12 space-y-6">
         {/* Page Header */}
@@ -538,5 +553,6 @@ export default function SyncLogsPage() {
         logSummary={selectedLog}
       />
     </div>
+    </AuthGuard>
   );
 }

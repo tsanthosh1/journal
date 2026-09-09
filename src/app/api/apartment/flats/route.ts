@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApartmentSession, saveApartmentSession } from "@/lib/apartment/storage";
 import { fetchApartments, swapFlatToken } from "@/lib/apartment/client";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to access flats", {
+      apartments: [],
+    });
+  }
+
   try {
     const session = await getApartmentSession();
     const token = session?.baseToken || session?.swappedToken;

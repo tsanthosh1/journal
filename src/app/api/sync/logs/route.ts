@@ -5,9 +5,18 @@ import {
   getBackgroundSyncWorkerStatus,
 } from "@/lib/sync/backgroundSyncWorker";
 
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  if (!isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to access sync logs", {
+      logs: [],
+      totalCount: 0,
+    });
+  }
+
   try {
     ensureBackgroundSyncWorkerRunning();
     const workerStatus = getBackgroundSyncWorkerStatus();

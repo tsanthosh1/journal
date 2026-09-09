@@ -73,16 +73,16 @@ export async function saveLifeEventsBatch(events: Omit<LifeEvent, "id">[]): Prom
   return savedEvents;
 }
 
-export async function getLifeEventsByDate(date: string, userId = "default_user"): Promise<LifeEvent[]> {
+export async function getLifeEventsByDate(date: string, userId = ""): Promise<LifeEvent[]> {
+  if (!userId || userId === "default_user" || userId === "default-user") {
+    return [];
+  }
+
   const { db } = getFirebaseAdmin();
   const possibleUserIds = Array.from(
     new Set([
       userId,
       userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-      "default_user",
-      "default-user",
-      "tsanthosh.online@gmail.com",
-      "tsanthosh_online_gmail_com",
     ]),
   ).filter(Boolean);
 
@@ -109,17 +109,17 @@ export async function getLifeEventsByDate(date: string, userId = "default_user")
 export async function getLifeEventsRange(
   startDate: string,
   endDate: string,
-  userId = "default_user"
+  userId = ""
 ): Promise<LifeEvent[]> {
+  if (!userId || userId === "default_user" || userId === "default-user") {
+    return [];
+  }
+
   const { db } = getFirebaseAdmin();
   const possibleUserIds = Array.from(
     new Set([
       userId,
       userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-      "default_user",
-      "default-user",
-      "tsanthosh.online@gmail.com",
-      "tsanthosh_online_gmail_com",
     ]),
   ).filter(Boolean);
 

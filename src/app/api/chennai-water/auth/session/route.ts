@@ -1,7 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getChennaiWaterSession, clearChennaiWaterSession } from "@/lib/chennaiWater/storage";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!isAuthorizedUser(req)) {
+    return NextResponse.json({
+      success: true,
+      session: null,
+      isAuthenticated: false,
+    });
+  }
+
   try {
     const session = await getChennaiWaterSession();
     return NextResponse.json({

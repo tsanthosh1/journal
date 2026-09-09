@@ -9,10 +9,19 @@ import {
   swapFlatToken,
   fetchHomefyProfile,
 } from "@/lib/apartment/client";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!isAuthorizedUser(request)) {
+    return NextResponse.json({
+      success: true,
+      authenticated: false,
+      session: null,
+    });
+  }
+
   try {
     const session = await getApartmentSession();
 

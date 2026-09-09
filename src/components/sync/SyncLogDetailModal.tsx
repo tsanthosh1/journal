@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { SyncFileLogRecord, SyncLogDetailEvent, SyncFileLogSummary } from "@/lib/sync/syncFileLogger";
+import { useAuth } from "@/context/AuthContext";
 
 interface SyncLogDetailModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export function SyncLogDetailModal({
   onClose,
   logSummary,
 }: SyncLogDetailModalProps) {
+  const { user, userId } = useAuth();
   const [fullRecord, setFullRecord] = useState<SyncFileLogRecord | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,8 @@ export function SyncLogDetailModal({
     setIsLoading(true);
     setError(null);
 
-    fetch(`/api/sync/logs/${encodeURIComponent(logSummary.id)}`)
+    const qUserId = user?.email || user?.uid || userId || "";
+    fetch(`/api/sync/logs/${encodeURIComponent(logSummary.id)}?userId=${encodeURIComponent(qUserId)}`)
       .then(async (res) => {
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
