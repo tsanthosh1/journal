@@ -12,8 +12,8 @@ interface ChennaiWaterInsightsProps {
 
 export function ChennaiWaterInsights({
   receipts,
-  halfYearTax = "₹419.00",
-  annualValue = "₹11,960.00",
+  halfYearTax = "-",
+  annualValue = "-",
   onViewReceipt,
 }: ChennaiWaterInsightsProps) {
   // Extract all distinct years from receipts
@@ -32,8 +32,7 @@ export function ChennaiWaterInsights({
         yearsSet.add(y);
       }
     });
-    const arr = Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
-    return arr.length > 0 ? arr : ["2026", "2025", "2023"];
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
   }, [receipts]);
 
   const [selectedYear, setSelectedYear] = useState<string>("ALL");
@@ -172,6 +171,14 @@ export function ChennaiWaterInsights({
   const allTimeTotal = useMemo(() => {
     return receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   }, [receipts]);
+
+  if (receipts.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-8 text-center text-xs text-slate-400">
+        No payment receipts available to generate trends and insights.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

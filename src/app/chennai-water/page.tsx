@@ -183,6 +183,11 @@ export default function ChennaiWaterPage() {
 
   // 1-Click Link to Subscriptions
   const handleLinkSubscription = async () => {
+    const billToLink = activeProperty?.prop_no || session?.activeBillNo;
+    if (!billToLink) {
+      alert("No CMWSSB property or bill number found. Please connect your account first.");
+      return;
+    }
     setIsLinkingSub(true);
     setLinkSuccessMessage(null);
     try {
@@ -190,7 +195,7 @@ export default function ChennaiWaterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          billNumber: activeProperty?.prop_no || session?.activeBillNo || "15-193-097538",
+          billNumber: billToLink,
         }),
       });
       const data = await res.json();
@@ -257,18 +262,23 @@ export default function ChennaiWaterPage() {
     return filteredReceipts.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
   }, [filteredReceipts]);
 
-  const annualValueStr = typeof activeProperty?.annual_value === "string" ? activeProperty.annual_value : "₹11,960.00";
-  const halfYearTaxStr = typeof activeProperty?.half_year_tax === "string" ? activeProperty.half_year_tax : "₹419.00";
-  const catDescStr = typeof activeProperty?.cat_desc === "string" ? activeProperty.cat_desc : "201 - Domestic-F-UM@30";
-  const effFromTermStr = typeof activeProperty?.eff_from_term === "string" ? activeProperty.eff_from_term : "24-25/II (Oct-Mar)";
+  const hasActiveProperty = Boolean(
+    (activeProperty?.prop_no && activeProperty.prop_no.trim().length > 0) ||
+    (session?.activeBillNo && session.activeBillNo.trim().length > 0)
+  );
 
-  const activeBillNoStr = formatPropNo(activeProperty?.prop_no || session?.activeBillNo) || "15-193-097538";
-  const activeCmcNoStr = formatCmcNo(activeProperty?.cmc_no || session?.activeCmcNo) || "15-193-56648-000";
-  const addressStr = formatAddress(activeProperty?.addr || session?.address) || "60-4B-C-IVFLR-BLUEMOON CALLIST, ANAND NAGAR, THORAIPAKKAM, Chennai - 600097";
+  const annualValueStr = activeProperty?.annual_value ? String(activeProperty.annual_value) : "-";
+  const halfYearTaxStr = activeProperty?.half_year_tax ? String(activeProperty.half_year_tax) : "-";
+  const catDescStr = activeProperty?.cat_desc || "-";
+  const effFromTermStr = activeProperty?.eff_from_term || "-";
+
+  const activeBillNoStr = formatPropNo(activeProperty?.prop_no || session?.activeBillNo) || "";
+  const activeCmcNoStr = formatCmcNo(activeProperty?.cmc_no || session?.activeCmcNo) || "";
+  const addressStr = formatAddress(activeProperty?.addr || session?.address) || "";
   const customerNameStr =
     (typeof activeProperty?.c_name === "string" && activeProperty.c_name.trim()) ||
     (typeof session?.customerName === "string" && session.customerName.trim()) ||
-    "SANTHOSH T";
+    "";
 
   return (
     <AuthGuard
@@ -303,54 +313,73 @@ export default function ChennaiWaterPage() {
               </div>
 
               {/* Bill Identifiers & Address */}
-              <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                {/* New Bill Number Pill or Switcher */}
-                {properties.length > 1 ? (
-                  <div className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/15 px-3 py-1 text-xs font-mono font-bold text-sky-300">
-                    <span className="text-[10px] uppercase font-sans text-sky-400/80">Select Property:</span>
-                    <select
-                      value={activeProperty?.id || ""}
-                      onChange={(e) => handlePropertyChange(e.target.value)}
-                      className="bg-transparent border-0 text-xs font-mono font-bold text-sky-200 focus:outline-none cursor-pointer"
-                    >
-                      {properties.map((p) => {
-                        const pBill = formatPropNo(p.prop_no) || String(p.id);
-                        return (
-                          <option key={p.id} value={p.id} className="bg-slate-900 text-white">
-                            {pBill} {p.c_name ? `(${p.c_name})` : ""}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-mono font-bold text-sky-300">
-                    <span className="text-[10px] uppercase font-sans text-sky-400/70">New Bill:</span>
-                    <span>{activeBillNoStr}</span>
-                  </div>
-                )}
+              {hasActiveProperty ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    {/* New Bill Number Pill or Switcher */}
+                    {properties.length > 1 ? (
+                      <div className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/15 px-3 py-1 text-xs font-mono font-bold text-sky-300">
+                        <span className="text-[10px] uppercase font-sans text-sky-400/80">Select Property:</span>
+                        <select
+                          value={activeProperty?.id || ""}
+                          onChange={(e) => handlePropertyChange(e.target.value)}
+                          className="bg-transparent border-0 text-xs font-mono font-bold text-sky-200 focus:outline-none cursor-pointer"
+                        >
+                          {properties.map((p) => {
+                            const pBill = formatPropNo(p.prop_no) || String(p.id);
+                            return (
+                              <option key={p.id} value={p.id} className="bg-slate-900 text-white">
+                                {pBill} {p.c_name ? `(${p.c_name})` : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-mono font-bold text-sky-300">
+                        <span className="text-[10px] uppercase font-sans text-sky-400/70">New Bill:</span>
+                        <span>{activeBillNoStr}</span>
+                      </div>
+                    )}
 
-                {/* Existing Bill Number Pill */}
-                <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-1.5 text-xs font-mono text-slate-300">
-                  <span className="text-[10px] uppercase font-sans text-slate-400">Existing:</span>
-                  <span>{activeCmcNoStr}</span>
+                    {/* Existing Bill Number Pill */}
+                    {activeCmcNoStr && (
+                      <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-1.5 text-xs font-mono text-slate-300">
+                        <span className="text-[10px] uppercase font-sans text-slate-400">Existing:</span>
+                        <span>{activeCmcNoStr}</span>
+                      </div>
+                    )}
+
+                    {/* Status Pill */}
+                    <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-1 text-[11px] font-extrabold text-emerald-300">
+                      Active
+                    </span>
+
+                    {/* Consumer Name */}
+                    {customerNameStr && (
+                      <span className="text-xs font-semibold text-slate-200">
+                        {customerNameStr}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Address */}
+                  {addressStr && (
+                    <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+                      📍 {addressStr}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-1 text-[11px] font-extrabold text-amber-300">
+                    Not Connected
+                  </span>
+                  <p className="text-xs text-slate-400">
+                    No CMWSSB account or property connected. Click &apos;Connect Account&apos; to sync your water bills.
+                  </p>
                 </div>
-
-                {/* Status Pill */}
-                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-1 text-[11px] font-extrabold text-emerald-300">
-                  Active
-                </span>
-
-                {/* Consumer Name */}
-                <span className="text-xs font-semibold text-slate-200">
-                  {customerNameStr}
-                </span>
-              </div>
-
-              {/* Address */}
-              <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-                📍 {addressStr}
-              </p>
+              )}
             </div>
 
             {/* Right: Actions & Config */}
@@ -424,7 +453,7 @@ export default function ChennaiWaterPage() {
               {annualValueStr}
             </div>
             <span className="text-[11px] text-sky-400/80 font-medium block">
-              Eff. from: {effFromTermStr}
+              {effFromTermStr !== "-" ? `Eff. from: ${effFromTermStr}` : "Not assessed"}
             </span>
           </div>
 
@@ -437,7 +466,7 @@ export default function ChennaiWaterPage() {
               {halfYearTaxStr}
             </div>
             <span className="text-[11px] text-slate-400 block">
-              Billed twice a year (Apr-Sep & Oct-Mar)
+              {hasActiveProperty ? "Billed twice a year (Apr-Sep & Oct-Mar)" : "-"}
             </span>
           </div>
 
@@ -450,7 +479,7 @@ export default function ChennaiWaterPage() {
               {catDescStr}
             </div>
             <span className="text-[11px] text-emerald-400 font-medium block">
-              Standard Residential Flat
+              {hasActiveProperty ? "Standard Residential Flat" : "-"}
             </span>
           </div>
 
@@ -459,11 +488,11 @@ export default function ChennaiWaterPage() {
             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
               Total Outstanding Dues
             </span>
-            <div className="text-xl sm:text-2xl font-black text-emerald-400">
-              ₹{(duesData?.totalDue || 0).toFixed(2)}
+            <div className={`text-xl sm:text-2xl font-black ${hasActiveProperty ? "text-emerald-400" : "text-slate-400"}`}>
+              {hasActiveProperty ? `₹${(duesData?.totalDue || 0).toFixed(2)}` : "-"}
             </div>
             <span className="text-[11px] text-emerald-400/80 font-medium block">
-              ✓ No dues found • All clear
+              {hasActiveProperty ? "✓ No dues found • All clear" : "Connect account to check dues"}
             </span>
           </div>
         </div>
@@ -510,90 +539,114 @@ export default function ChennaiWaterPage() {
         {/* TAB 1: Assessment & Dues Breakdown */}
         {activeTab === "ASSESSMENT" && (
           <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                    Selected for Payment / Assessment Particulars
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Live status from the Chennai Metropolitan Water Supply & Sewerage Board portal
+            {!hasActiveProperty ? (
+              <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-12 text-center space-y-4">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-500/10 text-3xl">
+                  💧
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-white">No CMWSSB Account Connected</h3>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    Connect your Chennai Metro Water consumer portal credentials or add your property bill number to view live assessment particulars, tax dues, and official receipts.
                   </p>
                 </div>
-                <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
-                  All Dues Cleared
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white transition shadow-lg cursor-pointer"
+                >
+                  <span>🔐</span>
+                  <span>Connect Account</span>
+                </button>
               </div>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                        Selected for Payment / Assessment Particulars
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Live status from the Chennai Metropolitan Water Supply & Sewerage Board portal
+                      </p>
+                    </div>
+                    <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
+                      All Dues Cleared
+                    </span>
+                  </div>
 
-              {/* Assessment Table matching CMWSSB portal */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-white/10 text-slate-400 text-[11px] uppercase tracking-wider">
-                      <th className="py-3 px-3">Sl. No.</th>
-                      <th className="py-3 px-3">Particulars</th>
-                      <th className="py-3 px-3">Collected For</th>
-                      <th className="py-3 px-3 text-right">Total Due Amount (₹)</th>
-                      <th className="py-3 px-3 text-right">Advance Amount (₹)</th>
-                      <th className="py-3 px-3 text-right">Total Amount (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 font-mono">
-                    <tr className="hover:bg-white/[0.02] transition">
-                      <td className="py-3 px-3 text-slate-400">1</td>
-                      <td className="py-3 px-3 font-sans font-semibold text-white">
-                        Water & Sewerage Tax
-                      </td>
-                      <td className="py-3 px-3 font-sans text-slate-300">Tax</td>
-                      <td className="py-3 px-3 text-right text-slate-300">₹0.00</td>
-                      <td className="py-3 px-3 text-right text-sky-400">Pay in advance</td>
-                      <td className="py-3 px-3 text-right font-bold text-white">₹0.00</td>
-                    </tr>
-                    <tr className="hover:bg-white/[0.02] transition">
-                      <td className="py-3 px-3 text-slate-400">2</td>
-                      <td className="py-3 px-3 font-sans font-semibold text-white">
-                        Water & Sewerage Usage Charges
-                      </td>
-                      <td className="py-3 px-3 font-sans text-slate-300">Charges</td>
-                      <td className="py-3 px-3 text-right text-slate-300">₹0.00</td>
-                      <td className="py-3 px-3 text-right text-sky-400">Pay in advance</td>
-                      <td className="py-3 px-3 text-right font-bold text-white">₹0.00</td>
-                    </tr>
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-white/10 font-bold text-white font-mono">
-                      <td colSpan={3} className="py-3.5 px-3 font-sans uppercase tracking-wider text-right">
-                        Total Amount Payable:
-                      </td>
-                      <td className="py-3.5 px-3 text-right text-emerald-400">₹0.00</td>
-                      <td className="py-3.5 px-3 text-right text-slate-400">₹0.00</td>
-                      <td className="py-3.5 px-3 text-right text-emerald-400 text-sm">₹0.00</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-
-            {/* Explanatory Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-sky-300 font-bold text-xs">
-                  <span>ℹ️</span> How CMWSSB Water Tax Works
+                  {/* Assessment Table matching CMWSSB portal */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-white/10 text-slate-400 text-[11px] uppercase tracking-wider">
+                          <th className="py-3 px-3">Sl. No.</th>
+                          <th className="py-3 px-3">Particulars</th>
+                          <th className="py-3 px-3">Collected For</th>
+                          <th className="py-3 px-3 text-right">Total Due Amount (₹)</th>
+                          <th className="py-3 px-3 text-right">Advance Amount (₹)</th>
+                          <th className="py-3 px-3 text-right">Total Amount (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 font-mono">
+                        <tr className="hover:bg-white/[0.02] transition">
+                          <td className="py-3 px-3 text-slate-400">1</td>
+                          <td className="py-3 px-3 font-sans font-semibold text-white">
+                            Water & Sewerage Tax
+                          </td>
+                          <td className="py-3 px-3 font-sans text-slate-300">Tax</td>
+                          <td className="py-3 px-3 text-right text-slate-300">₹{(duesData?.taxDue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-3 text-right text-sky-400">Pay in advance</td>
+                          <td className="py-3 px-3 text-right font-bold text-white">₹{(duesData?.taxDue || 0).toFixed(2)}</td>
+                        </tr>
+                        <tr className="hover:bg-white/[0.02] transition">
+                          <td className="py-3 px-3 text-slate-400">2</td>
+                          <td className="py-3 px-3 font-sans font-semibold text-white">
+                            Water & Sewerage Usage Charges
+                          </td>
+                          <td className="py-3 px-3 font-sans text-slate-300">Charges</td>
+                          <td className="py-3 px-3 text-right text-slate-300">₹{(duesData?.chargesDue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-3 text-right text-sky-400">Pay in advance</td>
+                          <td className="py-3 px-3 text-right font-bold text-white">₹{(duesData?.chargesDue || 0).toFixed(2)}</td>
+                        </tr>
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-white/10 font-bold text-white font-mono">
+                          <td colSpan={3} className="py-3.5 px-3 font-sans uppercase tracking-wider text-right">
+                            Total Amount Payable:
+                          </td>
+                          <td className="py-3.5 px-3 text-right text-emerald-400">₹{(duesData?.totalDue || 0).toFixed(2)}</td>
+                          <td className="py-3.5 px-3 text-right text-slate-400">₹0.00</td>
+                          <td className="py-3.5 px-3 text-right text-emerald-400 text-sm">₹{(duesData?.totalDue || 0).toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Metro Water Tax is levied semi-annually (half-yearly) based on the Annual Value (AV) assessed by the Greater Chennai Corporation. For your flat with an AV of {annualValueStr}, the tax rate amounts to {halfYearTaxStr} per half-year (Apr-Sep and Oct-Mar).
-                </p>
-              </div>
 
-              <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs">
-                  <span>💳</span> Payment Modes & Receipts
+                {/* Explanatory Info Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-2">
+                    <div className="flex items-center gap-2 text-sky-300 font-bold text-xs">
+                      <span>ℹ️</span> How CMWSSB Water Tax Works
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Metro Water Tax is levied semi-annually (half-yearly) based on the Annual Value (AV) assessed by the Greater Chennai Corporation. {annualValueStr !== "-" ? `For your property with an AV of ${annualValueStr}, the tax rate amounts to ${halfYearTaxStr} per half-year (Apr-Sep and Oct-Mar).` : "Water tax is calculated on your property's assessed Annual Value."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-2">
+                    <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs">
+                      <span>💳</span> Payment Modes & Receipts
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Payments are accepted online through the official portal, Bharat Bill Payment System (BBPS), and banking partners. Official e-Receipts are generated immediately with official CMWSSB digital verification.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Payments are accepted online through the official portal, Bharat Bill Payment System (BBPS), and banking partners. Official e-Receipts are generated immediately with official CMWSSB digital verification.
-                </p>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
 

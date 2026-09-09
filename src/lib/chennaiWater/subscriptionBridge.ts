@@ -6,7 +6,6 @@ import {
   getChennaiWaterSession,
   getStoredProperties,
   getStoredReceipts,
-  INITIAL_PROPERTY_SEED,
 } from "./storage";
 
 /**
@@ -119,7 +118,7 @@ export async function createSubscriptionForChennaiWater(
 
   let existingSubDoc = subSnap.docs.find((d) => {
     const s = d.data() as Subscription;
-    return (!s.userId || s.userId === userId) && s.chennaiWaterConfig?.billNumber === activeBill;
+    return s.userId === userId && s.chennaiWaterConfig?.billNumber === activeBill;
   });
 
   const latestReceiptCycleMonth = latestReceipt
@@ -128,10 +127,10 @@ export async function createSubscriptionForChennaiWater(
 
   const halfYearTaxNum =
     typeof prop.half_year_tax === "string"
-      ? parseFloat(prop.half_year_tax.replace(/[^0-9.]/g, "")) || 419
-      : Number(prop.half_year_tax || 419);
+      ? parseFloat(prop.half_year_tax.replace(/[^0-9.]/g, "")) || 0
+      : Number(prop.half_year_tax || 0);
 
-  const defaultAmt = latestReceipt?.amount || halfYearTaxNum || 1028;
+  const defaultAmt = latestReceipt?.amount || halfYearTaxNum || 0;
 
   const currentCycle: CycleState = {
     cycleMonth: latestReceiptCycleMonth,
@@ -159,7 +158,7 @@ export async function createSubscriptionForChennaiWater(
       updatedAt: todayIso,
       chennaiWaterConfig: {
         billNumber: activeBill,
-        existingBillNumber: prop.cmc_no || "15-193-56648-000",
+        existingBillNumber: prop.cmc_no || "",
         componentType: "TAX_AND_CHARGES",
         autoSyncWithMetroWaterModule: true,
       },
@@ -182,12 +181,12 @@ export async function createSubscriptionForChennaiWater(
     defaultAmount: defaultAmt,
     billingCycle: "HALF_YEARLY",
     dueDayOfMonth: 15,
-    notes: `CMWSSB Metro Water & Sewerage Tax. Annual Value: ${prop.annual_value || "₹11,960.00"}. Half Year Tax: ${prop.half_year_tax || "₹419.00"}. Address: ${prop.addr || ""}`,
+    notes: `CMWSSB Metro Water & Sewerage Tax. Annual Value: ${prop.annual_value || "-"}. Half Year Tax: ${prop.half_year_tax || "-"}. Address: ${prop.addr || ""}`,
     icon: "💧",
     color: "#0284c7",
     chennaiWaterConfig: {
       billNumber: activeBill,
-      existingBillNumber: prop.cmc_no || "15-193-56648-000",
+      existingBillNumber: prop.cmc_no || "",
       componentType: "TAX_AND_CHARGES",
       autoSyncWithMetroWaterModule: true,
     },

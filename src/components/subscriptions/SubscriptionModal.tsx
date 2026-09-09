@@ -83,13 +83,13 @@ export function SubscriptionModal({
   >("EMAIL");
   const [statementQuery, setStatementQuery] = useState("");
   const [apartmentCategory, setApartmentCategory] = useState("Maintenance Bill");
-  const [chennaiWaterBillNo, setChennaiWaterBillNo] = useState("15-193-097538");
+  const [chennaiWaterBillNo, setChennaiWaterBillNo] = useState("");
   const [statementSmsSender, setStatementSmsSender] = useState("");
   const [statementSmsKeywords, setStatementSmsKeywords] = useState("bill, due, statement");
   const [statementSmsDigits, setStatementSmsDigits] = useState("");
 
   // TNEB Integration State
-  const [tnebConsumerNo, setTnebConsumerNo] = useState("09299011890");
+  const [tnebConsumerNo, setTnebConsumerNo] = useState("");
   const [tnebTrackedList, setTnebTrackedList] = useState<Array<{ consumerNumber: string; nickname?: string; name?: string }>>([]);
 
   // Payment Source: "EMAIL" | "SMS" | "PREPAID_INVOICE" | "MANUAL" | "APARTMENT" | "TNEB" | "CHENNAI_WATER"
@@ -200,7 +200,7 @@ export function SubscriptionModal({
         }
       } else if (initialData.source === "CHENNAI_WATER_MODULE" || initialData.chennaiWaterConfig) {
         setStatementSource("CHENNAI_WATER");
-        setChennaiWaterBillNo(initialData.chennaiWaterConfig?.billNumber || "15-193-097538");
+        setChennaiWaterBillNo(initialData.chennaiWaterConfig?.billNumber || "");
         if (ec?.paymentQuery && ec.paymentQuery.trim().length > 0) {
           setPaymentSource("EMAIL");
           setPaymentQuery(ec.paymentQuery);
@@ -211,7 +211,7 @@ export function SubscriptionModal({
         }
       } else if (initialData.source === "TNEB_MODULE" || initialData.tnebConfig?.consumerNumber) {
         setStatementSource("TNEB");
-        setTnebConsumerNo(initialData.tnebConfig?.consumerNumber || "09299011890");
+        setTnebConsumerNo(initialData.tnebConfig?.consumerNumber || "");
         if (ec?.paymentQuery && ec.paymentQuery.trim().length > 0) {
           setPaymentSource("EMAIL");
           setPaymentQuery(ec.paymentQuery);
@@ -559,8 +559,8 @@ export function SubscriptionModal({
 
       const chennaiWaterConfig = isChennaiWaterSource
         ? {
-            billNumber: chennaiWaterBillNo.trim() || "15-193-097538",
-            existingBillNumber: "15-193-56648-000",
+            billNumber: chennaiWaterBillNo.trim(),
+            existingBillNumber: "",
             componentType: "TAX_AND_CHARGES" as const,
             autoSyncWithMetroWaterModule: true,
           }
@@ -1208,7 +1208,9 @@ export function SubscriptionModal({
                         </option>
                       ))}
                       {!tnebTrackedList.some((t) => t.consumerNumber === tnebConsumerNo) && (
-                        <option value={tnebConsumerNo}>#{tnebConsumerNo} (Custom)</option>
+                        <option value={tnebConsumerNo}>
+                          {tnebConsumerNo ? `#${tnebConsumerNo} (Custom)` : "-- Select or enter consumer number --"}
+                        </option>
                       )}
                     </select>
                   </div>
@@ -1598,7 +1600,9 @@ export function SubscriptionModal({
                         </option>
                       ))}
                       {!tnebTrackedList.some((t) => t.consumerNumber === tnebConsumerNo) && (
-                        <option value={tnebConsumerNo}>#{tnebConsumerNo} (Custom)</option>
+                        <option value={tnebConsumerNo}>
+                          {tnebConsumerNo ? `#${tnebConsumerNo} (Custom)` : "-- Select or enter consumer number --"}
+                        </option>
                       )}
                     </select>
                   </div>

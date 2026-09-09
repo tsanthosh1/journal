@@ -272,7 +272,7 @@ export async function fetchCustomerDetails(
     id: r.id || customerId,
     prop_no: formatPropNo(r.prop_no),
     cmc_no: formatCmcNo(r.cmc_no),
-    c_name: r.c_name || r.cus_name || r.name || "SANTHOSH T",
+    c_name: r.c_name || r.cus_name || r.name || "",
     addr: formatAddress(r.addr || r.cus_addr),
     mobile_no: r.mobile_no || "",
     status: r.status === "A" || r.status === "Active" ? "Active" : r.status || "Active",
@@ -281,15 +281,15 @@ export async function fetchCustomerDetails(
         ? r.annual_value
         : avNum !== undefined
         ? `₹${avNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-        : "₹11,960.00",
+        : "-",
     eff_from_term: r.eff_from_term || convertDateToTerm(r.av_esd),
     half_year_tax:
       typeof r.half_year_tax === "string" && r.half_year_tax
         ? r.half_year_tax
         : hyTaxNum !== undefined
         ? `₹${hyTaxNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-        : "₹419.00",
-    cat_desc: r.cat_desc || "201 - Domestic-F-UM@30",
+        : "-",
+    cat_desc: r.cat_desc || "-",
     cat_eff_term: r.cat_eff_term || convertDateToTerm(r.cat_esd),
     total_dues: Number(r.total_dues || r.tot_due_amt || 0),
     credit_balance: Number(r.credit_balance || r.tot_cr_bal || 0),

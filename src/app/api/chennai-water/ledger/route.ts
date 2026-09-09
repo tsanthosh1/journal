@@ -48,13 +48,13 @@ export async function GET(req: NextRequest) {
 
     const halfYearTaxNum =
       typeof prop.half_year_tax === "string"
-        ? parseFloat(prop.half_year_tax.replace(/[^0-9.]/g, "")) || 419
-        : Number(prop.half_year_tax || 419);
+        ? parseFloat(prop.half_year_tax.replace(/[^0-9.]/g, "")) || 0
+        : Number(prop.half_year_tax || 0);
 
     const annualValNum =
       typeof prop.annual_value === "string"
-        ? parseFloat(prop.annual_value.replace(/[^0-9.]/g, "")) || 11960
-        : Number(prop.annual_value || 11960);
+        ? parseFloat(prop.annual_value.replace(/[^0-9.]/g, "")) || 0
+        : Number(prop.annual_value || 0);
 
     const taxDue = Number(prop.tax_due || 0);
     const chargesDue = Number(prop.charges_due || 0);
