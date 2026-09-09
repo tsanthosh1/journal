@@ -146,7 +146,7 @@ export default function TimelinePage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <FinanceTopBar title="Life Events Diary" />
 
-      <main className="mx-auto flex-1 w-full max-w-5xl px-4 py-6 sm:px-8 space-y-6">
+      <main className="mx-auto flex-1 w-full max-w-5xl px-3 sm:px-8 py-6 pb-28 sm:pb-12 space-y-6">
         {/* Top Control & Hero Banner */}
         <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-cyan-950/30 p-6 sm:p-8 shadow-2xl backdrop-blur-md">
           <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
@@ -522,14 +522,14 @@ export default function TimelinePage() {
       />
 
       {/* Floating AI Chat Launcher Button */}
-      <div className="fixed bottom-6 right-6 z-40">
+      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
         <button
           type="button"
           onClick={() => setIsChatOpen(true)}
-          className="group relative flex items-center gap-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 px-5 py-3.5 text-sm font-extrabold text-slate-950 shadow-2xl shadow-cyan-500/40 hover:scale-105 hover:shadow-cyan-500/60 active:scale-95 transition-all duration-300 cursor-pointer"
+          className="group relative flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 p-3 sm:px-5 sm:py-3.5 text-sm font-extrabold text-slate-950 shadow-2xl shadow-cyan-500/40 hover:scale-105 hover:shadow-cyan-500/60 active:scale-95 transition-all duration-300 cursor-pointer"
           title="Open Diary AI Assistant"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950/20 text-base">
+          <span className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-slate-950/20 text-base">
             💬
           </span>
           <span className="hidden sm:inline font-bold">Ask Diary AI</span>
