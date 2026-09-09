@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getChennaiWaterSession, getStoredReceipts } from "@/lib/chennaiWater/storage";
 import { fetchReceiptPdf } from "@/lib/chennaiWater/client";
 
@@ -50,6 +51,10 @@ export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  if (!await isAuthorizedUser(req)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await context.params;
     const session = await getChennaiWaterSession();

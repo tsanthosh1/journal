@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { ParserTestResult } from "@/lib/subscriptionTypes";
+import { authFetch } from "@/lib/authFetch";
+import { useAuth } from "@/context/AuthContext";
 
 interface ParserSandboxModalProps {
   isOpen: boolean;
@@ -180,6 +182,7 @@ export function ParserSandboxModal({
   onClose,
   initialModule = "UniversalAutoParser",
 }: ParserSandboxModalProps) {
+  const { user } = useAuth();
   const [selectedModule, setSelectedModule] = useState<string>(initialModule);
   const [subject, setSubject] = useState(SAMPLE_TEMPLATES.AxisCardParser?.subject || "");
   const [content, setContent] = useState(SAMPLE_TEMPLATES.AxisCardParser?.content || "");
@@ -213,7 +216,7 @@ export function ParserSandboxModal({
     setResult(null);
 
     try {
-      const res = await fetch("/api/parsers/test", {
+      const res = await authFetch(user, "/api/parsers/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

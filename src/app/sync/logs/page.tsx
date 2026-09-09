@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 import { SyncFileLogSummary } from "@/lib/sync/syncFileLogger";
 import { SyncLogDetailModal } from "@/components/sync/SyncLogDetailModal";
+import { authFetch } from "@/lib/authFetch";
 
 export default function SyncLogsPage() {
   const { user, userId, isSignedIn } = useAuth();
@@ -38,7 +39,7 @@ export default function SyncLogsPage() {
     setError(null);
     try {
       const qUserId = user?.email || user?.uid || userId || "";
-      const res = await fetch(`/api/sync/logs?limit=100&userId=${encodeURIComponent(qUserId)}`);
+      const res = await authFetch(user, `/api/sync/logs?limit=100&userId=${encodeURIComponent(qUserId)}`);
       if (!res.ok) {
         throw new Error(`Failed to load sync logs (${res.status})`);
       }
@@ -57,7 +58,7 @@ export default function SyncLogsPage() {
   const handleTriggerWorkerNow = async () => {
     setIsTriggeringWorker(true);
     try {
-      const res = await fetch("/api/sync/worker", {
+      const res = await authFetch(user, "/api/sync/worker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "run_now" }),
@@ -84,7 +85,7 @@ export default function SyncLogsPage() {
     }
     setIsClearing(true);
     try {
-      const res = await fetch("/api/sync/logs", { method: "DELETE" });
+      const res = await authFetch(user, "/api/sync/logs", { method: "DELETE" });
       if (!res.ok) {
         throw new Error("Failed to clear logs");
       }

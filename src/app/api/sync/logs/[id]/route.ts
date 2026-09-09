@@ -8,7 +8,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!isAuthorizedUser(request)) {
+  if (!await isAuthorizedUser(request)) {
     return unauthorizedResponse("Authentication required to view sync log details");
   }
 

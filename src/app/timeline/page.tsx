@@ -11,6 +11,7 @@ import { EventEditModal } from "@/components/timeline/EventEditModal";
 import { SchemaManagerDrawer } from "@/components/timeline/SchemaManagerDrawer";
 import { AiConfigModal } from "@/components/timeline/AiConfigModal";
 import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
+import { authFetch } from "@/lib/authFetch";
 
 export default function TimelinePage() {
   const { user, userId, isSignedIn } = useAuth();
@@ -66,7 +67,7 @@ export default function TimelinePage() {
     setError(null);
     try {
       const qUserId = user?.email || user?.uid || userId || "";
-      const res = await fetch(`/api/timeline/events?date=${selectedDate}&userId=${encodeURIComponent(qUserId)}`);
+      const res = await authFetch(user, `/api/timeline/events?date=${selectedDate}&userId=${encodeURIComponent(qUserId)}`);
       if (!res.ok) {
         throw new Error(`Failed to load timeline for ${selectedDate}`);
       }
@@ -145,7 +146,7 @@ export default function TimelinePage() {
 
   const handleDeleteEvent = async (id: string) => {
     try {
-      const res = await fetch(`/api/timeline/events/${id}`, { method: "DELETE" });
+      const res = await authFetch(user, `/api/timeline/events/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete event");
       await fetchDayEvents();
     } catch (err: any) {

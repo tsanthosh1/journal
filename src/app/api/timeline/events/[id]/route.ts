@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { updateLifeEvent, deleteLifeEvent, getLifeEventById } from "@/lib/timeline/storage";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +8,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
     const event = await getLifeEventById(id);
@@ -23,6 +28,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -42,6 +51,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
     await deleteLifeEvent(id);

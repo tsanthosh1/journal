@@ -5,6 +5,7 @@ import {
   saveGmailTokens,
 } from "@/lib/gmail/oauth";
 import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
+import { sanitizeReturnTo } from "@/lib/sanitizeRedirect";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -19,14 +20,16 @@ export async function GET(request: NextRequest) {
     try {
       const decoded = JSON.parse(Buffer.from(rawState, "base64url").toString("utf8"));
       if (decoded.userId) userId = decoded.userId;
-      if (decoded.returnTo) returnTo = decoded.returnTo;
+      // Always sanitize returnTo even after decoding — defence in depth
+      if (decoded.returnTo) returnTo = sanitizeReturnTo(decoded.returnTo);
     } catch {
       userId = rawState;
     }
   }
 
   const origin = getRequestOrigin(request);
-  const baseRedirectUrl = new URL(returnTo, origin);
+  // Build redirect from sanitized relative path only — never from user-supplied absolute URL
+  const baseRedirectUrl = new URL(sanitizeReturnTo(returnTo), origin);
 
   if (error) {
     baseRedirectUrl.searchParams.set("auth_error", error);

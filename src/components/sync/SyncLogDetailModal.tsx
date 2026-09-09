@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { SyncFileLogRecord, SyncLogDetailEvent, SyncFileLogSummary } from "@/lib/sync/syncFileLogger";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/authFetch";
 
 interface SyncLogDetailModalProps {
   isOpen: boolean;
@@ -40,7 +41,7 @@ export function SyncLogDetailModal({
     setError(null);
 
     const qUserId = user?.email || user?.uid || userId || "";
-    fetch(`/api/sync/logs/${encodeURIComponent(logSummary.id)}?userId=${encodeURIComponent(qUserId)}`)
+    authFetch(user, `/api/sync/logs/${encodeURIComponent(logSummary.id)}`)
       .then(async (res) => {
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));

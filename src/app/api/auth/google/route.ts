@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGoogleAuthUrl, getRequestOrigin } from "@/lib/gmail/oauth";
+import { sanitizeReturnTo } from "@/lib/sanitizeRedirect";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId") || "default_user";
-    const returnTo = searchParams.get("returnTo") || "/subscriptions";
+    // Sanitize before encoding into state — prevents open redirect via crafted returnTo
+    const returnTo = sanitizeReturnTo(searchParams.get("returnTo"));
 
     const statePayload = Buffer.from(
       JSON.stringify({ userId, returnTo }),

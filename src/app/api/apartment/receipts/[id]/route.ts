@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getApartmentSession } from "@/lib/apartment/storage";
 import { fetchReceiptPdfResponse } from "@/lib/apartment/client";
 
@@ -8,6 +9,10 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);

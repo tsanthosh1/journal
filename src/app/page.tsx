@@ -11,6 +11,7 @@ import { isPrepaidSubscription, isFixedTenure } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "@/components/subscriptions/SubscriptionAvatar";
 import { VoiceRecorderModal } from "@/components/timeline/VoiceRecorderModal";
 import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
+import { authFetch } from "@/lib/authFetch";
 
 export default function Home() {
   const router = useRouter();
@@ -79,7 +80,7 @@ export default function Home() {
     try {
       setIsLoadingEvents(true);
       const qUserId = user?.email || user?.uid || userId || "";
-      const res = await fetch(`/api/timeline/events?date=${todayIso}&userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`);
+      const res = await authFetch(user, `/api/timeline/events?date=${todayIso}&userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setEvents(data.events || []);
@@ -102,7 +103,7 @@ export default function Home() {
     try {
       setIsLoadingSubs(true);
       const qUserId = user?.email || user?.uid || userId || "";
-      const res = await fetch(`/api/subscriptions?userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`);
+      const res = await authFetch(user, `/api/subscriptions?userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setSubscriptions(data.subscriptions || []);
@@ -133,7 +134,7 @@ export default function Home() {
 
     try {
       const qUserId = user?.email || user?.uid || userId || "default_user";
-      const res = await fetch("/api/sync/gmail", {
+      const res = await authFetch(user, "/api/sync/gmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: qUserId }),
@@ -191,7 +192,7 @@ export default function Home() {
     );
 
     try {
-      const res = await fetch(`/api/subscriptions/${sub.id}/cycle`, {
+      const res = await authFetch(user, `/api/subscriptions/${sub.id}/cycle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -243,7 +244,7 @@ export default function Home() {
         userId: qUserId,
       };
 
-      const res = await fetch("/api/timeline/events", {
+      const res = await authFetch(user, "/api/timeline/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event: newEvent }),

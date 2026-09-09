@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 import { ApartmentInsights } from "@/components/apartment/ApartmentInsights";
 import { HomefyBillRecord, HomefyApartment } from "@/lib/apartment/types";
+import { authFetch } from "@/lib/authFetch";
 
 export default function ApartmentPage() {
   const { user, userId, isSignedIn } = useAuth();
@@ -65,7 +66,7 @@ export default function ApartmentPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/apartment/auth/session?userId=${encodeURIComponent(qUserId)}`);
+      const res = await authFetch(user, `/api/apartment/auth/session?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && data.session) {
         setSession(data.session);
@@ -94,7 +95,7 @@ export default function ApartmentPage() {
     }
 
     try {
-      const res = await fetch(`/api/apartment/bills?realtime=${realtime}&userId=${encodeURIComponent(qUserId)}`);
+      const res = await authFetch(user, `/api/apartment/bills?realtime=${realtime}&userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.bills)) {
         setBills(data.bills);
@@ -122,7 +123,7 @@ export default function ApartmentPage() {
     }
     setIsLoadingFlats(true);
     try {
-      const res = await fetch(`/api/apartment/flats?userId=${encodeURIComponent(qUserId)}`);
+      const res = await authFetch(user, `/api/apartment/flats?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.apartments)) {
         setApartments(data.apartments);
@@ -155,7 +156,7 @@ export default function ApartmentPage() {
     setIsAuthLoading(true);
 
     try {
-      const res = await fetch("/api/apartment/auth/otp/send", {
+      const res = await authFetch(user, "/api/apartment/auth/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mobile: mobileInput, countryCode: countryCodeInput }),
@@ -183,7 +184,7 @@ export default function ApartmentPage() {
     setIsAuthLoading(true);
 
     try {
-      const res = await fetch("/api/apartment/auth/otp/verify", {
+      const res = await authFetch(user, "/api/apartment/auth/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -221,7 +222,7 @@ export default function ApartmentPage() {
     setIsAuthLoading(true);
 
     try {
-      const res = await fetch("/api/apartment/auth/session", {
+      const res = await authFetch(user, "/api/apartment/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: jwtInput, mobile: mobileInput }),
@@ -251,7 +252,7 @@ export default function ApartmentPage() {
     setIsAuthLoading(true);
     setAuthError(null);
     try {
-      const res = await fetch("/api/apartment/flats", {
+      const res = await authFetch(user, "/api/apartment/flats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId }),
@@ -280,7 +281,7 @@ export default function ApartmentPage() {
   const handleClearSession = async () => {
     if (!confirm("Are you sure you want to disconnect your Homefy session?")) return;
     try {
-      await fetch("/api/apartment/auth/session", { method: "DELETE" });
+      await authFetch(user, "/api/apartment/auth/session", { method: "DELETE" });
       setSession(null);
       setBills([]);
       setIsAuthModalOpen(false);
@@ -295,7 +296,7 @@ export default function ApartmentPage() {
     setIsLoadingDetail(true);
 
     try {
-      const res = await fetch(`/api/apartment/bills/${bill.id}`);
+      const res = await authFetch(user, `/api/apartment/bills/${bill.id}`);
       const data = await res.json();
       if (data.success && data.bill) {
         setSelectedBill(data.bill);
@@ -313,7 +314,7 @@ export default function ApartmentPage() {
     setLinkSuccessBanner(null);
 
     try {
-      const res = await fetch("/api/apartment/link-subscription", {
+      const res = await authFetch(user, "/api/apartment/link-subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categoryName }),

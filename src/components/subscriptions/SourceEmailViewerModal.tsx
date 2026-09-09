@@ -9,6 +9,8 @@ import {
   formatEmailTimestamp,
 } from "@/lib/subscriptionTypes";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
+import { authFetch } from "@/lib/authFetch";
+import { useAuth } from "@/context/AuthContext";
 
 interface SourceEmailViewerModalProps {
   isOpen: boolean;
@@ -27,6 +29,7 @@ export function SourceEmailViewerModal({
   scopedEmails,
   cycleMonth,
 }: SourceEmailViewerModalProps) {
+  const { user } = useAuth();
   const [emails, setEmails] = useState<SourceEmailRecord[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<SourceEmailRecord | null>(null);
   const [activeTab, setActiveTab] = useState<"html" | "text" | "debug">("html");
@@ -51,7 +54,7 @@ export function SourceEmailViewerModal({
     const fetchEmails = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/subscriptions/${subscription.id}/emails`);
+        const res = await authFetch(user, `/api/subscriptions/${subscription.id}/emails`);
         if (res.ok) {
           const data = await res.json();
           const list: SourceEmailRecord[] = data.emails || [];

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getAiConfig, saveAiConfig } from "@/lib/timeline/storage";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const config = await getAiConfig();
     const maskedKey = config.apiKey
@@ -30,6 +35,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const updated = await saveAiConfig({

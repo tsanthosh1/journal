@@ -4,7 +4,7 @@ import { fetchCustomerDetails, formatPropNo, formatCmcNo, formatAddress } from "
 import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorizedUser(req)) {
+  if (!await isAuthorizedUser(req)) {
     return unauthorizedResponse("Authentication required to access water ledger", {
       property: null,
       dues: null,

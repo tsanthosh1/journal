@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getAllActivitySchemas, getActivitySchema, evolveActivitySchema } from "@/lib/timeline/storage";
 import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const activityType = searchParams.get("activityType");
@@ -30,6 +35,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const activityType = body.activityType?.toUpperCase();

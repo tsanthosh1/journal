@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import {
   getLifeEventsByDate,
   getLifeEventsRange,
@@ -10,6 +11,10 @@ import { LifeEvent, TimelineDaySummary } from "@/lib/timeline/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
@@ -62,6 +67,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const userId = body.userId || "default_user";

@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getAvailableParsers, testParserOnContent } from "@/lib/parsers";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   return NextResponse.json({ parsers: getAvailableParsers() });
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const { parserModule, content, subject, customRegex, parserConfig } = body;

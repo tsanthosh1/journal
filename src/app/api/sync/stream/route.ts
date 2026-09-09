@@ -1,10 +1,15 @@
 import { NextRequest } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { runUnifiedSync, UnifiedSyncSource } from "@/lib/sync/unifiedSyncOrchestrator";
 import { SyncLogEvent } from "@/lib/gmail/syncLogger";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   const body = await request.json().catch(() => ({}));
   const userId = body.userId || "default_user";
   const subscriptionId = body.subscriptionId;

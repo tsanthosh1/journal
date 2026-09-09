@@ -6,6 +6,7 @@ import { FinanceTopBar } from "@/components/FinanceTopBar";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 import { TnebBillRecord, TnebConsumerAccount, TnebConfig, TnebTrackedConsumer } from "@/lib/tneb/types";
+import { authFetch } from "@/lib/authFetch";
 
 export default function TnebPage() {
   const { user, userId, isSignedIn } = useAuth();
@@ -53,7 +54,7 @@ export default function TnebPage() {
     }
     setIsLoadingAccounts(true);
     try {
-      const res = await fetch(`/api/tneb/accounts?userId=${encodeURIComponent(qUserId)}`);
+      const res = await authFetch(user, `/api/tneb/accounts?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.accounts)) {
         setAccounts(data.accounts);
@@ -75,7 +76,7 @@ export default function TnebPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/tneb/config?userId=${encodeURIComponent(qUserId)}`);
+      const res = await authFetch(user, `/api/tneb/config?userId=${encodeURIComponent(qUserId)}`);
       const data = await res.json();
       if (data.success && data.config) {
         setConfig(data.config);
@@ -112,7 +113,7 @@ export default function TnebPage() {
     const fetchBills = async () => {
       setIsLoadingBills(true);
       try {
-        const res = await fetch(`/api/tneb/accounts/${selectedConsumerNo}/bills?userId=${encodeURIComponent(qUserId)}`);
+        const res = await authFetch(user, `/api/tneb/accounts/${selectedConsumerNo}/bills?userId=${encodeURIComponent(qUserId)}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.bills)) {
           setBills(data.bills);
@@ -214,7 +215,7 @@ export default function TnebPage() {
     setIsSavingConfig(true);
     setConfigStatus(null);
     try {
-      const res = await fetch("/api/tneb/config", {
+      const res = await authFetch(user, "/api/tneb/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
@@ -243,7 +244,7 @@ export default function TnebPage() {
   const handleLinkSubscription = async (consumerNo: string, nickname?: string) => {
     setLinkingConsumerNo(consumerNo);
     try {
-      const res = await fetch("/api/tneb/link-subscription", {
+      const res = await authFetch(user, "/api/tneb/link-subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ consumerNumber: consumerNo, nickname }),
@@ -275,7 +276,7 @@ export default function TnebPage() {
     ]);
 
     try {
-      const response = await fetch("/api/tneb/sync?stream=true", {
+      const response = await authFetch(user, "/api/tneb/sync?stream=true", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -365,7 +366,7 @@ export default function TnebPage() {
     setImportStatus(null);
 
     try {
-      const res = await fetch("/api/tneb/import-html", {
+      const res = await authFetch(user, "/api/tneb/import-html", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ html: importHtmlText }),

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getAiConfig } from "@/lib/timeline/storage";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const { currentEvent, prompt } = body;

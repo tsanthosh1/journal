@@ -15,6 +15,8 @@ import {
 import { ThumbnailPicker } from "./ThumbnailPicker";
 import { getAvailableParsers, ParserMetadata } from "@/lib/parsers";
 import { ParserConfigFields } from "./modal/ParserConfigFields";
+import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/authFetch";
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -31,6 +33,7 @@ export function SubscriptionModal({
   initialData,
   onOpenTestSandbox,
 }: SubscriptionModalProps) {
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -285,7 +288,7 @@ export function SubscriptionModal({
     }
 
     // Fetch TNEB tracked consumers for dropdown
-    fetch("/api/tneb/config")
+    authFetch(user, "/api/tneb/config")
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.config?.trackedConsumers) {

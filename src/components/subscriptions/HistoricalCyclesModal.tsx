@@ -12,6 +12,7 @@ import { isPrepaidSubscription } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { ManualOverrideModal } from "./ManualOverrideModal";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/authFetch";
 
 interface HistoricalCyclesModalProps {
   isOpen: boolean;
@@ -53,7 +54,7 @@ export function HistoricalCyclesModal({
 
     setIsDeletingMonth(cycleMonth);
     try {
-      const res = await fetch(`/api/subscriptions/${subscription.id}/cycle?month=${encodeURIComponent(cycleMonth)}`, {
+      const res = await authFetch(user, `/api/subscriptions/${subscription.id}/cycle?month=${encodeURIComponent(cycleMonth)}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -74,7 +75,7 @@ export function HistoricalCyclesModal({
     if (!subscription) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/subscriptions/${subscription.id}/cycles`);
+      const res = await authFetch(user, `/api/subscriptions/${subscription.id}/cycles`);
       if (res.ok) {
         const data = await res.json();
         setCycles(data.cycles || []);
@@ -104,7 +105,7 @@ export function HistoricalCyclesModal({
     try {
       const qUserId = user?.email || user?.uid || userId;
       if (!qUserId) return;
-      const res = await fetch("/api/sync/sms/process", {
+      const res = await authFetch(user, "/api/sync/sms/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: qUserId }),
@@ -130,7 +131,7 @@ export function HistoricalCyclesModal({
   };
 
   const handleSaveCycleOverride = async (subId: string, updates: any) => {
-    const res = await fetch(`/api/subscriptions/${subId}/cycle`, {
+    const res = await authFetch(user, `/api/subscriptions/${subId}/cycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -151,7 +152,7 @@ export function HistoricalCyclesModal({
 
     try {
       const qUserId = user?.email || user?.uid || userId || "default_user";
-      const res = await fetch("/api/sync/historical", {
+      const res = await authFetch(user, "/api/sync/historical", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

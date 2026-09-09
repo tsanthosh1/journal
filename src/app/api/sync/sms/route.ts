@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { createHash } from "crypto";
 import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
 import { RawSmsRecord } from "@/lib/subscriptionTypes";
@@ -13,6 +14,10 @@ interface IncomingSmsPayload {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const data = await request.json();
     const { db } = getFirebaseAdmin();
@@ -156,6 +161,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId") || "default_user";

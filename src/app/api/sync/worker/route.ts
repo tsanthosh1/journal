@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import {
   ensureBackgroundSyncWorkerRunning,
   executeBackgroundSync,
@@ -9,7 +10,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     ensureBackgroundSyncWorkerRunning();
     const status = getBackgroundSyncWorkerStatus();
@@ -26,6 +31,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const action = body.action || "run_now";

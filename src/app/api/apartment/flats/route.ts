@@ -6,7 +6,7 @@ import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  if (!isAuthorizedUser(request)) {
+  if (!await isAuthorizedUser(request)) {
     return unauthorizedResponse("Authentication required to access flats", {
       apartments: [],
     });

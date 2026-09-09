@@ -14,7 +14,7 @@ import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  if (!isAuthorizedUser(request)) {
+  if (!await isAuthorizedUser(request)) {
     return NextResponse.json({
       success: true,
       authenticated: false,
@@ -163,7 +163,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to clear apartment session");
+  }
   try {
     await clearApartmentSession();
     return NextResponse.json({

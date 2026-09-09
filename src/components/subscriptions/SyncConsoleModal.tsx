@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { SyncLogEvent, SyncLogLevel } from "@/lib/gmail/syncLogger";
 import { Subscription } from "@/lib/subscriptionTypes";
+import { authFetch } from "@/lib/authFetch";
+import { useAuth } from "@/context/AuthContext";
 
 export interface SyncConsoleModalProps {
   isOpen: boolean;
@@ -21,6 +23,7 @@ export function SyncConsoleModal({
   initialMode = "current",
   onSyncComplete,
 }: SyncConsoleModalProps) {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<SyncLogEvent[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "query" | "parse" | "save" | "warn-error">("all");
@@ -72,7 +75,7 @@ export function SyncConsoleModal({
     ]);
 
     try {
-      const response = await fetch("/api/sync/stream", {
+      const response = await authFetch(user, "/api/sync/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

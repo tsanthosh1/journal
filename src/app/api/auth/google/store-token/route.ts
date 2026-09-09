@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { saveGmailTokens } from "@/lib/gmail/oauth";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const { userId, email, accessToken, refreshToken, expiryDate } = body;

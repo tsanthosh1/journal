@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getValidGmailToken } from "@/lib/gmail/oauth";
 import { syncHistoricalSubscriptionWithGmail } from "@/lib/gmail/syncEngine";
 import { getSubscription, listSubscriptions } from "@/lib/serverSubscriptions";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const userId = body.userId || "default_user";

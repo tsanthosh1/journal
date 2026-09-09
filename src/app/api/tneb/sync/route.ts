@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { scrapeAndSyncTneb } from "@/lib/tneb/scraper";
 import { TnebScrapeOptions } from "@/lib/tneb/types";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   const isStream = request.nextUrl.searchParams.get("stream") === "true";
 
   let body: TnebScrapeOptions = {};

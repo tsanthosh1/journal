@@ -3,8 +3,8 @@ import { getChennaiWaterSession, clearChennaiWaterSession } from "@/lib/chennaiW
 import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorizedUser(req)) {
-    return NextResponse.json({
+  if (!await isAuthorizedUser(req)) {
+    return unauthorizedResponse("Authentication required", {
       success: true,
       session: null,
       isAuthenticated: false,
@@ -23,7 +23,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  if (!await isAuthorizedUser(req)) {
+    return unauthorizedResponse("Authentication required to disconnect session");
+  }
   try {
     await clearChennaiWaterSession();
     return NextResponse.json({ success: true, message: "Disconnected CMWSSB session." });

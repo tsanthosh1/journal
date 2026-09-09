@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getValidGmailToken } from "@/lib/gmail/oauth";
 import { syncAllSubscriptions, syncSubscriptionWithGmail } from "@/lib/gmail/syncEngine";
 import { SyncLogCallback, SyncLogEvent } from "@/lib/gmail/syncLogger";
@@ -6,6 +7,10 @@ import { getSubscription } from "@/lib/serverSubscriptions";
 import { saveSyncLogFile, SyncLogDetailEvent } from "@/lib/sync/syncFileLogger";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   const startTime = Date.now();
   const collectedEvents: SyncLogDetailEvent[] = [];
   const onLog: SyncLogCallback = (event: SyncLogEvent) => {

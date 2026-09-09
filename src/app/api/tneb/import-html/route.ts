@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { parseTnebServiceDetailsHtml } from "@/lib/tneb/parser";
 import { saveTnebAccountAndBills } from "@/lib/tneb/storage";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const contentType = request.headers.get("content-type") || "";
     let rawHtml = "";

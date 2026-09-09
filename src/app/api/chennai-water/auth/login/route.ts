@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import {
   loginCustomer,
   fetchCustomerProperties,
@@ -11,6 +12,10 @@ import {
 import { saveChennaiWaterSession, saveProperties, saveReceipts } from "@/lib/chennaiWater/storage";
 
 export async function POST(req: NextRequest) {
+  if (!await isAuthorizedUser(req)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await req.json();
     const { mobileOrEmail, password } = body;

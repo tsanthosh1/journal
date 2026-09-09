@@ -12,6 +12,7 @@ import {
 } from "@/lib/chennaiWater/types";
 import { formatPropNo, formatCmcNo, formatAddress } from "@/lib/chennaiWater/client";
 import { ChennaiWaterInsights } from "@/components/chennaiWater/ChennaiWaterInsights";
+import { authFetch } from "@/lib/authFetch";
 
 type ViewTab = "ASSESSMENT" | "RECEIPTS" | "INSIGHTS";
 
@@ -61,7 +62,7 @@ export default function ChennaiWaterPage() {
 
     try {
       // 1. Fetch session
-      const sessionRes = await fetch(`/api/chennai-water/auth/session?userId=${encodeURIComponent(qUserId)}`);
+      const sessionRes = await authFetch(user, `/api/chennai-water/auth/session?userId=${encodeURIComponent(qUserId)}`);
       const sessionJson = await sessionRes.json();
       if (sessionJson.success && sessionJson.session) {
         setSession(sessionJson.session);
@@ -71,7 +72,7 @@ export default function ChennaiWaterPage() {
       }
 
       // 2. Fetch properties
-      const propRes = await fetch(`/api/chennai-water/properties?userId=${encodeURIComponent(qUserId)}`);
+      const propRes = await authFetch(user, `/api/chennai-water/properties?userId=${encodeURIComponent(qUserId)}`);
       const propJson = await propRes.json();
       if (propJson.success && propJson.properties) {
         setProperties(propJson.properties);
@@ -83,7 +84,7 @@ export default function ChennaiWaterPage() {
       }
 
       // 3. Fetch dues & ledger
-      const duesRes = await fetch(`/api/chennai-water/ledger?userId=${encodeURIComponent(qUserId)}`);
+      const duesRes = await authFetch(user, `/api/chennai-water/ledger?userId=${encodeURIComponent(qUserId)}`);
       const duesJson = await duesRes.json();
       if (duesJson.success) {
         setDuesData(duesJson.dues);
@@ -93,7 +94,7 @@ export default function ChennaiWaterPage() {
       }
 
       // 4. Fetch receipts
-      const recRes = await fetch(`/api/chennai-water/receipts?userId=${encodeURIComponent(qUserId)}`);
+      const recRes = await authFetch(user, `/api/chennai-water/receipts?userId=${encodeURIComponent(qUserId)}`);
       const recJson = await recRes.json();
       if (recJson.success && recJson.receipts) {
         setReceipts(recJson.receipts);
@@ -123,7 +124,7 @@ export default function ChennaiWaterPage() {
   const handlePropertyChange = async (propertyId: string | number) => {
     try {
       setIsLoading(true);
-      const res = await fetch("/api/chennai-water/properties", {
+      const res = await authFetch(user, "/api/chennai-water/properties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ propertyId }),
@@ -146,7 +147,7 @@ export default function ChennaiWaterPage() {
     setAuthLoading(true);
 
     try {
-      const res = await fetch("/api/chennai-water/auth/login", {
+      const res = await authFetch(user, "/api/chennai-water/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mobileOrEmail, password }),
@@ -171,7 +172,7 @@ export default function ChennaiWaterPage() {
   const handleDisconnect = async () => {
     if (!confirm("Disconnect your CMWSSB portal account?")) return;
     try {
-      await fetch("/api/chennai-water/auth/session", { method: "DELETE" });
+      await authFetch(user, "/api/chennai-water/auth/session", { method: "DELETE" });
       setSession(null);
       setIsAuthModalOpen(false);
       await loadAllData();
@@ -185,7 +186,7 @@ export default function ChennaiWaterPage() {
     setIsLinkingSub(true);
     setLinkSuccessMessage(null);
     try {
-      const res = await fetch("/api/chennai-water/link-subscription", {
+      const res = await authFetch(user, "/api/chennai-water/link-subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { runSmsSyncEngine } from "@/lib/sms/smsSyncEngine";
 import { saveSyncLogFile } from "@/lib/sync/syncFileLogger";
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const body = await request.json().catch(() => ({}));

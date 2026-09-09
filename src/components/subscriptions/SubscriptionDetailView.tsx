@@ -13,6 +13,7 @@ import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { ManualOverrideModal } from "./ManualOverrideModal";
 import { SyncConsoleModal } from "./SyncConsoleModal";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/authFetch";
 
 interface SubscriptionDetailViewProps {
   subscription: Subscription;
@@ -51,7 +52,7 @@ export function SubscriptionDetailView({
   const fetchCycles = useCallback(async () => {
     setIsLoadingCycles(true);
     try {
-      const res = await fetch(`/api/subscriptions/${subscription.id}/cycles`);
+      const res = await authFetch(user, `/api/subscriptions/${subscription.id}/cycles`);
       if (res.ok) {
         const data = await res.json();
         setCycles(data.cycles || []);
@@ -68,7 +69,7 @@ export function SubscriptionDetailView({
   }, [fetchCycles]);
 
   const handleSaveCycleOverride = async (subId: string, updates: any) => {
-    const res = await fetch(`/api/subscriptions/${subId}/cycle`, {
+    const res = await authFetch(user, `/api/subscriptions/${subId}/cycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -90,7 +91,7 @@ export function SubscriptionDetailView({
 
     setIsDeletingMonth(cycleMonth);
     try {
-      const res = await fetch(`/api/subscriptions/${subscription.id}/cycle?month=${encodeURIComponent(cycleMonth)}`, {
+      const res = await authFetch(user, `/api/subscriptions/${subscription.id}/cycle?month=${encodeURIComponent(cycleMonth)}`, {
         method: "DELETE",
       });
       if (!res.ok) {

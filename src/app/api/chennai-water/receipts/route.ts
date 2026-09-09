@@ -4,7 +4,7 @@ import { fetchReceipts } from "@/lib/chennaiWater/client";
 import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorizedUser(req)) {
+  if (!await isAuthorizedUser(req)) {
     return unauthorizedResponse("Authentication required to access water receipts", {
       receipts: [],
       count: 0,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getAiConfig, getAllUserLifeEvents } from "@/lib/timeline/storage";
 import { LifeEvent } from "@/lib/timeline/types";
 
@@ -10,6 +11,10 @@ interface ChatMessage {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const messages: ChatMessage[] = body.messages || [];
