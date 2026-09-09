@@ -121,6 +121,26 @@ export async function getLifeEventsRange(
   });
 }
 
+export async function getAllUserLifeEvents(userId = "default_user"): Promise<LifeEvent[]> {
+  const { db } = getFirebaseAdmin();
+  const snap = await db
+    .collection(EVENTS_COLLECTION)
+    .where("userId", "==", userId)
+    .get();
+
+  const events: LifeEvent[] = [];
+  snap.forEach((doc) => {
+    events.push({ ...(doc.data() as LifeEvent), id: doc.id });
+  });
+
+  return events.sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    if (!a.startTime) return 1;
+    if (!b.startTime) return -1;
+    return b.startTime.localeCompare(a.startTime);
+  });
+}
+
 export async function getLifeEventById(id: string): Promise<LifeEvent | null> {
   const { db } = getFirebaseAdmin();
   const doc = await db.collection(EVENTS_COLLECTION).doc(id).get();

@@ -8,6 +8,7 @@ import { VoiceRecorderModal } from "@/components/timeline/VoiceRecorderModal";
 import { EventEditModal } from "@/components/timeline/EventEditModal";
 import { SchemaManagerDrawer } from "@/components/timeline/SchemaManagerDrawer";
 import { AiConfigModal } from "@/components/timeline/AiConfigModal";
+import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
 
 export default function TimelinePage() {
   // Current selected date (YYYY-MM-DD)
@@ -23,6 +24,24 @@ export default function TimelinePage() {
   // Filters & Search
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewDensity, setViewDensity] = useState<"comfortable" | "compact">("comfortable");
+
+  // Load density preference from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("timeline_density");
+      if (saved === "compact" || saved === "comfortable") {
+        setViewDensity(saved);
+      }
+    } catch {}
+  }, []);
+
+  const handleToggleDensity = (density: "comfortable" | "compact") => {
+    setViewDensity(density);
+    try {
+      localStorage.setItem("timeline_density", density);
+    } catch {}
+  };
 
   // Modals & Drawers
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
@@ -30,6 +49,7 @@ export default function TimelinePage() {
   const [editingEvent, setEditingEvent] = useState<LifeEvent | null>(null);
   const [isSchemaDrawerOpen, setIsSchemaDrawerOpen] = useState(false);
   const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const fetchDayEvents = useCallback(async () => {
     setIsLoading(true);
@@ -195,18 +215,30 @@ export default function TimelinePage() {
               </div>
             </div>
 
-            {/* Quick Action Buttons: Mic Hero & Extra Tools */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            {/* Quick Action Buttons: Mic Hero, AI Chat & Extra Tools */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
               {/* Primary Mic Button */}
               <button
                 type="button"
                 onClick={() => setIsVoiceModalOpen(true)}
-                className="group relative flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 px-6 py-3.5 text-sm font-extrabold text-slate-950 shadow-xl shadow-cyan-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-cyan-500/40 active:scale-95 cursor-pointer"
+                className="group relative flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 px-5 py-3 text-sm font-extrabold text-slate-950 shadow-xl shadow-cyan-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-cyan-500/40 active:scale-95 cursor-pointer"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950/20 text-base">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-950/20 text-sm">
                   🎙️
                 </span>
-                <span>Speak & Log Day</span>
+                <span>Speak & Log</span>
+              </button>
+
+              {/* Ask Diary AI Button */}
+              <button
+                type="button"
+                onClick={() => setIsChatOpen(true)}
+                className="group relative flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/40 bg-slate-850 bg-gradient-to-r from-cyan-950/70 to-indigo-950/70 hover:from-cyan-900/80 hover:to-indigo-900/80 px-4 py-3 text-sm font-bold text-cyan-200 shadow-lg shadow-cyan-950/30 hover:scale-[1.02] active:scale-95 transition cursor-pointer"
+                title="Chat with your Diary AI in English or Tamil"
+              >
+                <span className="text-base">💬</span>
+                <span>Ask AI</span>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               </button>
 
               {/* Extra Tools */}
@@ -214,7 +246,7 @@ export default function TimelinePage() {
                 <button
                   type="button"
                   onClick={handleCreateManualEvent}
-                  className="flex-1 sm:flex-initial rounded-xl border border-white/10 bg-slate-800/80 px-3.5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
+                  className="flex-1 sm:flex-initial rounded-xl border border-white/10 bg-slate-800/80 px-3 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
                   title="Manually create event"
                 >
                   ➕ Add
@@ -223,7 +255,7 @@ export default function TimelinePage() {
                 <button
                   type="button"
                   onClick={() => setIsSchemaDrawerOpen(true)}
-                  className="flex-1 sm:flex-initial rounded-xl border border-purple-500/30 bg-purple-500/10 px-3.5 py-2.5 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 transition cursor-pointer"
+                  className="flex-1 sm:flex-initial rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2.5 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 transition cursor-pointer"
                   title="View evolving JSON schemas"
                 >
                   🧬 Schemas
@@ -233,7 +265,7 @@ export default function TimelinePage() {
                   type="button"
                   onClick={() => setIsAiConfigOpen(true)}
                   className="rounded-xl border border-white/10 bg-slate-800/80 p-2.5 text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
-                  title="AI Configuration (OpenRouter)"
+                  title="AI Configuration (Gemini / OpenRouter)"
                 >
                   ⚙️
                 </button>
@@ -328,24 +360,57 @@ export default function TimelinePage() {
             })}
           </div>
 
-          {/* Search Input */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search title, attributes, tags..."
-              className="w-full sm:w-60 rounded-xl border border-white/10 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
-            />
-            {searchQuery && (
+          {/* Search Input & View Density Toggle */}
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            {/* View Density Switch (Comfortable vs Compact) */}
+            <div className="flex items-center rounded-xl bg-slate-950/80 border border-white/10 p-1 shrink-0">
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs cursor-pointer"
+                onClick={() => handleToggleDensity("comfortable")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  viewDensity === "comfortable"
+                    ? "bg-cyan-500 text-slate-950 shadow-sm font-bold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Comfortable view (Detailed cards with full attributes)"
               >
-                ✕
+                <span>▤</span>
+                <span className="hidden sm:inline">Comfortable</span>
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => handleToggleDensity("compact")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  viewDensity === "compact"
+                    ? "bg-cyan-500 text-slate-950 shadow-sm font-bold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Compact view (Minimal info, more activity per screen)"
+              >
+                <span>☰</span>
+                <span className="hidden sm:inline">Compact</span>
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative flex-1 sm:flex-initial">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search title, tags..."
+                className="w-full sm:w-52 rounded-xl border border-white/10 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -364,6 +429,7 @@ export default function TimelinePage() {
                   event={event}
                   onEdit={handleEditEvent}
                   onDelete={handleDeleteEvent}
+                  density={viewDensity}
                 />
               ))}
             </div>
@@ -440,9 +506,37 @@ export default function TimelinePage() {
         isOpen={isAiConfigOpen}
         onClose={() => setIsAiConfigOpen(false)}
         onConfigSaved={() => {
-          alert("OpenRouter configuration saved!");
+          alert("AI configuration saved!");
         }}
       />
+
+      {/* Interactive Journal Chat Drawer */}
+      <JournalChatDrawer
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        selectedDate={selectedDate}
+        onOpenAiSettings={() => {
+          setIsChatOpen(false);
+          setIsAiConfigOpen(true);
+        }}
+      />
+
+      {/* Floating AI Chat Launcher Button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+          type="button"
+          onClick={() => setIsChatOpen(true)}
+          className="group relative flex items-center gap-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 px-5 py-3.5 text-sm font-extrabold text-slate-950 shadow-2xl shadow-cyan-500/40 hover:scale-105 hover:shadow-cyan-500/60 active:scale-95 transition-all duration-300 cursor-pointer"
+          title="Open Diary AI Assistant"
+        >
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950/20 text-base">
+            💬
+          </span>
+          <span className="hidden sm:inline font-bold">Ask Diary AI</span>
+          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 absolute -top-0.5 -right-0.5 ring-2 ring-slate-950" />
+          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping absolute -top-0.5 -right-0.5" />
+        </button>
+      </div>
     </div>
   );
 }

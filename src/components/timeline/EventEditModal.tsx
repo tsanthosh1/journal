@@ -260,7 +260,7 @@ export function EventEditModal({
                     <input
                       type={field.type === "number" || field.type === "unit_number" ? "number" : "text"}
                       step="any"
-                      value={attributes[field.key] !== undefined ? attributes[field.key] : ""}
+                      value={attributes[field.key] ?? ""}
                       onChange={(e) => handleAttributeChange(field.key, e.target.value)}
                       placeholder={field.suggestedValues ? field.suggestedValues.slice(0, 3).join(", ") : ""}
                       className="w-full rounded-xl border border-white/10 bg-slate-950 px-2.5 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none"

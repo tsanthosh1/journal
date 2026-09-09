@@ -7,9 +7,15 @@ interface TimelineEventCardProps {
   event: LifeEvent;
   onEdit: (event: LifeEvent) => void;
   onDelete: (id: string) => void;
+  density?: "comfortable" | "compact";
 }
 
-export function TimelineEventCard({ event, onEdit, onDelete }: TimelineEventCardProps) {
+export function TimelineEventCard({
+  event,
+  onEdit,
+  onDelete,
+  density = "comfortable",
+}: TimelineEventCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -26,7 +32,178 @@ export function TimelineEventCard({ event, onEdit, onDelete }: TimelineEventCard
   };
 
   const hasAttributes = event.attributes && Object.keys(event.attributes).length > 0;
+  const isCompact = density === "compact";
 
+  // ─────────────────────────────────────────────────────────────
+  // COMPACT VIEW RENDER
+  // ─────────────────────────────────────────────────────────────
+  if (isCompact) {
+    return (
+      <div className="relative pl-7 sm:pl-8 pb-2.5 last:pb-1 group">
+        {/* Compact Spine Connector */}
+        <div className="absolute left-0 top-2 bottom-0 w-px bg-slate-800 group-last:bg-transparent" />
+        <div
+          className="absolute -left-2.5 top-2 flex h-5 w-5 items-center justify-center rounded-full border border-slate-950 shadow-sm text-[10px] transition-transform group-hover:scale-110"
+          style={{ backgroundColor: meta.color }}
+          title={meta.name}
+        >
+          <span>{meta.icon}</span>
+        </div>
+
+        {/* Compact Card Row */}
+        <div
+          className={`rounded-xl border ${meta.borderColor} bg-slate-900/80 hover:bg-slate-900/95 px-3 py-2 sm:px-4 sm:py-2.5 shadow-sm backdrop-blur-md transition-all duration-150 hover:border-white/20`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            {/* Left: Time, Title, Category, Mood & Attributes preview */}
+            <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
+              {/* Time */}
+              <span className="shrink-0 font-mono text-[11px] font-bold text-slate-300 bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/5">
+                {event.startTime ? (
+                  <>
+                    <span>{event.startTime}</span>
+                    {event.endTime && <span className="text-slate-500 font-normal"> - {event.endTime}</span>}
+                  </>
+                ) : (
+                  <span className="text-slate-500">All day</span>
+                )}
+              </span>
+
+              {event.durationMinutes && (
+                <span className="shrink-0 font-mono text-[10px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded">
+                  {event.durationMinutes}m
+                </span>
+              )}
+
+              {/* Title with click to edit */}
+              <span
+                onClick={() => onEdit(event)}
+                className="font-bold text-white text-xs sm:text-sm truncate cursor-pointer hover:text-cyan-300 transition"
+                title={event.title}
+              >
+                {event.title}
+              </span>
+
+              {/* Category Pill */}
+              <span className={`shrink-0 rounded-full border px-2 py-0.2 text-[10px] font-semibold ${meta.badgeColor}`}>
+                {meta.name}
+              </span>
+
+              {/* Mood Pill */}
+              {event.mood && (
+                <span className="shrink-0 rounded-full bg-teal-500/15 border border-teal-500/30 px-2 py-0.2 text-[10px] font-semibold text-teal-300">
+                  {event.mood}
+                </span>
+              )}
+
+              {/* Top 2 attributes snippet */}
+              {hasAttributes && (
+                <span className="hidden lg:inline-flex items-center gap-1.5 text-[10px] text-slate-400 truncate">
+                  {Object.entries(event.attributes).slice(0, 2).map(([k, v]) => {
+                    if (v === undefined || v === null || v === "") return null;
+                    return (
+                      <span key={k} className="inline-flex items-center gap-1 bg-slate-950/60 px-1.5 py-0.5 rounded border border-white/5 text-slate-300">
+                        <span className="text-slate-500">{k}:</span>
+                        <span className="font-semibold text-white font-mono">{String(v)}</span>
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+            </div>
+
+            {/* Right: Expand Details & Actions */}
+            <div className="flex items-center gap-1 shrink-0">
+              {(event.description || hasAttributes || event.rawSpokenText) && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(!expanded)}
+                  className="px-1.5 py-1 rounded-lg text-[11px] text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition cursor-pointer"
+                  title={expanded ? "Collapse details" : "Expand details"}
+                >
+                  {expanded ? "▲" : "▼"}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onEdit(event)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                title="Edit event"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDelete}
+                className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer disabled:opacity-50"
+                title="Delete event"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Compact Inline Expansion (if toggled) */}
+          {expanded && (
+            <div className="mt-2.5 pt-2 border-t border-white/5 space-y-2 text-xs">
+              {event.description && (
+                <p className="text-slate-300 leading-relaxed text-xs">
+                  {event.description}
+                </p>
+              )}
+
+              {hasAttributes && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {Object.entries(event.attributes).map(([key, value]) => {
+                    if (value === undefined || value === null || value === "") return null;
+                    const displayVal = Array.isArray(value) ? value.join(", ") : String(value);
+                    return (
+                      <div
+                        key={key}
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-950/80 border border-white/10 px-2 py-0.5 text-[11px] text-slate-300"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {key.replace(/([A-Z])/g, " $1")}:
+                        </span>
+                        <span className="font-semibold text-white font-mono">{displayVal}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {event.tags && event.tags.length > 0 && (
+                <div className="flex items-center gap-1.5 pt-1">
+                  {event.tags.map((tag) => (
+                    <span key={tag} className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-slate-400">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {event.rawSpokenText && (
+                <div className="rounded-lg bg-slate-950/80 border border-white/5 p-2 text-[10px] text-slate-400 italic">
+                  "{event.rawSpokenText}"
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // COMFORTABLE (DETAILED) VIEW RENDER
+  // ─────────────────────────────────────────────────────────────
   return (
     <div className="relative pl-8 sm:pl-10 pb-8 last:pb-2 group">
       {/* Timeline Node & Vertical Connector Line */}
