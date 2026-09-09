@@ -658,9 +658,7 @@ export function CurrentMonthActionHub({
                       : isDueSoon
                       ? "DUE SOON"
                       : isAwaitingBill
-                      ? nextStatement
-                        ? `⏳ ${nextStatement.displayText.toUpperCase()}`
-                        : "⏳ BILL PENDING"
+                      ? "⏳ AWAITING BILL"
                       : isNoStatementService
                       ? "⚡ PAY YOUR DUE"
                       : "PENDING"}
