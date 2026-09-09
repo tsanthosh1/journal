@@ -209,6 +209,16 @@ Respond ONLY in valid JSON format matching this structure:
       temperature: 0.2,
     };
 
+    // If using free router, supply active free conversational models to prevent OpenRouter
+    // from routing to moderation filters like nvidia/nemotron-3.5-content-safety:free
+    if (isFreeRouter) {
+      requestBody.models = [
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "inclusionai/ling-3.0-flash-fin:free",
+        "google/gemma-4-31b-it:free",
+      ];
+    }
+
     // If using strict commercial models that support response_format, we can optionally pass it,
     // otherwise prompt-enforced JSON is universally reliable.
     if (!isFreeRouter && (aiConfig.model.includes("gpt-4") || aiConfig.model.includes("claude-3-5"))) {
@@ -244,9 +254,10 @@ Respond ONLY in valid JSON format matching this structure:
     // Extract JSON string safely even if wrapped in markdown fences or reasoning blocks
     let cleanContent = rawContent.trim();
     const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleanContent = jsonMatch[0];
+    if (!jsonMatch) {
+      throw new Error(`Model (${resData.model || aiConfig.model}) returned non-JSON output: "${cleanContent.slice(0, 100)}"`);
     }
+    cleanContent = jsonMatch[0];
 
     const parsed = JSON.parse(cleanContent);
     const events: ExtractedEventCandidate[] = parsed.events || [];
