@@ -13,6 +13,7 @@ import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { ManualOverrideModal } from "./ManualOverrideModal";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/authFetch";
+import { Zap, MessageSquare, Search } from "lucide-react";
 
 interface HistoricalCyclesModalProps {
   isOpen: boolean;
@@ -117,14 +118,14 @@ export function HistoricalCyclesModal({
       }
 
       setScanResultNotice(
-        `✅ SMS Reconciliation completed: ${data.summaryText || "Reconciled all matching loan debits across past cycles."}`,
+        `SMS Reconciliation completed: ${data.summaryText || "Reconciled all matching loan debits across past cycles."}`,
       );
 
       await fetchCycles();
       if (onCyclesUpdated) onCyclesUpdated();
       if (onRefreshSubscription) onRefreshSubscription();
     } catch (err) {
-      setScanResultNotice(`⚠️ SMS Reconciliation Error: ${(err as Error).message}`);
+      setScanResultNotice(`SMS Reconciliation Error: ${(err as Error).message}`);
     } finally {
       setIsScanningHistorical(false);
     }
@@ -168,7 +169,7 @@ export function HistoricalCyclesModal({
       }
 
       setScanResultNotice(
-        `✅ Deep scan completed: Found ${data.cyclesFound || 0} historical billing cycles across ${
+        `Deep scan completed: Found ${data.cyclesFound || 0} historical billing cycles across ${
           data.messagesScanned || 0
         } scanned emails.`,
       );
@@ -177,7 +178,7 @@ export function HistoricalCyclesModal({
       if (onCyclesUpdated) onCyclesUpdated();
       if (onRefreshSubscription) onRefreshSubscription();
     } catch (err) {
-      setScanResultNotice(`⚠️ Scan Error: ${(err as Error).message}`);
+      setScanResultNotice(`Scan Error: ${(err as Error).message}`);
     } finally {
       setIsScanningHistorical(false);
     }
@@ -222,8 +223,8 @@ export function HistoricalCyclesModal({
                   {subscription.name}
                 </span>
                 {isPrepaidSub && (
-                  <span className="rounded-md bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                    ⚡ PREPAID
+                  <span className="rounded-md bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300 flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-emerald-400" /> PREPAID
                   </span>
                 )}
               </div>
@@ -272,7 +273,7 @@ export function HistoricalCyclesModal({
                   </>
                 ) : (
                   <>
-                    <span>💬</span>
+                    <MessageSquare className="w-3.5 h-3.5" />
                     <span>Reconcile Past Loan SMS</span>
                   </>
                 )}
@@ -317,7 +318,7 @@ export function HistoricalCyclesModal({
                     </>
                   ) : (
                     <>
-                      <span>🔍</span>
+                      <Search className="w-3.5 h-3.5" />
                       <span>Run Historical Scan</span>
                     </>
                   )}
@@ -351,7 +352,7 @@ export function HistoricalCyclesModal({
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">
                 <span className="text-[11px] font-medium text-slate-400 block">Billing Model</span>
                 <span className="text-base sm:text-lg font-bold text-emerald-300 mt-0.5 flex items-center gap-1">
-                  <span>⚡</span> 100% Settled
+                  <Zap className="w-3.5 h-3.5 text-emerald-400" /> 100% Settled
                 </span>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5">

@@ -7,6 +7,19 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 import { TnebBillRecord, TnebConsumerAccount, TnebConfig, TnebTrackedConsumer } from "@/lib/tneb/types";
 import { authFetch } from "@/lib/authFetch";
+import {
+  Zap,
+  Settings,
+  FileText,
+  ClipboardList,
+  BarChart3,
+  Trash2,
+  Plus,
+  X,
+  ChevronDown,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 
 export default function TnebPage() {
   const { user, userId, isSignedIn } = useAuth();
@@ -23,7 +36,7 @@ export default function TnebPage() {
   const [config, setConfig] = useState<TnebConfig | null>(null);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [configStatus, setConfigStatus] = useState<string | null>(null);
+  const [configStatus, setConfigStatus] = useState<{ isError: boolean; message: string } | null>(null);
 
   // New Consumer Form inside Config Modal
   const [newConsumerNo, setNewConsumerNo] = useState("");
@@ -43,7 +56,7 @@ export default function TnebPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importHtmlText, setImportHtmlText] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [importStatus, setImportStatus] = useState<{ isError: boolean; message: string } | null>(null);
 
   // Load Accounts
   const fetchAccounts = async () => {
@@ -222,16 +235,16 @@ export default function TnebPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setConfigStatus("✅ Configuration saved successfully!");
+        setConfigStatus({ isError: false, message: "Configuration saved successfully!" });
         setTimeout(() => {
           setIsConfigModalOpen(false);
           setConfigStatus(null);
         }, 1200);
       } else {
-        setConfigStatus(`❌ ${data.error || "Failed to save"}`);
+        setConfigStatus({ isError: true, message: data.error || "Failed to save" });
       }
     } catch (err: any) {
-      setConfigStatus(`❌ ${err.message || "Network error"}`);
+      setConfigStatus({ isError: true, message: err.message || "Network error" });
     } finally {
       setIsSavingConfig(false);
     }
@@ -251,7 +264,7 @@ export default function TnebPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setLinkSuccessToast(`✅ Linked #${consumerNo} to Subscriptions page!`);
+        setLinkSuccessToast(`Linked #${consumerNo} to Subscriptions page!`);
         setTimeout(() => setLinkSuccessToast(null), 4000);
       } else {
         alert(`Failed to link subscription: ${data.error || "Unknown error"}`);
@@ -374,18 +387,18 @@ export default function TnebPage() {
 
       const data = await res.json();
       if (data.success) {
-        setImportStatus(`✅ ${data.message}`);
+        setImportStatus({ isError: false, message: data.message });
         setImportHtmlText("");
         await fetchAccounts();
         if (data.account?.consumerNumber) {
-          setSelectedConsumerNo(data.account.consumerNumber);
+           setSelectedConsumerNo(data.account.consumerNumber);
         }
         setTimeout(() => setIsImportModalOpen(false), 1500);
       } else {
-        setImportStatus(`❌ ${data.error || "Failed to import"}`);
+        setImportStatus({ isError: true, message: data.error || "Failed to import" });
       }
     } catch (err: any) {
-      setImportStatus(`❌ ${err.message || "Network error"}`);
+      setImportStatus({ isError: true, message: err.message || "Network error" });
     } finally {
       setIsImporting(false);
     }
@@ -407,11 +420,11 @@ export default function TnebPage() {
     <AuthGuard
       title="TNEB Electricity Ledger"
       description="Private Tamil Nadu electricity utility bills, consumer numbers, and payment receipts. Sign in with your authorized Google account to access."
-      icon="⚡"
+      icon="Zap"
       badge="Private & Encrypted"
     >
       <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-black">
-        <FinanceTopBar title="Tamil Nadu EB Bills ⚡" />
+        <FinanceTopBar title="Tamil Nadu EB Bills" />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
         {/* Top Header & Actions */}
@@ -419,7 +432,7 @@ export default function TnebPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300 font-bold">
-                ⚡
+                <Zap className="w-5 h-5 text-amber-400" />
               </span>
               <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
                 Tamil Nadu Electricity Board (TNEB)
@@ -437,7 +450,7 @@ export default function TnebPage() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900/80 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer shadow-sm"
               title="Configure tracked consumer numbers"
             >
-              <span>⚙️</span>
+              <Settings className="w-4 h-4 text-cyan-400" />
               <span>
                 Consumers ({config?.trackedConsumers?.length || 0})
               </span>
@@ -448,7 +461,7 @@ export default function TnebPage() {
               onClick={() => setIsImportModalOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900/80 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer shadow-sm"
             >
-              <span>📄</span>
+              <FileText className="w-4 h-4 text-cyan-400" />
               <span>Import MHTML</span>
             </button>
 
@@ -457,7 +470,7 @@ export default function TnebPage() {
               onClick={() => setIsSyncModalOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 text-xs font-bold text-slate-950 hover:from-amber-400 hover:to-amber-500 transition active:scale-95 cursor-pointer shadow-lg shadow-amber-500/20"
             >
-              <span>⚡</span>
+              <Zap className="w-4 h-4 text-slate-950 fill-slate-950" />
               <span>Sync Portal</span>
             </button>
           </div>
@@ -559,7 +572,7 @@ export default function TnebPage() {
           </div>
         ) : !isLoadingAccounts ? (
           <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/30 p-8 text-center">
-            <span className="text-3xl">⚡</span>
+            <Zap className="w-8 h-8 text-amber-400 mx-auto" />
             <h3 className="mt-2 text-base font-bold text-white">No TNEB Accounts Loaded Yet</h3>
             <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
               Configure your required consumer numbers in Settings, or sync directly from the portal with your login.
@@ -568,16 +581,18 @@ export default function TnebPage() {
               <button
                 type="button"
                 onClick={() => setIsConfigModalOpen(true)}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 cursor-pointer"
               >
-                ⚙️ Configure Consumers
+                <Settings className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Configure Consumers</span>
               </button>
               <button
                 type="button"
                 onClick={() => setIsSyncModalOpen(true)}
-                className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 cursor-pointer shadow-md"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 cursor-pointer shadow-md"
               >
-                Sync with Portal
+                <Zap className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
+                <span>Sync with Portal</span>
               </button>
             </div>
           </div>
@@ -618,7 +633,7 @@ export default function TnebPage() {
                   className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-amber-500/20 hover:text-amber-200 transition cursor-pointer shadow-sm disabled:opacity-50"
                   title="Add or link this consumer bill to the Subscriptions & Outflow Tracker"
                 >
-                  <span>📋</span>
+                  <ClipboardList className="w-4 h-4 text-amber-300" />
                   <span>
                     {linkingConsumerNo === selectedAccount.consumerNumber
                       ? "Linking..."
@@ -645,7 +660,10 @@ export default function TnebPage() {
 
             {linkSuccessToast && (
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-300 flex items-center justify-between">
-                <span>{linkSuccessToast}</span>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{linkSuccessToast}</span>
+                </div>
                 <Link
                   href="/subscriptions"
                   className="underline hover:text-white font-bold"
@@ -708,8 +726,11 @@ export default function TnebPage() {
             {selectedAccount.slabRates && selectedAccount.slabRates.length > 0 && (
               <details className="group rounded-xl border border-white/5 bg-white/[0.01] p-3 text-xs">
                 <summary className="font-semibold text-slate-300 cursor-pointer flex items-center justify-between">
-                  <span>⚡ Domestic Tariff Slab Rates ({selectedAccount.tariffCode})</span>
-                  <span className="text-[10px] text-cyan-400 group-open:rotate-180 transition-transform">▼</span>
+                  <span className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400 inline" />
+                    <span>Domestic Tariff Slab Rates ({selectedAccount.tariffCode})</span>
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-cyan-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-2 border-t border-white/5">
                   {selectedAccount.slabRates.map((sr, idx) => (
@@ -732,8 +753,8 @@ export default function TnebPage() {
         <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-slate-900/80 p-4 sm:p-6 backdrop-blur-md space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span>📊</span>
+              <h3 className="text-base sm:lg font-bold text-white flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-cyan-400" />
                 <span>Consumption Charges & Collection Ledger</span>
                 <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-300">
                   {filteredBills.length} cycles
@@ -848,7 +869,7 @@ export default function TnebPage() {
             <div className="flex items-center justify-between border-b border-white/10 pb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 font-bold text-sm">
-                  ⚙️
+                  <Settings className="w-4 h-4 text-cyan-400" />
                 </span>
                 <h3 className="text-base font-bold text-white">Configure Tracked Consumer Numbers</h3>
               </div>
@@ -857,7 +878,7 @@ export default function TnebPage() {
                 onClick={() => setIsConfigModalOpen(false)}
                 className="text-slate-400 hover:text-white cursor-pointer"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -882,7 +903,10 @@ export default function TnebPage() {
 
               {/* Add New Consumer Form */}
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3.5 space-y-3">
-                <div className="text-xs font-bold text-slate-200">➕ Add Consumer Number to Track</div>
+                <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Add Consumer Number to Track</span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -1022,7 +1046,7 @@ export default function TnebPage() {
                           className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
                           title="Remove consumer"
                         >
-                          🗑️
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -1032,13 +1056,18 @@ export default function TnebPage() {
 
               {configStatus && (
                 <div
-                  className={`rounded-xl p-3 text-xs font-semibold ${
-                    configStatus.startsWith("✅")
+                  className={`rounded-xl p-3 text-xs font-semibold flex items-center gap-2 ${
+                    !configStatus.isError
                       ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                       : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
                   }`}
                 >
-                  {configStatus}
+                  {!configStatus.isError ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{configStatus.message}</span>
                 </div>
               )}
             </div>
@@ -1071,7 +1100,7 @@ export default function TnebPage() {
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 font-bold text-sm">
-                  ⚡
+                  <Zap className="w-4 h-4 text-amber-400" />
                 </span>
                 <h3 className="text-base font-bold text-white">TNEB Portal Automated Scraper</h3>
               </div>
@@ -1080,7 +1109,7 @@ export default function TnebPage() {
                 onClick={() => setIsSyncModalOpen(false)}
                 className="text-slate-400 hover:text-white cursor-pointer"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1219,7 +1248,7 @@ export default function TnebPage() {
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 font-bold text-sm">
-                  📄
+                  <FileText className="w-4 h-4 text-cyan-400" />
                 </span>
                 <h3 className="text-base font-bold text-white">Import TNEB Service Details (MHTML / HTML)</h3>
               </div>
@@ -1228,7 +1257,7 @@ export default function TnebPage() {
                 onClick={() => setIsImportModalOpen(false)}
                 className="text-slate-400 hover:text-white cursor-pointer"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1260,13 +1289,18 @@ export default function TnebPage() {
 
               {importStatus && (
                 <div
-                  className={`rounded-xl p-3 text-xs font-semibold ${
-                    importStatus.startsWith("✅")
+                  className={`rounded-xl p-3 text-xs font-semibold flex items-center gap-2 ${
+                    !importStatus.isError
                       ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                       : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
                   }`}
                 >
-                  {importStatus}
+                  {!importStatus.isError ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{importStatus.message}</span>
                 </div>
               )}
 

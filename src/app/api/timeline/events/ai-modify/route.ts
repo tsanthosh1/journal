@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const aiConfig = await getAiConfig();
     if (!aiConfig.isConfigured || !aiConfig.apiKey) {
       return NextResponse.json(
-        { error: "AI API key is not configured. Please tap AI Settings ⚙️ to add your Gemini or OpenRouter key." },
+        { error: "AI API key is not configured. Please tap AI Settings to add your Gemini or OpenRouter key." },
         { status: 400 }
       );
     }

@@ -15,6 +15,24 @@ import {
 import { ParserTestResult } from "@/lib/subscriptionTypes";
 import { parseEmlContent, EmlDocument } from "@/lib/emlParser";
 import { BUNDLED_EMLS, BundledEmlItem } from "@/lib/sampleEmls/bundledEmls";
+import {
+  FlaskConical,
+  Puzzle,
+  Upload,
+  Mail,
+  FileText,
+  CreditCard,
+  MessageSquare,
+  X,
+  Zap,
+  BookOpen,
+  RefreshCw,
+  Globe,
+  FileCode,
+  Settings,
+  Check,
+  Search,
+} from "lucide-react";
 
 interface SampleItem {
   id: string;
@@ -403,7 +421,7 @@ export default function ParsersPage() {
     <AuthGuard
       title="Parser Testing Sandbox"
       description="Parser testing environment contains regex extraction diagnostics, bank statement templates, and sensitive parsing rules. Sign in with your authorized Google account to access."
-      icon="🧪"
+      icon="FlaskConical"
       badge="Private & Encrypted"
     >
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
@@ -425,7 +443,7 @@ export default function ParsersPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 text-xs">
-                🧩
+                <Puzzle className="w-3.5 h-3.5 text-cyan-400" />
               </span>
               <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
                 Specialized Parsing Engines & EML Viewer
@@ -446,7 +464,8 @@ export default function ParsersPage() {
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 px-4 py-2.5 text-xs font-extrabold text-slate-950 shadow-lg shadow-cyan-500/20 transition active:scale-95 cursor-pointer"
             >
-              <span>📂</span> Upload .EML / TXT File
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload .EML / TXT File</span>
             </button>
             <div className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-center">
               <span className="text-[10px] font-medium text-slate-400 block">Real EMLs</span>
@@ -461,7 +480,8 @@ export default function ParsersPage() {
         <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 p-3 sm:p-4 space-y-2.5 shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
-              <span>📧</span> Real EML Files Collection (1-Click Load & Render)
+              <Mail className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Real EML Files Collection (1-Click Load & Render)</span>
             </span>
             <span className="text-[10px] text-slate-400">Actual MIME messages with HTML layouts</span>
           </div>
@@ -486,7 +506,7 @@ export default function ParsersPage() {
                       : "border-white/10 bg-slate-950/80 text-slate-300 hover:bg-slate-800 hover:border-white/20"
                   }`}
                 >
-                  <span>📄</span>
+                  <FileText className="w-3 h-3 text-cyan-300" />
                   <span>{eml.name}</span>
                   <span
                     className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
@@ -532,8 +552,8 @@ export default function ParsersPage() {
                 : "border-white/10 bg-slate-900/60 hover:bg-slate-900 hover:border-white/20"
             }`}
           >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block flex items-center gap-1">
-              <span>📄</span> Statement Parsers
+            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-cyan-300" /> Statement Parsers
             </span>
             <span className="text-sm font-extrabold text-cyan-200 block mt-0.5">
               {statementCount} Invoices
@@ -550,8 +570,8 @@ export default function ParsersPage() {
                 : "border-white/10 bg-slate-900/60 hover:bg-slate-900 hover:border-white/20"
             }`}
           >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block flex items-center gap-1">
-              <span>💳</span> Payment Parsers
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5 text-emerald-300" /> Payment Parsers
             </span>
             <span className="text-sm font-extrabold text-emerald-200 block mt-0.5">
               {paymentCount} Receipts
@@ -568,8 +588,8 @@ export default function ParsersPage() {
                 : "border-white/10 bg-slate-900/60 hover:bg-slate-900 hover:border-white/20"
             }`}
           >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-300 block flex items-center gap-1">
-              <span>💬</span> Bank SMS Parsers
+            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-300 block flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5 text-teal-300" /> Bank SMS Parsers
             </span>
             <span className="text-sm font-extrabold text-teal-200 block mt-0.5">
               {smsCount} SMS Engine
@@ -620,7 +640,7 @@ export default function ParsersPage() {
                 onClick={() => setSearchQuery("")}
                 className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs cursor-pointer"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -637,7 +657,7 @@ export default function ParsersPage() {
                 : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
           >
-            <span>⚡</span> Interactive EML Playground & Live Inspector
+            <Zap className="w-3.5 h-3.5" /> Interactive EML Playground & Live Inspector
           </button>
           <button
             type="button"
@@ -648,7 +668,7 @@ export default function ParsersPage() {
                 : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
           >
-            <span>📚</span> Separated Sample Catalog ({filteredSamples.length})
+            <BookOpen className="w-3.5 h-3.5" /> Separated Sample Catalog ({filteredSamples.length})
           </button>
         </div>
 
@@ -687,23 +707,23 @@ export default function ParsersPage() {
 
                         {/* Separate Type Badges */}
                         {parser.type === "STATEMENT" && (
-                          <span className="rounded-full bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.2 text-[9px] font-extrabold text-cyan-300 shrink-0">
-                            📄 Statement
+                          <span className="rounded-full bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.2 text-[9px] font-extrabold text-cyan-300 shrink-0 inline-flex items-center gap-1">
+                            <FileText className="w-2.5 h-2.5" /> Statement
                           </span>
                         )}
                         {parser.type === "PAYMENT_RECEIPT" && (
-                          <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.2 text-[9px] font-extrabold text-emerald-300 shrink-0">
-                            💳 Payment Receipt
+                          <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.2 text-[9px] font-extrabold text-emerald-300 shrink-0 inline-flex items-center gap-1">
+                            <CreditCard className="w-2.5 h-2.5" /> Payment Receipt
                           </span>
                         )}
                         {parser.type === "DUAL" && (
-                          <span className="rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.2 text-[9px] font-extrabold text-indigo-300 shrink-0">
-                            🔄 Dual (Stmt+Pay)
+                          <span className="rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.2 text-[9px] font-extrabold text-indigo-300 shrink-0 inline-flex items-center gap-1">
+                            <RefreshCw className="w-2.5 h-2.5" /> Dual (Stmt+Pay)
                           </span>
                         )}
                         {parser.type === "SMS_DEBIT" && (
-                          <span className="rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.2 text-[9px] font-extrabold text-teal-300 shrink-0">
-                            💬 SMS Loan
+                          <span className="rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.2 text-[9px] font-extrabold text-teal-300 shrink-0 inline-flex items-center gap-1">
+                            <MessageSquare className="w-2.5 h-2.5" /> SMS Loan
                           </span>
                         )}
                       </div>
@@ -739,7 +759,7 @@ export default function ParsersPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-white/10 pb-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-base">📬</span>
+                    <Mail className="w-5 h-5 text-cyan-400" />
                     <div>
                       <span className="text-xs font-bold text-white block">
                         {currentFilename || "Custom Message / Raw Content"}
@@ -755,35 +775,35 @@ export default function ParsersPage() {
                     <button
                       type="button"
                       onClick={() => setViewMode("RENDERED_HTML")}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
                         viewMode === "RENDERED_HTML"
                           ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
-                      <span>🌐</span> Rendered HTML
+                      <Globe className="w-3.5 h-3.5" /> Rendered HTML
                     </button>
                     <button
                       type="button"
                       onClick={() => setViewMode("CLEAN_TEXT")}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
                         viewMode === "CLEAN_TEXT"
                           ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
-                      <span>📝</span> Clean Text
+                      <FileCode className="w-3.5 h-3.5" /> Clean Text
                     </button>
                     <button
                       type="button"
                       onClick={() => setViewMode("RAW_EML")}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
                         viewMode === "RAW_EML"
                           ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
-                      <span>📄</span> Raw MIME Source
+                      <FileText className="w-3.5 h-3.5" /> Raw MIME Source
                     </button>
                   </div>
                 </div>
@@ -839,7 +859,7 @@ export default function ParsersPage() {
                     </div>
                   ) : (
                     <div className="rounded-xl border border-white/10 bg-slate-950 p-6 text-center space-y-2">
-                      <span className="text-xl">📄</span>
+                      <FileText className="w-6 h-6 text-slate-400 mx-auto" />
                       <p className="text-xs text-slate-400">
                         This message does not contain rich HTML. Displaying clean plain text content instead:
                       </p>
@@ -881,7 +901,7 @@ export default function ParsersPage() {
               {selectedParser.configFields && selectedParser.configFields.length > 0 && (
                 <div className="rounded-2xl border border-amber-500/20 bg-amber-950/20 p-4 space-y-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <span>⚙️</span> {selectedParser.name} Config Options
+                    <Settings className="w-3.5 h-3.5 text-amber-400" /> {selectedParser.name} Config Options
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {selectedParser.configFields.map((field) => (
@@ -914,7 +934,7 @@ export default function ParsersPage() {
               {selectedParserId === "CustomRegexParser" && (
                 <div className="rounded-2xl border border-purple-500/30 bg-purple-950/20 p-4 space-y-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
-                    <span>🧪</span> Custom Regex Patterns
+                    <FlaskConical className="w-3.5 h-3.5 text-purple-400" /> Custom Regex Patterns
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -962,19 +982,19 @@ export default function ParsersPage() {
 
                     <div className="flex items-center gap-2">
                       {activeTestResult.statementResult.success && (
-                        <span className="rounded-full bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300">
-                          ✓ Statement Dues Matched
+                        <span className="rounded-full bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300 inline-flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Statement Dues Matched
                         </span>
                       )}
                       {activeTestResult.paymentResult.success && (
-                        <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                          ✓ Payment Receipt Matched
+                        <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 inline-flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Payment Receipt Matched
                         </span>
                       )}
                       {!activeTestResult.statementResult.success &&
                         !activeTestResult.paymentResult.success && (
-                          <span className="rounded-full bg-rose-500/20 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-bold text-rose-300">
-                            ✕ No Match
+                          <span className="rounded-full bg-rose-500/20 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-bold text-rose-300 inline-flex items-center gap-1">
+                            <X className="w-3 h-3" /> No Match
                           </span>
                         )}
                     </div>
@@ -992,7 +1012,7 @@ export default function ParsersPage() {
                     >
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
-                          <span>📄</span> Statement / Bill Invoice
+                          <FileText className="w-3.5 h-3.5 text-cyan-300" /> Statement / Bill Invoice
                         </span>
                         {activeTestResult.statementResult.success ? (
                           <span className="text-[10px] font-bold text-cyan-400">SUCCESS</span>
@@ -1058,7 +1078,7 @@ export default function ParsersPage() {
                     >
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
-                          <span>💳</span> Payment Confirmation / Receipt
+                          <CreditCard className="w-3.5 h-3.5 text-emerald-300" /> Payment Confirmation / Receipt
                         </span>
                         {activeTestResult.paymentResult.success ? (
                           <span className="text-[10px] font-bold text-emerald-400">SUCCESS</span>
@@ -1125,8 +1145,8 @@ export default function ParsersPage() {
 
                   {/* Raw JSON Result Toggle */}
                   <details className="text-xs">
-                    <summary className="text-slate-400 hover:text-white cursor-pointer font-semibold select-none">
-                      🔍 View Raw Parser JSON Output
+                    <summary className="text-slate-400 hover:text-white cursor-pointer font-semibold select-none flex items-center gap-1.5">
+                      <Search className="w-3.5 h-3.5 text-slate-400" /> View Raw Parser JSON Output
                     </summary>
                     <pre className="mt-2 p-3 rounded-xl bg-slate-950 border border-white/10 font-mono text-[11px] text-cyan-200 overflow-x-auto">
                       {JSON.stringify(activeTestResult, null, 2)}
@@ -1161,7 +1181,11 @@ export default function ParsersPage() {
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        {sample.isEml ? <span>📧</span> : <span>📝</span>}
+                        {sample.isEml ? (
+                          <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        )}
                         <span className="text-xs font-bold text-white group-hover:text-cyan-300 transition">
                           {sample.name}
                         </span>
@@ -1176,7 +1200,19 @@ export default function ParsersPage() {
                             : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
                         }`}
                       >
-                        {sample.type === "STATEMENT" ? "📄 Statement" : sample.type === "PAYMENT" ? "💳 Payment Receipt" : "💬 SMS"}
+                        {sample.type === "STATEMENT" ? (
+                          <span className="inline-flex items-center gap-1">
+                            <FileText className="w-2.5 h-2.5" /> Statement
+                          </span>
+                        ) : sample.type === "PAYMENT" ? (
+                          <span className="inline-flex items-center gap-1">
+                            <CreditCard className="w-2.5 h-2.5" /> Payment Receipt
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            <MessageSquare className="w-2.5 h-2.5" /> SMS
+                          </span>
+                        )}
                       </span>
                     </div>
 
@@ -1200,9 +1236,9 @@ export default function ParsersPage() {
                     <button
                       type="button"
                       onClick={() => handleLoadSample(sample)}
-                      className="rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:text-cyan-200 transition cursor-pointer"
+                      className="rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:text-cyan-200 transition cursor-pointer flex items-center gap-1.5"
                     >
-                      ⚡ Load & Render
+                      <Zap className="w-3.5 h-3.5" /> Load & Render
                     </button>
                   </div>
                 </div>

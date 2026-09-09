@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { Zap, AlertTriangle } from "lucide-react";
 
 export function FinanceTopBar({ title }: { title?: string }) {
   const pathname = usePathname();
@@ -38,7 +39,7 @@ export function FinanceTopBar({ title }: { title?: string }) {
             href="/"
           >
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 font-extrabold text-xs">
-              ⚡
+              <Zap className="w-4 h-4 text-cyan-400" />
             </span>
             <span className="text-sm sm:text-base font-extrabold">Finance Hub</span>
           </Link>
@@ -79,19 +80,21 @@ export function FinanceTopBar({ title }: { title?: string }) {
                     <button
                       type="button"
                       onClick={() => void signInWithGoogle()}
-                      className="rounded-md bg-indigo-500/20 hover:bg-indigo-500/30 px-1.5 py-0.5 text-[10px] text-indigo-300 font-medium transition cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-md bg-indigo-500/20 hover:bg-indigo-500/30 px-1.5 py-0.5 text-[10px] text-indigo-300 font-medium transition cursor-pointer"
                       title="Click to re-authorize / refresh offline Google/Gmail token"
                     >
-                      Gmail Sync ⚡
+                      <span>Gmail Sync</span>
+                      <Zap className="w-2.5 h-2.5 text-indigo-300" />
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={() => void signInWithGoogle()}
-                      className="rounded-md bg-amber-500/20 hover:bg-amber-500/30 px-1.5 py-0.5 text-[10px] text-amber-300 font-medium transition cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 px-1.5 py-0.5 text-[10px] text-amber-300 font-medium transition cursor-pointer"
                       title="Click to connect Gmail Sync"
                     >
-                      Link Gmail ⚠️
+                      <span>Link Gmail</span>
+                      <AlertTriangle className="w-2.5 h-2.5 text-amber-300" />
                     </button>
                   )}
                   <button

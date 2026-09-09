@@ -11,7 +11,21 @@ import { EventEditModal } from "@/components/timeline/EventEditModal";
 import { SchemaManagerDrawer } from "@/components/timeline/SchemaManagerDrawer";
 import { AiConfigModal } from "@/components/timeline/AiConfigModal";
 import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
+import { DynamicIcon } from "@/components/ui/DynamicIcon";
 import { authFetch } from "@/lib/authFetch";
+import {
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Mic,
+  MessageSquare,
+  Plus,
+  Dna,
+  Settings,
+  LayoutList,
+  Menu,
+  X,
+} from "lucide-react";
 
 export default function TimelinePage() {
   const { user, userId, isSignedIn } = useAuth();
@@ -158,7 +172,7 @@ export default function TimelinePage() {
     <AuthGuard
       title="Life Events Diary"
       description="This section contains your private daily life moments, audio recordings, workouts, and personal reflection logs. Sign in with your authorized Google account to view or record events."
-      icon="📔"
+      icon="book-open"
       badge="Private & Encrypted"
     >
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -175,7 +189,7 @@ export default function TimelinePage() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300 font-bold text-sm">
-                  📖
+                  <BookOpen className="w-4 h-4 text-cyan-300" />
                 </span>
                 <span className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">
                   AI Life Events Diary
@@ -196,10 +210,10 @@ export default function TimelinePage() {
                 <button
                   type="button"
                   onClick={() => handleShiftDate(-1)}
-                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
+                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer inline-flex items-center gap-1"
                   title="Previous Day"
                 >
-                  ◀ Yesterday
+                  <ChevronLeft className="w-3.5 h-3.5" /> Yesterday
                 </button>
 
                 {!isToday && (
@@ -215,10 +229,10 @@ export default function TimelinePage() {
                 <button
                   type="button"
                   onClick={() => handleShiftDate(1)}
-                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
+                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer inline-flex items-center gap-1"
                   title="Next Day"
                 >
-                  Tomorrow ▶
+                  Tomorrow <ChevronRight className="w-3.5 h-3.5" />
                 </button>
 
                 <div className="relative">
@@ -242,7 +256,7 @@ export default function TimelinePage() {
                 className="group relative flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 px-5 py-3 text-sm font-extrabold text-slate-950 shadow-xl shadow-cyan-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-cyan-500/40 active:scale-95 cursor-pointer"
               >
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-950/20 text-sm">
-                  🎙️
+                  <Mic className="w-4 h-4 text-slate-950" />
                 </span>
                 <span>Speak & Log</span>
               </button>
@@ -254,7 +268,7 @@ export default function TimelinePage() {
                 className="group relative flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/40 bg-slate-850 bg-gradient-to-r from-cyan-950/70 to-indigo-950/70 hover:from-cyan-900/80 hover:to-indigo-900/80 px-4 py-3 text-sm font-bold text-cyan-200 shadow-lg shadow-cyan-950/30 hover:scale-[1.02] active:scale-95 transition cursor-pointer"
                 title="Chat with your Diary AI in English or Tamil"
               >
-                <span className="text-base">💬</span>
+                <MessageSquare className="w-4 h-4 text-cyan-300" />
                 <span>Ask AI</span>
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               </button>
@@ -264,19 +278,21 @@ export default function TimelinePage() {
                 <button
                   type="button"
                   onClick={handleCreateManualEvent}
-                  className="flex-1 sm:flex-initial rounded-xl border border-white/10 bg-slate-800/80 px-3 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
+                  className="flex-1 sm:flex-initial rounded-xl border border-white/10 bg-slate-800/80 px-3 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer inline-flex items-center gap-1.5"
                   title="Manually create event"
                 >
-                  ➕ Add
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsSchemaDrawerOpen(true)}
-                  className="flex-1 sm:flex-initial rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2.5 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 transition cursor-pointer"
+                  className="flex-1 sm:flex-initial rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2.5 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 transition cursor-pointer inline-flex items-center gap-1.5"
                   title="View evolving JSON schemas"
                 >
-                  🧬 Schemas
+                  <Dna className="w-3.5 h-3.5 text-purple-300" />
+                  <span>Schemas</span>
                 </button>
 
                 <button
@@ -285,7 +301,7 @@ export default function TimelinePage() {
                   className="rounded-xl border border-white/10 bg-slate-800/80 p-2.5 text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
                   title="AI Configuration (Gemini / OpenRouter)"
                 >
-                  ⚙️
+                  <Settings className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -370,7 +386,7 @@ export default function TimelinePage() {
                       : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <span>{meta.icon}</span>
+                  <DynamicIcon icon={meta.icon} className="w-3.5 h-3.5" />
                   <span>{meta.name.split(" ")[0]}</span>
                   {count > 0 && <span className="opacity-70 font-mono">({count})</span>}
                 </button>
@@ -392,7 +408,7 @@ export default function TimelinePage() {
                 }`}
                 title="Comfortable view (Detailed cards with full attributes)"
               >
-                <span>▤</span>
+                <LayoutList className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Comfortable</span>
               </button>
               <button
@@ -405,7 +421,7 @@ export default function TimelinePage() {
                 }`}
                 title="Compact view (Minimal info, more activity per screen)"
               >
-                <span>☰</span>
+                <Menu className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Compact</span>
               </button>
             </div>
@@ -425,7 +441,7 @@ export default function TimelinePage() {
                   onClick={() => setSearchQuery("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs cursor-pointer"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -454,8 +470,8 @@ export default function TimelinePage() {
           ) : (
             /* Empty State */
             <div className="rounded-3xl border border-dashed border-white/10 bg-slate-900/30 p-8 sm:p-12 text-center space-y-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-800 text-3xl">
-                🎙️
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-800 text-cyan-400">
+                <Mic className="w-8 h-8 text-cyan-400" />
               </div>
               <div className="max-w-md mx-auto space-y-1">
                 <h3 className="text-base sm:text-lg font-bold text-white">
@@ -483,7 +499,7 @@ export default function TimelinePage() {
                 onClick={() => setIsVoiceModalOpen(true)}
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-xs font-bold text-slate-950 shadow-md shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition active:scale-95 cursor-pointer"
               >
-                <span>🎙️</span>
+                <Mic className="w-3.5 h-3.5" />
                 <span>Open Voice Recorder</span>
               </button>
             </div>
@@ -548,7 +564,7 @@ export default function TimelinePage() {
           title="Open Diary AI Assistant"
         >
           <span className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-slate-950/20 text-base">
-            💬
+            <MessageSquare className="w-4 h-4 text-slate-950" />
           </span>
           <span className="hidden sm:inline font-bold">Ask Diary AI</span>
           <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 absolute -top-0.5 -right-0.5 ring-2 ring-slate-950" />

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { SyncFileLogRecord, SyncLogDetailEvent, SyncFileLogSummary } from "@/lib/sync/syncFileLogger";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/authFetch";
+import { Check, Copy, Download, X } from "lucide-react";
 
 interface SyncLogDetailModalProps {
   isOpen: boolean;
@@ -187,11 +188,11 @@ export function SyncLogDetailModal({
             >
               {copied ? (
                 <>
-                  <span className="text-emerald-400">✓</span> Copied
+                  <Check className="w-3.5 h-3.5 text-emerald-400" /> Copied
                 </>
               ) : (
                 <>
-                  <span>📋</span> Copy JSON
+                  <Copy className="w-3.5 h-3.5" /> Copy JSON
                 </>
               )}
             </button>
@@ -199,10 +200,10 @@ export function SyncLogDetailModal({
               type="button"
               onClick={handleDownloadJson}
               disabled={!fullRecord}
-              className="hidden sm:flex items-center gap-1 rounded-xl border border-white/10 bg-slate-800/80 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700/80 hover:text-white transition disabled:opacity-40 cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700/80 hover:text-white transition disabled:opacity-40 cursor-pointer"
               title="Download log JSON file"
             >
-              <span>💾</span> Download
+              <Download className="w-3.5 h-3.5" /> Download
             </button>
             <button
               type="button"
@@ -210,7 +211,7 @@ export function SyncLogDetailModal({
               className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-slate-800/60 text-slate-400 hover:bg-white/10 hover:text-white transition cursor-pointer"
               aria-label="Close"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -272,9 +273,9 @@ export function SyncLogDetailModal({
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1.5 text-xs text-slate-500 hover:text-white"
+                className="absolute right-2.5 top-1.5 text-xs text-slate-500 hover:text-white cursor-pointer"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>

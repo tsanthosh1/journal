@@ -12,6 +12,24 @@ import { SubscriptionAvatar } from "@/components/subscriptions/SubscriptionAvata
 import { VoiceRecorderModal } from "@/components/timeline/VoiceRecorderModal";
 import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
 import { authFetch } from "@/lib/authFetch";
+import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import {
+  Mic,
+  MessageSquare,
+  Zap,
+  Lock,
+  Calendar,
+  Check,
+  CheckCircle2,
+  XCircle,
+  Info,
+  X,
+  Hourglass,
+  AlertTriangle,
+  BookOpen,
+  PartyPopper,
+  CreditCard,
+} from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
@@ -408,7 +426,7 @@ export default function Home() {
     {
       href: "/timeline",
       title: "Life Events Diary",
-      icon: "📔",
+      icon: "bookopen",
       badge: "AI Voice & Schemas",
       description: "Speak your moments with auto-detect Tamil & English transcription. Auto-discovers schemas.",
       gradient: "from-cyan-500/10 to-blue-500/10 hover:border-cyan-400/50",
@@ -417,7 +435,7 @@ export default function Home() {
     {
       href: "/subscriptions",
       title: "Subscriptions & Bills",
-      icon: "💳",
+      icon: "creditcard",
       badge: "Commitments",
       description: "Deterministic sync for credit cards, utilities, EMIs, and recurring payments.",
       gradient: "from-indigo-500/10 to-purple-500/10 hover:border-indigo-400/50",
@@ -426,7 +444,7 @@ export default function Home() {
     {
       href: "/tneb",
       title: "EB Electricity Bills",
-      icon: "⚡",
+      icon: "zap",
       badge: "TNEB",
       description: "Check power consumption, fetch pending bills, and download official payment receipts.",
       gradient: "from-amber-500/10 to-orange-500/10 hover:border-amber-400/50",
@@ -435,7 +453,7 @@ export default function Home() {
     {
       href: "/apartment",
       title: "Apartment Maintenance",
-      icon: "🏢",
+      icon: "building2",
       badge: "Homefy",
       description: "Audit monthly maintenance dues, water charges, and society balance sheets.",
       gradient: "from-emerald-500/10 to-teal-500/10 hover:border-emerald-400/50",
@@ -444,7 +462,7 @@ export default function Home() {
     {
       href: "/chennai-water",
       title: "Chennai Metro Water",
-      icon: "💧",
+      icon: "droplets",
       badge: "CMWSSB",
       description: "Inspect water supply and sewerage taxes, consumer cards, and bill histories.",
       gradient: "from-sky-500/10 to-cyan-500/10 hover:border-sky-400/50",
@@ -453,7 +471,7 @@ export default function Home() {
     {
       href: "/statements",
       title: "Bank Statements",
-      icon: "📑",
+      icon: "filetext",
       badge: "Accounts",
       description: "Search transaction records, view spending breakdown, and categorize cash outflows.",
       gradient: "from-rose-500/10 to-pink-500/10 hover:border-rose-400/50",
@@ -462,7 +480,7 @@ export default function Home() {
     {
       href: "/import",
       title: "Import Statements",
-      icon: "📥",
+      icon: "download",
       badge: "Text Parser",
       description: "Upload and parse bank text statements, preview transactions, and save to Firestore.",
       gradient: "from-violet-500/10 to-indigo-500/10 hover:border-violet-400/50",
@@ -471,7 +489,7 @@ export default function Home() {
     {
       href: "/categories",
       title: "Category Rules",
-      icon: "🏷️",
+      icon: "tag",
       badge: "Rules Engine",
       description: "Configure automated categorization patterns and reprocess historical transactions.",
       gradient: "from-yellow-500/10 to-amber-500/10 hover:border-yellow-400/50",
@@ -480,7 +498,7 @@ export default function Home() {
     {
       href: "/sync/logs",
       title: "Sync Logs & Audit",
-      icon: "📋",
+      icon: "clipboardlist",
       badge: "Diagnostics",
       description: "Trace file-based synchronization logs, regex diagnostic results, and worker executions.",
       gradient: "from-slate-500/10 to-zinc-500/10 hover:border-slate-400/50",
@@ -504,14 +522,22 @@ export default function Home() {
                 : "border-cyan-500/40 bg-slate-900/95 text-cyan-200"
             }`}
           >
-            <span>{toast.type === "success" ? "✅" : toast.type === "error" ? "❌" : "ℹ️"}</span>
+            <span>
+              {toast.type === "success" ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              ) : toast.type === "error" ? (
+                <XCircle className="w-4 h-4 text-rose-400" />
+              ) : (
+                <Info className="w-4 h-4 text-cyan-400" />
+              )}
+            </span>
             <span>{toast.message}</span>
             <button
               type="button"
               onClick={() => setToast(null)}
               className="ml-2 text-slate-400 hover:text-white"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -559,7 +585,7 @@ export default function Home() {
                     onClick={() => setIsVoiceModalOpen(true)}
                     className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition active:scale-95 cursor-pointer"
                   >
-                    <span className="text-base leading-none">🎙️</span>
+                    <Mic className="w-4 h-4 text-white" />
                     <span>Speak & Log</span>
                   </button>
 
@@ -568,7 +594,7 @@ export default function Home() {
                     onClick={() => setIsChatDrawerOpen(true)}
                     className="flex items-center gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/15 px-3.5 py-2.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/25 hover:border-indigo-500/50 transition active:scale-95 cursor-pointer"
                   >
-                    <span className="text-sm">💬</span>
+                    <MessageSquare className="w-3.5 h-3.5 text-indigo-200" />
                     <span>Ask Diary AI</span>
                   </button>
 
@@ -579,7 +605,7 @@ export default function Home() {
                     className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
                     title="Synchronize Gmail statements & bills"
                   >
-                    <span className={`text-sm ${isSyncing ? "animate-spin" : ""}`}>⚡</span>
+                    <Zap className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
                     <span>{isSyncing ? "Syncing..." : "Sync Bills"}</span>
                   </button>
 
@@ -600,7 +626,7 @@ export default function Home() {
                   onClick={() => signInWithGoogle()}
                   className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-xl shadow-cyan-500/25 hover:from-cyan-400 hover:to-indigo-500 transition active:scale-95 cursor-pointer"
                 >
-                  <span className="text-base">🔐</span>
+                  <Lock className="w-4 h-4 text-white" />
                   <span>Sign in with Google</span>
                 </button>
               )}
@@ -620,7 +646,7 @@ export default function Home() {
                 Today's Diary
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
-                <span>{isSignedIn ? "📔" : "🔒"}</span>
+                {isSignedIn ? <BookOpen className="w-4 h-4 text-cyan-400" /> : <Lock className="w-4 h-4 text-cyan-400" />}
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
@@ -653,7 +679,7 @@ export default function Home() {
                 Pending Dues
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
-                <span>{isSignedIn ? "⏳" : "🔒"}</span>
+                {isSignedIn ? <Hourglass className="w-4 h-4 text-amber-400" /> : <Lock className="w-4 h-4 text-amber-400" />}
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
@@ -681,7 +707,7 @@ export default function Home() {
                 Due in ≤ 7 Days
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400">
-                <span>{isSignedIn ? "🚨" : "🔒"}</span>
+                {isSignedIn ? <AlertTriangle className="w-4 h-4 text-rose-400" /> : <Lock className="w-4 h-4 text-rose-400" />}
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
@@ -706,7 +732,7 @@ export default function Home() {
                 Paid This Month
               </span>
               <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-                <span>{isSignedIn ? "✓" : "🔒"}</span>
+                {isSignedIn ? <Check className="w-4 h-4 text-emerald-400" /> : <Lock className="w-4 h-4 text-emerald-400" />}
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
@@ -730,7 +756,7 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400 font-bold text-sm">
-                  🗓️
+                  <Calendar className="w-4 h-4 text-cyan-400" />
                 </span>
                 <div>
                   <h2 className="text-base sm:text-lg font-extrabold text-white">Today's Activities</h2>
@@ -747,7 +773,7 @@ export default function Home() {
                   className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1.5 text-xs font-semibold text-cyan-300 transition cursor-pointer"
                   title="Record new voice note for today"
                 >
-                  <span>🎙️</span>
+                  <Mic className="w-3.5 h-3.5 text-cyan-300" />
                   <span className="hidden sm:inline">Add Moment</span>
                 </button>
                 <Link
@@ -762,8 +788,8 @@ export default function Home() {
             {/* Activities List */}
             {!isSignedIn ? (
               <div className="rounded-2xl border border-dashed border-cyan-500/20 bg-slate-900/40 p-8 text-center space-y-3">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10 text-2xl">
-                  🔒
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400">
+                  <Lock className="w-6 h-6 text-cyan-400" />
                 </div>
                 <h3 className="text-sm sm:text-base font-bold text-white">Private Daily Diary</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
@@ -775,7 +801,7 @@ export default function Home() {
                     onClick={() => signInWithGoogle()}
                     className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition cursor-pointer"
                   >
-                    <span>🔐</span>
+                    <Lock className="w-3.5 h-3.5 text-white" />
                     <span>Sign in with Google</span>
                   </button>
                 </div>
@@ -788,8 +814,8 @@ export default function Home() {
               </div>
             ) : events.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10 text-2xl">
-                  🎙️
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400">
+                  <Mic className="w-6 h-6 text-cyan-400" />
                 </div>
                 <h3 className="mt-3 text-sm font-bold text-white">No moments logged yet today</h3>
                 <p className="mt-1 text-xs text-slate-400 max-w-sm mx-auto">
@@ -809,7 +835,7 @@ export default function Home() {
               <div className="space-y-2.5">
                 {events.map((ev) => {
                   const meta = ACTIVITY_META_MAP[ev.activityType] || {
-                    icon: "📌",
+                    icon: "pin",
                     name: ev.activityType,
                     badgeColor: "bg-slate-800 text-slate-300 border-white/10",
                   };
@@ -820,8 +846,8 @@ export default function Home() {
                       className="group relative flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/90 p-3.5 transition hover:border-cyan-500/30 hover:bg-white/[0.03]"
                     >
                       {/* Icon */}
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-lg">
-                        {meta.icon}
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-cyan-300">
+                        <DynamicIcon icon={meta.icon} className="w-4 h-4 text-cyan-300" />
                       </span>
 
                       {/* Content */}
@@ -908,7 +934,7 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 font-bold text-sm">
-                  💳
+                  <CreditCard className="w-4 h-4 text-amber-400" />
                 </span>
                 <div>
                   <h2 className="text-base sm:text-lg font-extrabold text-white">Pending Dues</h2>
@@ -970,8 +996,8 @@ export default function Home() {
             {/* Dues Items List */}
             {!isSignedIn ? (
               <div className="rounded-2xl border border-dashed border-amber-500/20 bg-slate-900/40 p-8 text-center space-y-3">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-2xl">
-                  🔒
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400">
+                  <Lock className="w-6 h-6 text-amber-400" />
                 </div>
                 <h3 className="text-sm sm:text-base font-bold text-white">Private Commitments & Dues</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
@@ -983,7 +1009,7 @@ export default function Home() {
                     onClick={() => signInWithGoogle()}
                     className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/20 hover:from-amber-400 hover:to-orange-500 transition cursor-pointer"
                   >
-                    <span>🔐</span>
+                    <Lock className="w-3.5 h-3.5 text-white" />
                     <span>Sign in with Google</span>
                   </button>
                 </div>
@@ -996,7 +1022,9 @@ export default function Home() {
               </div>
             ) : displayedDues.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
-                <span className="text-2xl">🎉</span>
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400 mb-2">
+                  <PartyPopper className="w-6 h-6 text-amber-400" />
+                </div>
                 <h3 className="mt-2 text-sm font-bold text-white">
                   {duesTab === "settled" ? "No settled items found" : "No pending dues in this view!"}
                 </h3>
@@ -1066,10 +1094,15 @@ export default function Home() {
                             type="button"
                             onClick={(e) => handleQuickMarkPaid(sub, e)}
                             disabled={isMarking}
-                            className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 transition cursor-pointer disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 transition cursor-pointer disabled:opacity-50"
                             title={`Quick mark ${sub.name} as paid`}
                           >
-                            {isMarking ? "..." : "✓ Pay"}
+                            {isMarking ? "..." : (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-300" />
+                                <span>Pay</span>
+                              </>
+                            )}
                           </button>
                         ) : (
                           <span className="rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-2 py-1 text-[10px] font-bold text-emerald-300">
@@ -1117,7 +1150,9 @@ export default function Home() {
                 <div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <span className="text-2xl">{link.icon}</span>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
+                        <DynamicIcon icon={link.icon} className={`w-5 h-5 ${link.accent}`} />
+                      </span>
                       <h3 className="text-base font-bold text-white group-hover:text-cyan-200 transition">
                         {link.title}
                       </h3>

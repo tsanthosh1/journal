@@ -9,6 +9,7 @@ import {
 import { isPrepaidSubscription } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
 import { SubscriptionCard } from "./SubscriptionCard";
+import { Zap, Check, Mail, History, Edit3 } from "lucide-react";
 
 interface SubscriptionListProps {
   subscriptions: Subscription[];
@@ -302,7 +303,8 @@ export function SubscriptionList({
                       <td className="px-4 py-3 text-slate-200">
                         {isPrepaid ? (
                           <span className="rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] text-emerald-300 font-medium inline-flex items-center gap-1">
-                            <span>⚡</span> Prepaid
+                            <Zap className="w-2.5 h-2.5 text-emerald-300" />
+                            <span>Prepaid</span>
                           </span>
                         ) : sub.isEndOfMonthDue ? (
                           <span className="text-cyan-300 text-xs">
@@ -347,11 +349,16 @@ export function SubscriptionList({
                               : "bg-slate-800 text-slate-300"
                           }`}
                         >
-                          {cycle.status === "SKIPPED"
-                            ? "⏭️ SKIPPED"
-                            : isPrepaid
-                            ? "⚡ PREPAID"
-                            : cycle.status}
+                          {cycle.status === "SKIPPED" ? (
+                            "SKIPPED"
+                          ) : isPrepaid ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Zap className="w-2.5 h-2.5 text-emerald-300" />
+                              <span>PREPAID</span>
+                            </span>
+                          ) : (
+                            cycle.status
+                          )}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right space-x-1">
@@ -366,27 +373,35 @@ export function SubscriptionList({
                           }`}
                           title={isCopied ? "Copied JSON!" : "Copy subscription config as JSON"}
                         >
-                          {isCopied ? "✓ Copied" : "{ } Copy JSON"}
+                          {isCopied ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Check className="w-3 h-3 text-emerald-300" />
+                              <span>Copied</span>
+                            </span>
+                          ) : (
+                            "{ } Copy JSON"
+                          )}
                         </button>
 
                         {sub.source === "EMAIL_AUTOMATED" && onViewSourceEmail && (
                           <button
                             type="button"
                             onClick={() => onViewSourceEmail(sub)}
-                            className="rounded-lg bg-cyan-500/10 px-2 py-1 text-[11px] font-semibold text-cyan-300 hover:bg-cyan-500/20 cursor-pointer"
+                            className="rounded-lg bg-cyan-500/10 p-1 text-[11px] font-semibold text-cyan-300 hover:bg-cyan-500/20 cursor-pointer inline-flex items-center justify-center"
                             title="View Archived Email in Storage"
                           >
-                            ✉️
+                            <Mail className="w-3.5 h-3.5" />
                           </button>
                         )}
                         {onViewHistory && (
                           <button
                             type="button"
                             onClick={() => onViewHistory(sub)}
-                            className="rounded-lg bg-indigo-500/20 px-2 py-1 text-[11px] font-semibold text-indigo-300 hover:bg-indigo-500/30 cursor-pointer"
+                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 px-2 py-1 text-[11px] font-semibold text-indigo-300 hover:bg-indigo-500/30 cursor-pointer"
                             title="View Historical Ledger"
                           >
-                            History 📜
+                            <span>History</span>
+                            <History className="w-3 h-3" />
                           </button>
                         )}
                         {!isPaid && (
@@ -408,9 +423,9 @@ export function SubscriptionList({
                         <button
                           type="button"
                           onClick={() => onEdit(sub)}
-                          className="rounded-lg p-1 text-slate-400 hover:text-white cursor-pointer"
+                          className="rounded-lg p-1 text-slate-400 hover:text-white cursor-pointer inline-flex items-center justify-center"
                         >
-                          ✎
+                          <Edit3 className="w-3.5 h-3.5" />
                         </button>
                       </td>
                     </tr>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { LifeEvent, ACTIVITY_META_MAP, ActivityJsonSchema } from "@/lib/timeline/types";
+import { Pencil, X, Sparkles, Wand2, Check, AlertTriangle } from "lucide-react";
 
 interface EventEditModalProps {
   isOpen: boolean;
@@ -206,8 +207,8 @@ export function EventEditModal({
       <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-3xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/40">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">✏️</span>
+          <div className="flex items-center gap-2.5">
+            <Pencil className="w-5 h-5 text-cyan-400" />
             <h2 className="text-base sm:text-lg font-bold text-white">
               {eventToEdit ? "Edit Life Event" : "Create New Life Event"}
             </h2>
@@ -217,7 +218,7 @@ export function EventEditModal({
             onClick={onClose}
             className="rounded-xl p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -227,7 +228,7 @@ export function EventEditModal({
           <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-slate-950/60 to-indigo-950/40 p-3.5 shadow-md">
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
-                <span className="text-base">✨</span>
+                <Sparkles className="w-4 h-4 text-cyan-400" />
                 <span>Update with AI</span>
               </div>
               <span className="text-[10px] text-slate-400">English, தமிழ் & Tanglish</span>
@@ -252,9 +253,9 @@ export function EventEditModal({
                   <button
                     type="button"
                     onClick={() => setAiPrompt("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white cursor-pointer"
                   >
-                    ✕
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -276,7 +277,7 @@ export function EventEditModal({
                   </>
                 ) : (
                   <>
-                    <span>🪄</span>
+                    <Wand2 className="w-3.5 h-3.5 text-cyan-300" />
                     <span>Apply</span>
                   </>
                 )}
@@ -287,7 +288,7 @@ export function EventEditModal({
             {aiChangeSummary && (
               <div className="mt-2.5 flex items-center justify-between rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-300">
                 <div className="flex items-center gap-1.5 truncate">
-                  <span>✓</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="truncate">{aiChangeSummary}</span>
                 </div>
                 <button
@@ -302,7 +303,7 @@ export function EventEditModal({
 
             {aiError && (
               <div className="mt-2 text-xs text-rose-400 flex items-center gap-1">
-                <span>⚠️</span>
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                 <span>{aiError}</span>
               </div>
             )}
@@ -330,7 +331,7 @@ export function EventEditModal({
               >
                 {Object.entries(ACTIVITY_META_MAP).map(([type, meta]) => (
                   <option key={type} value={type}>
-                    {meta.icon} {meta.name}
+                    {meta.name}
                   </option>
                 ))}
               </select>
@@ -397,12 +398,12 @@ export function EventEditModal({
                 className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none cursor-pointer"
               >
                 <option value="">None / Neutral</option>
-                <option value="Energized">⚡ Energized</option>
-                <option value="Focused">🎯 Focused</option>
-                <option value="Happy">😊 Happy</option>
-                <option value="Calm">🧘 Calm</option>
-                <option value="Tired">😴 Tired</option>
-                <option value="Stressed">😰 Stressed</option>
+                <option value="Energized">Energized</option>
+                <option value="Focused">Focused</option>
+                <option value="Happy">Happy</option>
+                <option value="Calm">Calm</option>
+                <option value="Tired">Tired</option>
+                <option value="Stressed">Stressed</option>
               </select>
             </div>
           </div>
@@ -488,9 +489,9 @@ export function EventEditModal({
                     <button
                       type="button"
                       onClick={() => handleRemoveAttribute(k)}
-                      className="text-slate-500 hover:text-rose-400 ml-1 cursor-pointer"
+                      className="text-slate-500 hover:text-rose-400 ml-1 cursor-pointer inline-flex items-center"
                     >
-                      ✕
+                      <X className="w-3 h-3" />
                     </button>
                   </span>
                 ))}

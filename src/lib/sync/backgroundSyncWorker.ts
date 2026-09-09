@@ -80,7 +80,7 @@ export async function executeBackgroundSync(
   const runTimestamp = new Date().toISOString();
   state.lastRunAt = runTimestamp;
 
-  console.log(`[BackgroundSyncWorker] 🚀 Triggering ${triggerType} scheduled sync at ${runTimestamp}...`);
+  console.log(`[BackgroundSyncWorker] [START] Triggering ${triggerType} scheduled sync at ${runTimestamp}...`);
 
   try {
     const result = await runUnifiedSync({
@@ -103,7 +103,7 @@ export async function executeBackgroundSync(
     };
 
     console.log(
-      `[BackgroundSyncWorker] ✅ ${triggerType} sync completed in ${(result.durationMs / 1000).toFixed(1)}s [Status: ${
+      `[BackgroundSyncWorker] [SUCCESS] ${triggerType} sync completed in ${(result.durationMs / 1000).toFixed(1)}s [Status: ${
         result.success ? "SUCCESS" : "WARNING"
       }]`
     );
@@ -119,7 +119,7 @@ export async function executeBackgroundSync(
       errors: [err.message || String(err)],
       summary: `Failed to execute background sync: ${err.message || String(err)}`,
     };
-    console.error(`[BackgroundSyncWorker] ❌ Error executing ${triggerType} sync:`, err);
+    console.error(`[BackgroundSyncWorker] [ERROR] Error executing ${triggerType} sync:`, err);
     return null;
   } finally {
     state.isSyncing = false;

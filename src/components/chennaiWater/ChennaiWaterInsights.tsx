@@ -2,6 +2,17 @@
 
 import React, { useState, useMemo } from "react";
 import { ChennaiWaterReceipt } from "@/lib/chennaiWater/types";
+import {
+  IndianRupee,
+  Calendar,
+  Scale,
+  Zap,
+  BarChart3,
+  TrendingUp,
+  RefreshCw,
+  Receipt,
+  Droplets,
+} from "lucide-react";
 
 interface ChennaiWaterInsightsProps {
   receipts: ChennaiWaterReceipt[];
@@ -252,7 +263,7 @@ export function ChennaiWaterInsights({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">
               {selectedYear === "ALL" ? "Total All-Time Outflow" : `${selectedYear} Total Outflow`}
             </span>
-            <span className="text-xs">💰</span>
+            <IndianRupee className="w-3.5 h-3.5 text-sky-400" />
           </div>
           <div className="text-2xl font-black text-white font-mono">
             ₹{metrics.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -269,7 +280,7 @@ export function ChennaiWaterInsights({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-300">
               Avg. Monthly Outflow
             </span>
-            <span className="text-xs">📅</span>
+            <Calendar className="w-3.5 h-3.5 text-blue-400" />
           </div>
           <div className="text-2xl font-black text-white font-mono">
             ₹{metrics.avgMonthly.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -286,7 +297,7 @@ export function ChennaiWaterInsights({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-teal-300">
               Half-Year Base Tax
             </span>
-            <span className="text-xs">⚖️</span>
+            <Scale className="w-3.5 h-3.5 text-teal-400" />
           </div>
           <div className="text-2xl font-black text-teal-300 font-mono">
             {typeof halfYearTax === "number" ? `₹${halfYearTax.toFixed(2)}` : halfYearTax}
@@ -303,7 +314,7 @@ export function ChennaiWaterInsights({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
               Payment Clearing
             </span>
-            <span className="text-xs">⚡</span>
+            <Zap className="w-3.5 h-3.5 text-emerald-400" />
           </div>
           <div className="text-2xl font-black text-emerald-300">
             BBPS (Instant)
@@ -319,7 +330,8 @@ export function ChennaiWaterInsights({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-white/10 pb-3">
           <div>
             <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <span>📊</span> Monthly Water Outflow Distribution ({selectedYear === "ALL" ? "All Time Aggregated" : selectedYear})
+              <BarChart3 className="w-4 h-4 text-sky-400" />
+              <span>Monthly Water Outflow Distribution ({selectedYear === "ALL" ? "All Time Aggregated" : selectedYear})</span>
             </h3>
             <p className="text-xs text-slate-400">
               Shows payment outflows across each month of the year. Hover over any bar to view receipts.
@@ -420,7 +432,8 @@ export function ChennaiWaterInsights({
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <div>
               <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <span>📈</span> Year-over-Year (YoY) Outflows
+                <TrendingUp className="w-4 h-4 text-sky-400" />
+                <span>Year-over-Year (YoY) Outflows</span>
               </h3>
               <p className="text-xs text-slate-400">Total payments made per calendar year</p>
             </div>
@@ -476,7 +489,8 @@ export function ChennaiWaterInsights({
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <div>
               <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <span>🔄</span> Half-Yearly Cycle Outflows
+                <RefreshCw className="w-4 h-4 text-sky-400" />
+                <span>Half-Yearly Cycle Outflows</span>
               </h3>
               <p className="text-xs text-slate-400">
                 Term I (Apr–Sep) vs Term II (Oct–Mar)
@@ -563,7 +577,8 @@ export function ChennaiWaterInsights({
       <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <span>📜</span> Payment Receipts for {selectedYear === "ALL" ? "All Time" : `Year ${selectedYear}`}
+            <Receipt className="w-4 h-4 text-sky-400" />
+            <span>Payment Receipts for {selectedYear === "ALL" ? "All Time" : `Year ${selectedYear}`}</span>
           </h3>
           <span className="text-xs text-slate-400 font-mono">
             {yearReceipts.length} total receipts
@@ -578,7 +593,7 @@ export function ChennaiWaterInsights({
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400 font-bold text-sm">
-                  💧
+                  <Droplets className="w-4 h-4 text-sky-400" />
                 </span>
                 <div>
                   <div className="font-mono font-bold text-white text-xs">{r.receipt_no}</div>

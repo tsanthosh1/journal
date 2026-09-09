@@ -17,6 +17,15 @@ import { SyncConsoleModal } from "@/components/subscriptions/SyncConsoleModal";
 import { SubscriptionsSkeleton } from "@/components/subscriptions/SubscriptionsSkeleton";
 import { SourceEmailRecord, Subscription } from "@/lib/subscriptionTypes";
 import { useAuth } from "@/context/AuthContext";
+import {
+  Lock,
+  X,
+  RefreshCw,
+  FlaskConical,
+  ClipboardList,
+  Calendar,
+  Zap,
+} from "lucide-react";
 
 function SubscriptionsPageContent() {
   const router = useRouter();
@@ -344,7 +353,7 @@ function SubscriptionsPageContent() {
       setSyncSummary(data.summaryText || "SMS sync completed successfully.");
       await fetchSubscriptions();
     } catch (err) {
-      setSyncSummary(`⚠️ SMS Sync Error: ${(err as Error).message}`);
+      setSyncSummary(`SMS Sync Error: ${(err as Error).message}`);
     } finally {
       setIsSmsSyncing(false);
     }
@@ -375,8 +384,8 @@ function SubscriptionsPageContent() {
         <FinanceTopBar />
         <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
           <div className="max-w-md w-full rounded-3xl border border-white/15 bg-slate-900/90 p-6 sm:p-8 text-center shadow-2xl backdrop-blur-xl space-y-6">
-            <div className="h-16 w-16 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-3xl shadow-inner">
-              🔒
+            <div className="h-16 w-16 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-inner">
+              <Lock className="w-8 h-8" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white tracking-tight">Private & Secure Vault</h2>
@@ -389,7 +398,8 @@ function SubscriptionsPageContent() {
               onClick={() => signInWithGoogle()}
               className="w-full min-h-[46px] rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-bold text-sm shadow-xl hover:from-cyan-400 hover:to-blue-500 transition cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>🔐</span> Sign in with Google
+              <Lock className="w-4 h-4 text-slate-950" />
+              <span>Sign in with Google</span>
             </button>
           </div>
         </div>
@@ -418,7 +428,7 @@ function SubscriptionsPageContent() {
               onClick={() => setBannerNotice(null)}
               className="text-slate-400 hover:text-white ml-2 p-1"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -427,7 +437,7 @@ function SubscriptionsPageContent() {
         {syncSummary && (
           <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/40 p-4 text-xs sm:text-sm text-cyan-200 shadow-xl flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-base">🔄</span>
+              <RefreshCw className="w-4 h-4 text-cyan-400 shrink-0" />
               <span>{syncSummary}</span>
             </div>
             <button
@@ -435,7 +445,7 @@ function SubscriptionsPageContent() {
               onClick={() => setSyncSummary(null)}
               className="text-slate-400 hover:text-white p-1"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -481,7 +491,7 @@ function SubscriptionsPageContent() {
               className="min-h-[42px] flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 hover:bg-white/10 hover:border-cyan-400/50 transition cursor-pointer"
               title="Test Regex on raw email text"
             >
-              <span>🧪</span>
+              <FlaskConical className="w-4 h-4 text-cyan-400" />
               <span>Sandbox</span>
             </button>
           </div>
@@ -515,35 +525,38 @@ function SubscriptionsPageContent() {
                 <button
                   type="button"
                   onClick={() => handleSwitchTab("commitments")}
-                  className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                  className={`inline-flex items-center gap-1.5 min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                     activeView === "commitments" || activeView === "action-hub"
                       ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  📋 Commitments
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  <span>Commitments</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSwitchTab("timeline")}
-                  className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                  className={`inline-flex items-center gap-1.5 min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                     activeView === "timeline"
                       ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  📅 Outflows Timeline
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Outflows Timeline</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSwitchTab("split")}
-                  className={`hidden lg:inline-flex min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                  className={`hidden lg:inline-flex items-center gap-1.5 min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                     activeView === "split"
                       ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  ⚡ Split Overview
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Split Overview</span>
                 </button>
               </div>
 

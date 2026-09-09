@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { MessageSquare, Settings, Trash2, X, AlertTriangle, Send } from "lucide-react";
 
 interface ChatMessage {
   id: string;
@@ -18,10 +19,10 @@ interface JournalChatDrawerProps {
 }
 
 const QUICK_PROMPTS = [
-  { label: "📅 What did I do recently?", prompt: "Give me a summary of my recent activities and events across my journal." },
-  { label: "💪 Workout & Fitness Summary", prompt: "Summarize my workouts, exercises, and fitness activities recorded in my journal." },
-  { label: "🥗 What have I been eating?", prompt: "What meals, food, or drinks have I logged recently?" },
-  { label: "🎮 Gaming & Hobbies", prompt: "What games or leisure activities did I play and when?" },
+  { label: "What did I do recently?", prompt: "Give me a summary of my recent activities and events across my journal." },
+  { label: "Workout & Fitness Summary", prompt: "Summarize my workouts, exercises, and fitness activities recorded in my journal." },
+  { label: "What have I been eating?", prompt: "What meals, food, or drinks have I logged recently?" },
+  { label: "Gaming & Hobbies", prompt: "What games or leisure activities did I play and when?" },
   { label: "தமிழ்: இந்த வாரம் என்ன செய்தேன்?", prompt: "இந்த வாரம் நான் என்னென்ன காரியங்கள் செய்தேன் என்று தமிழில் சுருக்கமாக சொல்லுங்க." },
 ];
 
@@ -36,7 +37,7 @@ export function JournalChatDrawer({
       id: "welcome-msg",
       role: "assistant",
       content:
-        "👋 **Hello! I'm your Diary AI Assistant.**\n\nI have complete access to your logged life events, workouts, meals, moods, gaming, and habits. You can ask me anything about your past days, patterns, or totals in **English, Tamil (தமிழ்), or Tanglish**!",
+        "**Hello! I'm your Diary AI Assistant.**\n\nI have complete access to your logged life events, workouts, meals, moods, gaming, and habits. You can ask me anything about your past days, patterns, or totals in **English, Tamil (தமிழ்), or Tanglish**!",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
@@ -138,7 +139,7 @@ export function JournalChatDrawer({
         id: "welcome-msg-cleared",
         role: "assistant",
         content:
-          "✨ **Chat cleared.** Ask me anything about your recorded journal, habits, or workouts!",
+          "**Chat cleared.** Ask me anything about your recorded journal, habits, or workouts!",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
     ]);
@@ -224,7 +225,7 @@ export function JournalChatDrawer({
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/60 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 text-cyan-400 font-bold text-lg shadow-inner">
-              💬
+              <MessageSquare className="w-5 h-5 text-cyan-400" />
             </span>
             <div>
               <div className="flex items-center gap-2">
@@ -248,7 +249,7 @@ export function JournalChatDrawer({
                 className="rounded-xl border border-white/10 bg-slate-800/80 p-2 text-xs text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
                 title="Configure AI API Key"
               >
-                ⚙️
+                <Settings className="w-4 h-4" />
               </button>
             )}
             <button
@@ -257,7 +258,9 @@ export function JournalChatDrawer({
               className="rounded-xl border border-white/10 bg-slate-800/80 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Clear conversation"
             >
-              🧹 Clear
+              <span className="inline-flex items-center gap-1.5">
+                <Trash2 className="w-3.5 h-3.5" /> Clear
+              </span>
             </button>
             <button
               type="button"
@@ -265,7 +268,7 @@ export function JournalChatDrawer({
               className="rounded-xl p-2 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Close chat"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -339,7 +342,7 @@ export function JournalChatDrawer({
           {/* Error Banner */}
           {error && (
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-300 flex items-start gap-2.5">
-              <span>⚠️</span>
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-semibold">{error}</p>
                 <button
@@ -391,7 +394,7 @@ export function JournalChatDrawer({
               }`}
               title="Send message"
             >
-              <span className="text-base">🚀</span>
+              <Send className="w-4 h-4" />
             </button>
           </form>
         </div>

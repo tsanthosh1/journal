@@ -14,6 +14,7 @@ import { ManualOverrideModal } from "./ManualOverrideModal";
 import { SyncConsoleModal } from "./SyncConsoleModal";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/authFetch";
+import { Zap, FileText, SkipForward } from "lucide-react";
 
 interface SubscriptionDetailViewProps {
   subscription: Subscription;
@@ -162,7 +163,8 @@ export function SubscriptionDetailView({
             className="inline-flex items-center gap-1.5 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-2 text-xs sm:text-sm font-bold text-cyan-300 hover:bg-cyan-500/20 active:scale-95 transition cursor-pointer"
             title="Open Live Sync Console to scan current cycle"
           >
-            <span>⚡ Live Sync</span>
+            <Zap className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Live Sync</span>
           </button>
 
           <button
@@ -317,7 +319,7 @@ export function SubscriptionDetailView({
             {nextStatement && (
               <div className="flex justify-between py-1 border-b border-white/5 bg-cyan-500/10 px-2 rounded-lg items-center">
                 <span className="text-cyan-300 font-semibold flex items-center gap-1">
-                  <span>📄</span>
+                  <FileText className="w-3 h-3 text-cyan-400" />
                   <span>Next Bill:</span>
                 </span>
                 <span className="font-bold text-cyan-200 font-mono text-xs">
@@ -399,7 +401,7 @@ export function SubscriptionDetailView({
 
             {subscription.allowSkip && (
               <div className="flex items-center gap-1.5 text-amber-300 text-[11px]">
-                <span>⏭️</span>
+                <SkipForward className="w-3.5 h-3.5 text-amber-400" />
                 <span>Voluntary commitment (unpaid months marked as Skipped without penalty).</span>
               </div>
             )}

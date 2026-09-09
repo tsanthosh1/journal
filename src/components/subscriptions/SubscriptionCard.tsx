@@ -10,6 +10,19 @@ import {
 } from "@/lib/subscriptionTypes";
 import { isPrepaidSubscription, isFixedTenure, getNextStatementInfo } from "@/lib/subscriptionUtils";
 import { SubscriptionAvatar } from "./SubscriptionAvatar";
+import {
+  Zap,
+  Building2,
+  Droplets,
+  MessageSquare,
+  AlertTriangle,
+  FileText,
+  History,
+  Hourglass,
+  BarChart3,
+  ClipboardList,
+  Mail,
+} from "lucide-react";
 
 interface SubscriptionCardProps {
   subscription: Subscription;
@@ -121,14 +134,14 @@ export function SubscriptionCard({
     statusBadge = (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800 border border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-400">
         <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-        ⏭️ Skipped
+        Skipped
       </span>
     );
   } else if (isPrepaid) {
     statusBadge = (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        ⚡ Prepaid Active
+        <Zap className="w-3 h-3 text-emerald-400" />
+        Prepaid Active
       </span>
     );
   } else if (isPaid) {
@@ -141,15 +154,15 @@ export function SubscriptionCard({
   } else if (isNoStatementService) {
     statusBadge = (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2.5 py-0.5 text-xs font-bold text-cyan-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-        ⚡ Pay your due
+        <Zap className="w-3 h-3 text-cyan-400 animate-pulse" />
+        Pay your due
       </span>
     );
   } else if (isAwaitingBill) {
     statusBadge = (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-xs font-medium text-slate-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400/80" />
-        ⏳ Awaiting Bill
+        <Hourglass className="w-3 h-3 text-cyan-400/80" />
+        Awaiting Bill
       </span>
     );
   } else if (isPartiallyPaid) {
@@ -212,11 +225,13 @@ export function SubscriptionCard({
                   </span>
                 ) : subscription.source === "TNEB_MODULE" ? (
                   <span className="inline-flex items-center gap-1 rounded-lg bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[11px] font-bold text-amber-300">
-                    ⚡ TNEB Portal
+                    <Zap className="w-3 h-3 text-amber-300" />
+                    <span>TNEB Portal</span>
                   </span>
                 ) : subscription.source === "APARTMENT_MODULE" ? (
                   <span className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 border border-indigo-500/40 px-2 py-0.5 text-[11px] font-bold text-indigo-300">
-                    🏢 Apartment
+                    <Building2 className="w-3 h-3 text-indigo-300" />
+                    <span>Apartment</span>
                   </span>
                 ) : subscription.source === "CHENNAI_WATER_MODULE" ? (
                   <Link
@@ -224,11 +239,13 @@ export function SubscriptionCard({
                     onClick={(e) => e.stopPropagation()}
                     className="inline-flex items-center gap-1 rounded-lg bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 text-[11px] font-bold text-sky-300 hover:bg-sky-500/30 transition"
                   >
-                    💧 Metro Water
+                    <Droplets className="w-3 h-3 text-sky-300" />
+                    <span>Metro Water</span>
                   </Link>
                 ) : subscription.source === "SMS_AUTOMATED" ? (
                   <span className="inline-flex items-center gap-1 rounded-lg bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[11px] font-medium text-teal-300">
-                    💬 SMS Sync
+                    <MessageSquare className="w-3 h-3 text-teal-300" />
+                    <span>SMS Sync</span>
                   </span>
                 ) : (
                   <span className="rounded-lg bg-slate-800 border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400">
@@ -244,7 +261,7 @@ export function SubscriptionCard({
         {/* Warning banner for parser review */}
         {isReview && cycle.lastError && (
           <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200 flex items-start gap-2">
-            <span className="text-amber-400">⚠️</span>
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <span className="font-semibold">Parser Issue:</span> {cycle.lastError}
             </div>
@@ -261,7 +278,8 @@ export function SubscriptionCard({
                   <div>
                     <span className="text-xs text-slate-400 block">Prepaid Plan Cost</span>
                     <span className="text-[11px] text-emerald-300 font-medium flex items-center gap-1 mt-0.5">
-                      <span>⚡</span> Paid Upfront on Invoice
+                      <Zap className="w-3 h-3 text-emerald-300" />
+                      <span>Paid Upfront on Invoice</span>
                     </span>
                   </div>
                   <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
@@ -361,7 +379,7 @@ export function SubscriptionCard({
             {nextStatement && (isPaid || isAwaitingBill) && (
               <div className="mt-2.5 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs">
                 <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
-                  <span>📄</span>
+                  <FileText className="w-3 h-3 text-slate-400" />
                   <span>Next Bill</span>
                 </span>
                 <span className="font-semibold text-cyan-300 font-mono text-[11px] bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-md">
@@ -376,7 +394,7 @@ export function SubscriptionCard({
         {subscription.source === "TNEB_MODULE" && (
           <div className="mt-2.5 flex items-center justify-between text-xs text-slate-400 px-1">
             <span className="text-[11px] text-amber-300/90 font-medium flex items-center gap-1">
-              <span>⚡</span>
+              <Zap className="w-3 h-3 text-amber-300" />
               <span>Consumer #{subscription.tnebConfig?.consumerNumber || ""}</span>
             </span>
             <Link
@@ -384,7 +402,9 @@ export function SubscriptionCard({
               className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer flex items-center gap-1 text-[11px] hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
-              <span>View EB Ledger 📊 →</span>
+              <span>View EB Ledger</span>
+              <BarChart3 className="w-3 h-3" />
+              <span>→</span>
             </Link>
           </div>
         )}
@@ -393,7 +413,7 @@ export function SubscriptionCard({
         {subscription.source === "APARTMENT_MODULE" && (
           <div className="mt-2.5 flex items-center justify-between text-xs text-slate-400 px-1">
             <span className="text-[11px] text-indigo-300/90 font-medium flex items-center gap-1">
-              <span>🏢</span>
+              <Building2 className="w-3 h-3 text-indigo-300" />
               <span>{subscription.apartmentConfig?.flatNumber ? `Flat ${subscription.apartmentConfig.flatNumber}` : subscription.apartmentConfig?.apartmentName || "Apartment"}</span>
             </span>
             <Link
@@ -401,7 +421,9 @@ export function SubscriptionCard({
               className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer flex items-center gap-1 text-[11px] hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
-              <span>View Apartment Bills 📋 →</span>
+              <span>View Apartment Bills</span>
+              <ClipboardList className="w-3 h-3" />
+              <span>→</span>
             </Link>
           </div>
         )}
@@ -424,7 +446,7 @@ export function SubscriptionCard({
                   className="text-indigo-300 hover:text-indigo-200 font-medium cursor-pointer flex items-center gap-1"
                   title="View full archived email in Storage"
                 >
-                  <span>✉️</span>
+                  <Mail className="w-3 h-3" />
                   <span className="underline">Source Email</span>
                 </button>
               )}
@@ -465,10 +487,11 @@ export function SubscriptionCard({
             <button
               type="button"
               onClick={() => onViewHistory(subscription)}
-              className="min-h-[36px] rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-medium text-indigo-300 hover:bg-indigo-500/20 hover:text-white transition active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1 min-h-[36px] rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-medium text-indigo-300 hover:bg-indigo-500/20 hover:text-white transition active:scale-95 cursor-pointer"
               title="View Historical Statement & Payment Cycles"
             >
-              History 📜
+              <span>History</span>
+              <History className="w-3 h-3" />
             </button>
           )}
         </div>

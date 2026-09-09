@@ -17,6 +17,22 @@ import { getAvailableParsers, ParserMetadata } from "@/lib/parsers";
 import { ParserConfigFields } from "./modal/ParserConfigFields";
 import { useAuth } from "@/context/AuthContext";
 import { authFetch } from "@/lib/authFetch";
+import {
+  Calendar,
+  Zap,
+  FileText,
+  CreditCard,
+  Building2,
+  Droplets,
+  Lock,
+  Hand,
+  FlaskConical,
+  Lightbulb,
+  Shield,
+  Target,
+  Plus,
+  Landmark,
+} from "lucide-react";
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -726,7 +742,7 @@ export function SubscriptionModal({
                   onChange={(e) => handleCategoryChange(e.target.value as SubscriptionCategory)}
                   className="mt-1 w-full min-h-[42px] rounded-xl border border-white/10 bg-slate-800 px-3.5 py-2 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
                 >
-                  <option value="Loans & EMIs">🏦 Loans & EMIs (Home Loan, Auto, Personal, Recovery)</option>
+                  <option value="Loans & EMIs">Loans & EMIs (Home Loan, Auto, Personal, Recovery)</option>
                   <option value="Credit Cards">Credit Cards</option>
                   <option value="Savings & Schemes">Jewellery & Savings Schemes (Gold Chit, SIP, RD)</option>
                   <option value="Entertainment">Entertainment & OTT Streaming</option>
@@ -772,7 +788,10 @@ export function SubscriptionModal({
                       : "border-white/10 bg-white/5 text-slate-400 hover:text-white"
                   }`}
                 >
-                  🗓️ Postpaid / Due Date Driven
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-cyan-300" />
+                    <span>Postpaid / Due Date Driven</span>
+                  </span>
                   <span className="block font-normal text-[10px] text-slate-400 mt-0.5">
                     Has a due date / deadline (e.g. Credit Cards, Schemes, Electricity)
                   </span>
@@ -787,7 +806,10 @@ export function SubscriptionModal({
                       : "border-white/10 bg-white/5 text-slate-400 hover:text-white"
                   }`}
                 >
-                  ⚡ Prepaid / Instant Renewal
+                  <span className="inline-flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Prepaid / Instant Renewal</span>
+                  </span>
                   <span className="block font-normal text-[10px] text-slate-400 mt-0.5">
                     No due date (e.g. OTT, Netflix, Spotify, Recharges)
                   </span>
@@ -881,7 +903,10 @@ export function SubscriptionModal({
                     />
                   ) : (
                     <div className="mt-1 w-full min-h-[42px] rounded-xl border border-white/10 bg-slate-800/80 px-3.5 py-2 text-xs text-cyan-200 flex items-center justify-between">
-                      <span>📅 Due on last day of month (28th-31st)</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Due on last day of month (28th-31st)</span>
+                      </span>
                     </div>
                   )}
 
@@ -907,7 +932,8 @@ export function SubscriptionModal({
               ) : (
                 <div className="flex flex-col justify-center rounded-xl bg-amber-500/5 border border-amber-500/20 p-3">
                   <span className="text-xs font-semibold text-amber-300 flex items-center gap-1">
-                    <span>⚡</span> Prepaid Service
+                    <Zap className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Prepaid Service</span>
                   </span>
                   <span className="text-[11px] text-slate-400 mt-0.5">
                     No payment due date required. Charged instantly upon invoice.
@@ -925,7 +951,8 @@ export function SubscriptionModal({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-white/10 pb-3">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
-                  <span>📄</span> 2. Statement / Bill Invoice
+                  <FileText className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>2. Statement / Bill Invoice</span>
                 </span>
                 <span className="text-[11px] text-slate-400">
                   Where does the billing invoice or statement come from?
@@ -976,14 +1003,14 @@ export function SubscriptionModal({
                   }}
                   className="min-h-[38px] rounded-xl border border-cyan-500/30 bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-cyan-300 focus:border-cyan-400 focus:outline-none cursor-pointer shadow-lg shadow-cyan-950/20"
                 >
-                  <option value="APARTMENT_MAINTENANCE">🏢 Apartment Maintenance (Quarterly)</option>
-                  <option value="APARTMENT_WATER">💧 Apartment Water & Corpus (Monthly)</option>
-                  <option value="CHENNAI_WATER">💧 Metro Water (CMWSSB)</option>
-                  <option value="TNEB">⚡ TNEB Portal (EB Bills)</option>
-                  <option value="EMAIL">✉️ Gmail (E-Statement Query)</option>
-                  <option value="SMS">💬 SMS (Bill / Debit SMS)</option>
-                  <option value="FIXED">🔒 Fixed Amount (Loans / EMIs)</option>
-                  <option value="MANUAL">✋ Manual (No External Statement)</option>
+                  <option value="APARTMENT_MAINTENANCE">Apartment Maintenance (Quarterly)</option>
+                  <option value="APARTMENT_WATER">Apartment Water & Corpus (Monthly)</option>
+                  <option value="CHENNAI_WATER">Metro Water (CMWSSB)</option>
+                  <option value="TNEB">TNEB Portal (EB Bills)</option>
+                  <option value="EMAIL">Gmail (E-Statement Query)</option>
+                  <option value="SMS">SMS (Bill / Debit SMS)</option>
+                  <option value="FIXED">Fixed Amount (Loans / EMIs)</option>
+                  <option value="MANUAL">Manual (No External Statement)</option>
                 </select>
               </div>
             </div>
@@ -994,7 +1021,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 font-bold text-xs">
-                      🏢
+                      <Building2 className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-indigo-300 text-xs">
                       Apartment Maintenance Source (Homefy)
@@ -1038,7 +1065,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 font-bold text-xs">
-                      💧
+                      <Droplets className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-cyan-300 text-xs">
                       Apartment Water & Corpus Source (Homefy)
@@ -1062,8 +1089,9 @@ export function SubscriptionModal({
                       }}
                       className="mt-1 w-full min-h-[38px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
                     >
-                      <option value="Water Bill">Water & Corpus Combined (Default)</option>
+                      <option value="Water Bill">Water & Corpus Combined</option>
                       <option value="Corpus Fund">Corpus Fund Only</option>
+                      <option value="ALL">All Bills Combined</option>
                     </select>
                   </div>
                   <div className="flex items-end">
@@ -1082,7 +1110,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 font-bold text-xs">
-                      🏢
+                      <Building2 className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-indigo-300 text-xs">
                       Homefy Apartment Management Source
@@ -1131,7 +1159,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs">
-                      💧
+                      <Droplets className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-sky-300 text-xs">
                       Chennai Metro Water (CMWSSB) Module Source
@@ -1172,7 +1200,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 font-bold text-xs">
-                      ⚡
+                      <Zap className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-amber-300 text-xs">
                       Tamil Nadu Electricity Board (TNEB) Module Source
@@ -1232,7 +1260,8 @@ export function SubscriptionModal({
             ) : statementSource === "FIXED" ? (
               <div className="rounded-xl border border-indigo-500/20 bg-indigo-950/20 p-3.5 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-xs">
-                  <span>🔒</span> Fixed Commitment / Loan EMI
+                  <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Fixed Commitment / Loan EMI</span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
                   The statement amount is constant every cycle (e.g. Home Loan EMI). The system automatically uses the set{" "}
@@ -1242,7 +1271,8 @@ export function SubscriptionModal({
             ) : statementSource === "MANUAL" ? (
               <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3.5 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
-                  <span>✋</span> Variable / No External Statement
+                  <Hand className="w-3.5 h-3.5 text-slate-300" />
+                  <span>Variable / No External Statement</span>
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
                   No automated statement email. The system prompts you to &quot;Pay your due&quot; by the due date each cycle, and automatically settles the cycle as soon as your payment confirmation email arrives.
@@ -1262,10 +1292,10 @@ export function SubscriptionModal({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
                   {[
-                    { id: "AIRTEL_POSTPAID", label: "📱 Airtel Postpaid" },
+                    { id: "AIRTEL_POSTPAID", label: "Airtel Postpaid" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
                     { id: "TANISHQ_GOLD", label: "Tanishq Gold" },
-                    { id: "HOMEFY_WATER", label: "🏠 Homefy Water" },
+                    { id: "HOMEFY_WATER", label: "Homefy Water" },
                     { id: "AIRTEL_OTT", label: "Airtel OTT" },
                     { id: "AMAZON_PAY_ICICI", label: "Amazon Pay ICICI" },
                     { id: "AXIS", label: "Axis Card" },
@@ -1364,9 +1394,10 @@ export function SubscriptionModal({
                     <button
                       type="button"
                       onClick={onOpenTestSandbox}
-                      className="text-[10px] font-medium text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-lg cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[10px] font-medium text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-lg cursor-pointer"
                     >
-                      🧪 Test Sandbox
+                      <FlaskConical className="w-3 h-3 text-cyan-300" />
+                      <span>Test Sandbox</span>
                     </button>
                   )}
                 </div>
@@ -1377,18 +1408,18 @@ export function SubscriptionModal({
                   className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
                 >
                   <optgroup label="Auto Detection">
-                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Auto Cascading Rules)</option>
+                    <option value="UniversalAutoParser">Universal Auto-Detect (Auto Cascading Rules)</option>
                   </optgroup>
                   <optgroup label="Specific Specialized Parsers">
-                    <option value="AirtelPostpaidParser">📱 Google Pay BBPS / Airtel Postpaid (AirtelPostpaidParser)</option>
-                    <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
-                    <option value="HDFCCardParser">💳 HDFC Bank Credit Card (HDFCCardParser)</option>
-                    <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
-                    <option value="SBICardParser">💳 SBI Credit Card (SBICardParser)</option>
-                    <option value="HomefyParser">🏠 Homefy Community Water & Maintenance (HomefyParser)</option>
-                    <option value="JewellerySchemeParser">💍 Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
-                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility (GenericUtilityParser)</option>
-                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
+                    <option value="AirtelPostpaidParser">Google Pay BBPS / Airtel Postpaid (AirtelPostpaidParser)</option>
+                    <option value="AxisCardParser">Axis Bank Credit Card (AxisCardParser)</option>
+                    <option value="HDFCCardParser">HDFC Bank Credit Card (HDFCCardParser)</option>
+                    <option value="ICICICardParser">ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
+                    <option value="SBICardParser">SBI Credit Card (SBICardParser)</option>
+                    <option value="HomefyParser">Homefy Community Water & Maintenance (HomefyParser)</option>
+                    <option value="JewellerySchemeParser">Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
+                    <option value="GenericUtilityParser">Generic Telecom & Utility (GenericUtilityParser)</option>
+                    <option value="CustomRegexParser">Custom Regex Pattern - Advanced (CustomRegexParser)</option>
                   </optgroup>
                 </select>
 
@@ -1402,9 +1433,10 @@ export function SubscriptionModal({
                         <button
                           type="button"
                           onClick={() => setStatementQuery(selected.sampleStatementQuery)}
-                          className="text-[10px] font-semibold text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-300 hover:text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
                         >
-                          ⚡ Set Sample Query
+                          <Zap className="w-3 h-3 text-cyan-300" />
+                          <span>Set Sample Query</span>
                         </button>
                       )}
                     </div>
@@ -1425,8 +1457,8 @@ export function SubscriptionModal({
                 {/* Custom Regex Pattern for Statement */}
                 {statementParserModule === "CustomRegexParser" && (
                   <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
-                      🧪 Custom Regex (Statement)
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                      <FlaskConical className="w-3.5 h-3.5" /> Custom Regex (Statement)
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
@@ -1462,7 +1494,7 @@ export function SubscriptionModal({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-white/10 pb-3">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-                  <span>💳</span> 3. Payment Confirmation
+                  <CreditCard className="w-3.5 h-3.5" /> 3. Payment Confirmation
                 </span>
                 <span className="text-[11px] text-slate-400">
                   How should debits & payments be matched and reconciled?
@@ -1484,20 +1516,20 @@ export function SubscriptionModal({
                   {(statementSource === "APARTMENT" ||
                     statementSource === "APARTMENT_MAINTENANCE" ||
                     statementSource === "APARTMENT_WATER") && (
-                    <option value="APARTMENT">🏢 Apartment Portal (Homefy Auto Reconcile)</option>
+                    <option value="APARTMENT">Apartment Portal (Homefy Auto Reconcile)</option>
                   )}
                   {statementSource === "TNEB" && (
-                    <option value="TNEB">⚡ TNEB Portal (EB Receipts Auto Reconcile)</option>
+                    <option value="TNEB">TNEB Portal (EB Receipts Auto Reconcile)</option>
                   )}
                   {statementSource === "CHENNAI_WATER" && (
-                    <option value="CHENNAI_WATER">💧 Metro Water Portal (CMWSSB Auto Reconcile)</option>
+                    <option value="CHENNAI_WATER">Metro Water Portal (CMWSSB Auto Reconcile)</option>
                   )}
                   {isPrepaid && (
-                    <option value="PREPAID_INVOICE">⚡ Prepaid / Invoice (Auto-Settled)</option>
+                    <option value="PREPAID_INVOICE">Prepaid / Invoice (Auto-Settled)</option>
                   )}
-                  <option value="EMAIL">✉️ Gmail (Debit Alerts & Receipts)</option>
-                  <option value="SMS">💬 SMS (Bank Account Debit Alerts)</option>
-                  <option value="MANUAL">✋ Manual (Mark Paid & Ledger Overrides)</option>
+                  <option value="EMAIL">Gmail (Debit Alerts & Receipts)</option>
+                  <option value="SMS">SMS (Bank Account Debit Alerts)</option>
+                  <option value="MANUAL">Manual (Mark Paid & Ledger Overrides)</option>
                 </select>
               </div>
             </div>
@@ -1508,7 +1540,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 font-bold text-xs">
-                      🏢
+                      <Building2 className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-indigo-300 text-xs">
                       Apartment Portal (Homefy) Auto-Reconciliation Active
@@ -1551,8 +1583,11 @@ export function SubscriptionModal({
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-white/5 bg-slate-900/60 p-2.5 text-[10px] text-slate-400">
-                  💡 <strong>Want Email/SMS tracking instead?</strong> If you prefer cross-matching your bank debit receipt email (e.g. from <span className="font-mono text-cyan-300">contact@homefy.co.in</span>) or bank SMS debit alerts, simply switch the <strong>Method</strong> dropdown above to <strong>Gmail</strong> or <strong>SMS</strong>.
+                <div className="rounded-lg border border-white/5 bg-slate-900/60 p-2.5 text-[10px] text-slate-400 flex items-start gap-1.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Want Email/SMS tracking instead?</strong> If you prefer cross-matching your bank debit receipt email (e.g. from <span className="font-mono text-cyan-300">contact@homefy.co.in</span>) or bank SMS debit alerts, simply switch the <strong>Method</strong> dropdown above to <strong>Gmail</strong> or <strong>SMS</strong>.
+                  </span>
                 </div>
               </div>
             ) : paymentSource === "TNEB" ? (
@@ -1560,7 +1595,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 font-bold text-xs">
-                      ⚡
+                      <Zap className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-amber-300 text-xs">
                       TNEB Portal Collection Receipts Active
@@ -1640,7 +1675,7 @@ export function SubscriptionModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs">
-                      💧
+                      <Droplets className="w-3.5 h-3.5" />
                     </span>
                     <span className="font-bold text-sky-300 text-xs">
                       Chennai Metro Water Portal Receipts Active
@@ -1681,7 +1716,7 @@ export function SubscriptionModal({
             ) : paymentSource === "PREPAID_INVOICE" ? (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">
                 <span className="font-bold flex items-center gap-1 mb-0.5">
-                  <span>⚡</span> Auto-Settled Upon Invoice Receipt
+                  <Zap className="w-3.5 h-3.5 text-amber-400" /> Auto-Settled Upon Invoice Receipt
                 </span>
                 <p className="text-[11px] text-slate-300">
                   Because this is a prepaid subscription, the invoice in Section 2 is also the payment confirmation. Each detected bill is automatically recorded as <strong>Fully Paid</strong>.
@@ -1700,8 +1735,8 @@ export function SubscriptionModal({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] text-slate-400 mr-1">Presets:</span>
                   {[
-                    { id: "AIRTEL_RECEIPT", label: "📱 Airtel Receipt" },
-                    { id: "HOMEFY_WATER", label: "🏠 Homefy Water Bill" },
+                    { id: "AIRTEL_RECEIPT", label: "Airtel Receipt" },
+                    { id: "HOMEFY_WATER", label: "Homefy Water Bill" },
                     { id: "GRT_JEWELS", label: "GRT Gold Scheme" },
                     { id: "TANISHQ_GOLD", label: "Tanishq Gold" },
                     { id: "AMAZON_PAY", label: "Amazon Pay" },
@@ -1749,9 +1784,9 @@ export function SubscriptionModal({
                       setName((n) => n || "Bank of India Home Loan");
                       setImageUrl("https://logo.clearbit.com/bankofindia.co.in");
                     }}
-                    className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] text-teal-300 hover:bg-teal-500/20 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] text-teal-300 hover:bg-teal-500/20 cursor-pointer"
                   >
-                    🏦 BOI Home Loan
+                    <Landmark className="w-3 h-3" /> BOI Home Loan
                   </button>
                   <button
                     type="button"
@@ -1762,9 +1797,9 @@ export function SubscriptionModal({
                       setName((n) => n || "HDFC Home Loan");
                       setImageUrl("https://logo.clearbit.com/hdfcbank.com");
                     }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
                   >
-                    🏦 HDFC Home Loan
+                    <Landmark className="w-3 h-3" /> HDFC Home Loan
                   </button>
                   <button
                     type="button"
@@ -1775,9 +1810,9 @@ export function SubscriptionModal({
                       setName((n) => n || "SBI Home Loan");
                       setImageUrl("https://logo.clearbit.com/sbi.co.in");
                     }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
                   >
-                    🏦 SBI Home Loan
+                    <Landmark className="w-3 h-3" /> SBI Home Loan
                   </button>
                   <button
                     type="button"
@@ -1788,9 +1823,9 @@ export function SubscriptionModal({
                       setName((n) => n || "ICICI Home Loan");
                       setImageUrl("https://logo.clearbit.com/icicibank.com");
                     }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
                   >
-                    🏦 ICICI Home Loan
+                    <Landmark className="w-3 h-3" /> ICICI Home Loan
                   </button>
                   <button
                     type="button"
@@ -1801,9 +1836,9 @@ export function SubscriptionModal({
                       setName((n) => n || "Bajaj Finserv Loan");
                       setImageUrl("https://logo.clearbit.com/bajajfinserv.in");
                     }}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-500/20 cursor-pointer"
                   >
-                    💳 Bajaj Finserv EMI
+                    <CreditCard className="w-3 h-3" /> Bajaj Finserv EMI
                   </button>
                 </div>
 
@@ -1869,9 +1904,9 @@ export function SubscriptionModal({
                     <button
                       type="button"
                       onClick={onOpenTestSandbox}
-                      className="text-[10px] font-medium text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg cursor-pointer"
                     >
-                      🧪 Test Sandbox
+                      <FlaskConical className="w-3 h-3" /> Test Sandbox
                     </button>
                   )}
                 </div>
@@ -1882,19 +1917,19 @@ export function SubscriptionModal({
                   className="w-full min-h-[40px] rounded-xl border border-white/15 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-indigo-400 focus:outline-none cursor-pointer"
                 >
                   <optgroup label="Auto Detection">
-                    <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Auto Cascading Rules)</option>
+                    <option value="UniversalAutoParser">Universal Auto-Detect (Auto Cascading Rules)</option>
                   </optgroup>
                   <optgroup label="Specific Specialized Parsers">
-                    <option value="UPIPaymentParser">⚡ UPI Payment Alert Parser - GPay/CRED/HDFC (UPIPaymentParser)</option>
-                    <option value="HDFCCardParser">💳 HDFC Bank Card & UPI Alert (HDFCCardParser)</option>
-                    <option value="AirtelPostpaidParser">📱 Airtel Payment Receipt (AirtelPostpaidParser)</option>
-                    <option value="ICICICardParser">💳 ICICI Bank Payment Receipt (ICICICardParser)</option>
-                    <option value="AxisCardParser">💳 Axis Bank Payment Alert (AxisCardParser)</option>
-                    <option value="SBICardParser">💳 SBI Card Payment Confirmation (SBICardParser)</option>
-                    <option value="HomefyParser">🏠 Homefy Water Payment Receipt (HomefyParser)</option>
-                    <option value="JewellerySchemeParser">💍 Jewellery Scheme Receipt - GRT / Tanishq (JewellerySchemeParser)</option>
-                    <option value="GenericUtilityParser">🛠️ Generic Telecom & Utility Receipt (GenericUtilityParser)</option>
-                    <option value="CustomRegexParser">🧪 Custom Regex Pattern - Advanced (CustomRegexParser)</option>
+                    <option value="UPIPaymentParser">UPI Payment Alert Parser - GPay/CRED/HDFC (UPIPaymentParser)</option>
+                    <option value="HDFCCardParser">HDFC Bank Card & UPI Alert (HDFCCardParser)</option>
+                    <option value="AirtelPostpaidParser">Airtel Payment Receipt (AirtelPostpaidParser)</option>
+                    <option value="ICICICardParser">ICICI Bank Payment Receipt (ICICICardParser)</option>
+                    <option value="AxisCardParser">Axis Bank Payment Alert (AxisCardParser)</option>
+                    <option value="SBICardParser">SBI Card Payment Confirmation (SBICardParser)</option>
+                    <option value="HomefyParser">Homefy Water Payment Receipt (HomefyParser)</option>
+                    <option value="JewellerySchemeParser">Jewellery Scheme Receipt - GRT / Tanishq (JewellerySchemeParser)</option>
+                    <option value="GenericUtilityParser">Generic Telecom & Utility Receipt (GenericUtilityParser)</option>
+                    <option value="CustomRegexParser">Custom Regex Pattern - Advanced (CustomRegexParser)</option>
                   </optgroup>
                 </select>
 
@@ -1908,9 +1943,9 @@ export function SubscriptionModal({
                         <button
                           type="button"
                           onClick={() => setPaymentQuery(selected.samplePaymentQuery)}
-                          className="text-[10px] font-semibold text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto"
                         >
-                          ⚡ Set Sample Query
+                          <Zap className="w-3 h-3" /> Set Sample Query
                         </button>
                       )}
                     </div>
@@ -1931,8 +1966,8 @@ export function SubscriptionModal({
                 {/* Custom Regex Pattern for Payment */}
                 {paymentParserModule === "CustomRegexParser" && (
                   <div className="rounded-lg border border-amber-500/20 bg-amber-950/40 p-2.5 space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
-                      🧪 Custom Regex (Payment)
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                      <FlaskConical className="w-3.5 h-3.5" /> Custom Regex (Payment)
                     </span>
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-300">Payment Amount Pattern</label>
@@ -1953,8 +1988,8 @@ export function SubscriptionModal({
             {(paymentSource === "EMAIL" || paymentSource === "SMS") && (
               <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2 mt-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
-                    🛡️ Duplicate Prevention Strategy
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-indigo-400" /> Duplicate Prevention Strategy
                   </label>
                   <span className="text-[10px] text-indigo-300 font-medium">Prevents double-counting duplicate notifications</span>
                 </div>
@@ -1968,7 +2003,9 @@ export function SubscriptionModal({
                         : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
                     }`}
                   >
-                    <span className="font-semibold block text-white text-xs">🛡️ Same Day & Amount</span>
+                    <span className="font-semibold flex items-center gap-1 text-white text-xs">
+                      <Shield className="w-3.5 h-3.5 text-indigo-400" /> Same Day & Amount
+                    </span>
                     <span className="block text-[10px] text-slate-400 mt-0.5">
                       Ignores duplicate emails on same day for same amount (e.g. GRT / chits).
                     </span>
@@ -1983,7 +2020,9 @@ export function SubscriptionModal({
                         : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
                     }`}
                   >
-                    <span className="font-semibold block text-white text-xs">🎯 1 Payment / Month</span>
+                    <span className="font-semibold flex items-center gap-1 text-white text-xs">
+                      <Target className="w-3.5 h-3.5 text-indigo-400" /> 1 Payment / Month
+                    </span>
                     <span className="block text-[10px] text-slate-400 mt-0.5">
                       Records max 1 installment per month. All subsequent emails ignored.
                     </span>
@@ -1998,7 +2037,9 @@ export function SubscriptionModal({
                         : "border border-white/10 bg-slate-900 text-slate-400 hover:text-white"
                     }`}
                   >
-                    <span className="font-semibold block text-white text-xs">➕ Sum All Emails</span>
+                    <span className="font-semibold flex items-center gap-1 text-white text-xs">
+                      <Plus className="w-3.5 h-3.5 text-indigo-400" /> Sum All Emails
+                    </span>
                     <span className="block text-[10px] text-slate-400 mt-0.5">
                       Sums every matching email (e.g. multiple card payments).
                     </span>
@@ -2078,7 +2119,7 @@ export function SubscriptionModal({
                 onClick={onOpenTestSandbox}
                 className="flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer"
               >
-                <span>🧪</span> Open Live Regex Sandbox →
+                <FlaskConical className="w-3.5 h-3.5" /> Open Live Regex Sandbox →
               </button>
             </div>
           )}

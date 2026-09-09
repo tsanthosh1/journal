@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ParserConfigField } from "@/lib/subscriptionTypes";
+import { Settings } from "lucide-react";
 
 interface ParserConfigFieldsProps {
   title: string;
@@ -29,8 +30,8 @@ export function ParserConfigFields({
 
   return (
     <div className={`rounded-lg border ${borderBg} p-2.5 space-y-2`}>
-      <span className={`text-[10px] font-bold uppercase tracking-wider ${titleColor} block`}>
-        ⚙️ {title}
+      <span className={`text-[10px] font-bold uppercase tracking-wider ${titleColor} flex items-center gap-1.5`}>
+        <Settings className="w-3.5 h-3.5" /> {title}
       </span>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {fields.map((field) => (

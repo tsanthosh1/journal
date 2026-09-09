@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { ActivityJsonSchema, ACTIVITY_META_MAP } from "@/lib/timeline/types";
+import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import { Dna, X, Plus } from "lucide-react";
 
 interface SchemaManagerDrawerProps {
   isOpen: boolean;
@@ -96,7 +98,7 @@ export function SchemaManagerDrawer({ isOpen, onClose, onSchemaUpdated }: Schema
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/50">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 font-bold text-sm">
-              🧬
+              <Dna className="w-4 h-4 text-purple-400" />
             </span>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-white">
@@ -112,7 +114,7 @@ export function SchemaManagerDrawer({ isOpen, onClose, onSchemaUpdated }: Schema
             onClick={onClose}
             className="rounded-xl p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -132,7 +134,7 @@ export function SchemaManagerDrawer({ isOpen, onClose, onSchemaUpdated }: Schema
                     : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
                 }`}
               >
-                <span>{m.icon}</span>
+                <DynamicIcon icon={m.icon} className="w-3.5 h-3.5" />
                 <span>{m.name}</span>
               </button>
             );
@@ -147,7 +149,7 @@ export function SchemaManagerDrawer({ isOpen, onClose, onSchemaUpdated }: Schema
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">{meta.icon}</span>
+                    <DynamicIcon icon={meta.icon} className="w-5 h-5 text-white shrink-0" />
                     <h3 className="text-base font-bold text-white">{activeSchema.title}</h3>
                     <span className="rounded-full border border-purple-500/40 bg-purple-500/15 px-2 py-0.5 text-[10px] font-mono font-bold text-purple-300">
                       v{activeSchema.version}
@@ -221,7 +223,7 @@ export function SchemaManagerDrawer({ isOpen, onClose, onSchemaUpdated }: Schema
                     className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 space-y-3"
                   >
                     <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>➕</span>
+                      <Plus className="w-3.5 h-3.5 text-purple-400" />
                       <span>Manually Add New Attribute to Schema</span>
                     </h4>
 

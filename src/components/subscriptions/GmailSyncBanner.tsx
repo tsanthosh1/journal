@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { Mail, MessageSquare, Clock, RefreshCw, ClipboardList, X } from "lucide-react";
 
 interface GmailSyncBannerProps {
   isConnected: boolean;
@@ -80,9 +81,7 @@ export function GmailSyncBanner({
                 : "border-slate-700 bg-slate-800/80 text-slate-400"
             }`}
           >
-            <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
+            <Mail className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -123,7 +122,7 @@ export function GmailSyncBanner({
               className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 hover:text-white disabled:opacity-50 transition cursor-pointer"
               title="Process and reconcile stored Android SMS messages"
             >
-              <span>💬</span>
+              <MessageSquare className="w-3.5 h-3.5" />
               <span>{isSmsSyncing ? "Reconciling..." : "Sync SMS"}</span>
             </button>
           )}
@@ -138,19 +137,7 @@ export function GmailSyncBanner({
                   className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 hover:text-white disabled:opacity-50 transition cursor-pointer"
                   title="Scan multiple past months for all subscriptions"
                 >
-                  <svg
-                    className={`h-3.5 w-3.5 ${isHistoricalSyncing ? "animate-spin" : ""}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+                  <Clock className={`h-3.5 w-3.5 ${isHistoricalSyncing ? "animate-spin" : ""}`} />
                   <span>{isHistoricalSyncing ? "Backfilling..." : "Backfill Past Cycles"}</span>
                 </button>
               )}
@@ -161,19 +148,7 @@ export function GmailSyncBanner({
                 onClick={onTriggerSync}
                 className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-lg hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 transition cursor-pointer"
               >
-                <svg
-                  className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
+                <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
                 <span>{isSyncing ? "Syncing..." : "Sync Gmail"}</span>
               </button>
 
@@ -182,7 +157,7 @@ export function GmailSyncBanner({
                 className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700/80 hover:text-white transition"
                 title="View file storage audit logs of all past sync sessions"
               >
-                <span>📋</span>
+                <ClipboardList className="w-3.5 h-3.5" />
                 <span>Sync Logs</span>
               </Link>
 
@@ -200,7 +175,7 @@ export function GmailSyncBanner({
                     onClick={() => setShowConfirmDisconnect(false)}
                     className="min-h-[38px] rounded-lg bg-white/5 px-2 py-1 text-[11px] text-slate-400 hover:text-white"
                   >
-                    ✕
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ) : (

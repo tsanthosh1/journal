@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { Zap, X, Sparkles, Bot, Gift } from "lucide-react";
 
 interface AiConfigModalProps {
   isOpen: boolean;
@@ -82,8 +83,8 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
       <div className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/40">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">⚡</span>
+          <div className="flex items-center gap-2.5">
+            <Zap className="w-5 h-5 text-cyan-400" />
             <div>
               <h2 className="text-base font-bold text-white">AI Engine Configuration</h2>
               <p className="text-xs text-slate-400">Power voice log transcription &amp; timeline decomposition</p>
@@ -94,7 +95,7 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
             onClick={onClose}
             className="rounded-xl p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -114,7 +115,7 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-bold text-xs text-white">
-                  <span>✨</span>
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
                   <span>Google Gemini Flash</span>
                 </div>
                 <span className="text-[10px] text-cyan-300 font-semibold mt-0.5">Recommended • Free Tier</span>
@@ -133,7 +134,7 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-bold text-xs text-white">
-                  <span>🤖</span>
+                  <Bot className="w-3.5 h-3.5 text-slate-300" />
                   <span>OpenRouter</span>
                 </div>
                 <span className="text-[10px] text-slate-400 font-semibold mt-0.5">Multi-model router</span>
@@ -167,17 +168,20 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
               className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
             />
             {provider === "gemini" ? (
-              <p className="text-[11px] text-slate-400 mt-1">
-                🎁 Get a <strong>100% Free</strong> key from{" "}
-                <a
-                  href="https://aistudio.google.com/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-cyan-400 hover:underline font-semibold"
-                >
-                  aistudio.google.com/apikey
-                </a>{" "}
-                (15 requests/min completely free, no credit card required).
+              <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+                <Gift className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span>
+                  Get a <strong>100% Free</strong> key from{" "}
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-cyan-400 hover:underline font-semibold"
+                  >
+                    aistudio.google.com/apikey
+                  </a>{" "}
+                  (15 requests/min completely free, no credit card required).
+                </span>
               </p>
             ) : (
               <p className="text-[11px] text-slate-400 mt-1">
@@ -204,7 +208,7 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none cursor-pointer"
               >
-                <option value="gemini-3.6-flash">⚡ Gemini 3.6 Flash (Recommended - Latest &amp; Fastest)</option>
+                <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended - Latest &amp; Fastest)</option>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                 <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                 <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
@@ -215,8 +219,8 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none cursor-pointer"
               >
-                <optgroup label="✨ Free Models">
-                  <option value="openrouter/free">✨ Auto: Free Conversational Router (100% Free)</option>
+                <optgroup label="Free Models">
+                  <option value="openrouter/free">Auto: Free Conversational Router (100% Free)</option>
                   <option value="nvidia/nemotron-3-super-120b-a12b:free">Nvidia: Nemotron 3 Super 120B (Free)</option>
                   <option value="inclusionai/ling-3.0-flash-fin:free">InclusionAI: Ling 3.0 Flash (Free)</option>
                   <option value="google/gemma-4-31b-it:free">Google: Gemma 4 31B Instruct (Free)</option>

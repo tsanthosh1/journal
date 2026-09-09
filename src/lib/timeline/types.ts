@@ -135,7 +135,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   WORK: {
     id: "WORK",
     name: "Work & Projects",
-    icon: "💼",
+    icon: "briefcase",
     color: "#818cf8",
     badgeColor: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
     borderColor: "border-indigo-500/30",
@@ -145,7 +145,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   FITNESS: {
     id: "FITNESS",
     name: "Health & Fitness",
-    icon: "🏃",
+    icon: "activity",
     color: "#34d399",
     badgeColor: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
     borderColor: "border-emerald-500/30",
@@ -155,7 +155,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   FOOD: {
     id: "FOOD",
     name: "Food & Dining",
-    icon: "🍽️",
+    icon: "utensils",
     color: "#fbbf24",
     badgeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30",
     borderColor: "border-amber-500/30",
@@ -165,7 +165,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   FINANCE: {
     id: "FINANCE",
     name: "Finance & Purchases",
-    icon: "💰",
+    icon: "coins",
     color: "#38bdf8",
     badgeColor: "bg-sky-500/15 text-sky-300 border-sky-500/30",
     borderColor: "border-sky-500/30",
@@ -175,7 +175,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   SOCIAL: {
     id: "SOCIAL",
     name: "Social & Friends",
-    icon: "👥",
+    icon: "users",
     color: "#f472b6",
     badgeColor: "bg-pink-500/15 text-pink-300 border-pink-500/30",
     borderColor: "border-pink-500/30",
@@ -185,7 +185,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   TRAVEL: {
     id: "TRAVEL",
     name: "Travel & Commute",
-    icon: "🚗",
+    icon: "car",
     color: "#a78bfa",
     badgeColor: "bg-violet-500/15 text-violet-300 border-violet-500/30",
     borderColor: "border-violet-500/30",
@@ -195,7 +195,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   REFLECTION: {
     id: "REFLECTION",
     name: "Reflection & Mood",
-    icon: "🧘",
+    icon: "reflection",
     color: "#2dd4bf",
     badgeColor: "bg-teal-500/15 text-teal-300 border-teal-500/30",
     borderColor: "border-teal-500/30",
@@ -205,7 +205,7 @@ export const ACTIVITY_META_MAP: Record<string, ActivityMeta> = {
   GENERAL: {
     id: "GENERAL",
     name: "Daily Moments",
-    icon: "✨",
+    icon: "sparkles",
     color: "#94a3b8",
     badgeColor: "bg-slate-700/50 text-slate-300 border-slate-600/40",
     borderColor: "border-slate-700/60",

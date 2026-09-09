@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { SubscriptionCategory } from "@/lib/subscriptionTypes";
+import { DynamicIcon } from "@/components/ui/DynamicIcon";
 
 interface SubscriptionAvatarProps {
   name: string;
@@ -82,13 +83,24 @@ export function SubscriptionAvatar({
     );
   }
 
-  // Fallback 1: Custom Emoji string if provided in icon
+  // Fallback 1: Custom Icon string if provided in icon
   if (icon && !icon.startsWith("http") && !icon.startsWith("data:")) {
+    const iconSizeClass =
+      size === "sm"
+        ? "w-4 h-4"
+        : size === "md"
+        ? "w-5 h-5"
+        : size === "lg"
+        ? "w-6 h-6"
+        : size === "xl"
+        ? "w-7 h-7"
+        : "w-8 h-8";
+
     return (
       <div
-        className={`shrink-0 flex items-center justify-center bg-slate-800 border border-white/10 shadow-sm ${sizeClass} ${className}`}
+        className={`shrink-0 flex items-center justify-center bg-slate-800 text-slate-200 border border-white/10 shadow-sm ${sizeClass} ${className}`}
       >
-        <span className="text-xl sm:text-2xl">{icon}</span>
+        <DynamicIcon icon={icon} className={`${iconSizeClass} text-slate-200`} />
       </div>
     );
   }

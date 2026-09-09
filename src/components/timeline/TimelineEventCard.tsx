@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { LifeEvent, ACTIVITY_META_MAP } from "@/lib/timeline/types";
+import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import { ChevronUp, ChevronDown, Pencil, Trash2, Timer, Clock, Smile } from "lucide-react";
 
 interface TimelineEventCardProps {
   event: LifeEvent;
@@ -47,7 +49,7 @@ export function TimelineEventCard({
           style={{ backgroundColor: meta.color }}
           title={meta.name}
         >
-          <span>{meta.icon}</span>
+          <DynamicIcon icon={meta.icon} className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
         </div>
 
         {/* Compact Card Container */}
@@ -74,7 +76,7 @@ export function TimelineEventCard({
                     className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition cursor-pointer"
                     title={expanded ? "Collapse details" : "Expand details"}
                   >
-                    <span className="text-xs font-bold">{expanded ? "▲" : "▼"}</span>
+                    {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                 )}
 
@@ -84,14 +86,7 @@ export function TimelineEventCard({
                   className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
                   title="Edit event"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
+                  <Pencil className="w-3.5 h-3.5" />
                 </button>
 
                 <button
@@ -101,14 +96,7 @@ export function TimelineEventCard({
                   className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer disabled:opacity-50"
                   title="Delete event"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -131,8 +119,9 @@ export function TimelineEventCard({
 
               {/* Duration Pill */}
               {event.durationMinutes && (
-                <span className="shrink-0 font-mono text-[10px] text-slate-400 bg-white/5 border border-white/5 px-1.5 py-0.5 rounded">
-                  ⏱️ {event.durationMinutes}m
+                <span className="shrink-0 font-mono text-[10px] text-slate-400 bg-white/5 border border-white/5 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                  <Timer className="w-3 h-3 text-slate-400" />
+                  <span>{event.durationMinutes}m</span>
                 </span>
               )}
 
@@ -206,7 +195,7 @@ export function TimelineEventCard({
         style={{ backgroundColor: meta.color }}
         title={meta.name}
       >
-        <span className="text-[11px] sm:text-xs">{meta.icon}</span>
+        <DynamicIcon icon={meta.icon} className="w-3.5 h-3.5 text-white" />
       </div>
 
       {/* Main Card */}
@@ -219,7 +208,7 @@ export function TimelineEventCard({
             <div className="flex items-center gap-2 flex-wrap">
               {event.startTime ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/90 border border-white/10 px-2.5 py-0.5 text-xs font-mono font-bold text-white shadow-inner">
-                  <span>🕒</span>
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
                   <span>{event.startTime}</span>
                   {event.endTime && <span className="text-slate-400">- {event.endTime}</span>}
                 </span>
@@ -230,8 +219,9 @@ export function TimelineEventCard({
               )}
 
               {event.durationMinutes && (
-                <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[11px] font-mono text-slate-300">
-                  ⏱️ {event.durationMinutes}m
+                <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[11px] font-mono text-slate-300 inline-flex items-center gap-1">
+                  <Timer className="w-3 h-3 text-slate-300" />
+                  <span>{event.durationMinutes}m</span>
                 </span>
               )}
 
@@ -240,8 +230,9 @@ export function TimelineEventCard({
               </span>
 
               {event.mood && (
-                <span className="rounded-full bg-teal-500/15 border border-teal-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-teal-300">
-                  😊 {event.mood}
+                <span className="rounded-full bg-teal-500/15 border border-teal-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-teal-300 inline-flex items-center gap-1">
+                  <Smile className="w-3 h-3 text-teal-300" />
+                  <span>{event.mood}</span>
                 </span>
               )}
             </div>
@@ -259,14 +250,7 @@ export function TimelineEventCard({
               className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Edit event"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
+              <Pencil className="w-4 h-4" />
             </button>
 
             <button
@@ -276,14 +260,7 @@ export function TimelineEventCard({
               className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer disabled:opacity-50"
               title="Delete event"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
         </div>

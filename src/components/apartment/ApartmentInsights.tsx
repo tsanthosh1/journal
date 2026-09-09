@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { HomefyBillRecord } from "@/lib/apartment/types";
+import { TrendingUp, Droplets, Lightbulb, Building2 } from "lucide-react";
 
 interface ApartmentInsightsProps {
   bills: HomefyBillRecord[];
@@ -194,7 +195,7 @@ export function ApartmentInsights({ bills }: ApartmentInsightsProps) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-            <span>📈</span>
+            <TrendingUp className="w-4 h-4 text-teal-400" />
             <span>Apartment Outflow Insights & Usage</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -282,7 +283,7 @@ export function ApartmentInsights({ bills }: ApartmentInsightsProps) {
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/20 text-teal-300 font-bold text-xs">
-                💧
+                <Droplets className="w-4 h-4 text-teal-300" />
               </span>
               <span>Water Meter Monthly Charges & Usage Trend</span>
             </h3>
@@ -387,7 +388,7 @@ export function ApartmentInsights({ bills }: ApartmentInsightsProps) {
         {/* Water Insight Callout Banner */}
         <div className="rounded-2xl border border-teal-500/30 bg-teal-950/20 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5">
-            <span className="text-lg">💡</span>
+            <Lightbulb className="w-4 h-4 text-amber-400 shrink-0" />
             <p className="text-slate-300">
               Annual water utility total:{" "}
               <strong className="text-white font-mono">₹{metrics.totalWater.toLocaleString("en-IN")}</strong>.{" "}
@@ -407,7 +408,7 @@ export function ApartmentInsights({ bills }: ApartmentInsightsProps) {
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300 font-bold text-xs">
-                🏢
+                <Building2 className="w-4 h-4 text-cyan-300" />
               </span>
               <span>Society Maintenance Schedule & Status</span>
             </h3>

@@ -8,6 +8,19 @@ import { useAuth } from "@/context/AuthContext";
 import { ApartmentInsights } from "@/components/apartment/ApartmentInsights";
 import { HomefyBillRecord, HomefyApartment } from "@/lib/apartment/types";
 import { authFetch } from "@/lib/authFetch";
+import {
+  Building2,
+  CheckCircle2,
+  Home,
+  Settings,
+  ClipboardList,
+  TrendingUp,
+  X,
+  Droplets,
+  Landmark,
+  FileText,
+  Receipt,
+} from "lucide-react";
 
 export default function ApartmentPage() {
   const { user, userId, isSignedIn } = useAuth();
@@ -410,7 +423,7 @@ export default function ApartmentPage() {
     <AuthGuard
       title="Apartment Maintenance Ledger"
       description="Private Homefy society records, flat maintenance dues, water charges, and payment receipts. Sign in with your authorized Google account to access."
-      icon="🏢"
+      icon="Building2"
       badge="Private & Encrypted"
     >
       <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white pb-24">
@@ -422,7 +435,7 @@ export default function ApartmentPage() {
         {linkSuccessBanner && (
           <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-emerald-200 flex items-center justify-between shadow-lg shadow-emerald-950/50 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-3">
-              <span className="text-xl">✅</span>
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
               <div>
                 <p className="text-sm font-semibold">{linkSuccessBanner}</p>
                 <p className="text-xs text-emerald-300/80 mt-0.5">
@@ -448,7 +461,7 @@ export default function ApartmentPage() {
           <div>
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-400 font-black text-lg border border-indigo-500/30 shadow-inner">
-                🏢
+                <Building2 className="w-5 h-5 text-indigo-400" />
               </span>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
@@ -495,7 +508,7 @@ export default function ApartmentPage() {
               }}
               className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700/80 transition cursor-pointer"
             >
-              <span>🏠</span>
+              <Home className="w-3.5 h-3.5 text-slate-300" />
               <span>Switch Flat</span>
             </button>
 
@@ -507,7 +520,7 @@ export default function ApartmentPage() {
               }}
               className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700/80 transition cursor-pointer"
             >
-              <span>⚙️</span>
+              <Settings className="w-3.5 h-3.5 text-slate-300" />
               <span>{session?.mobile ? `+91 ${session.mobile}` : "Connect Account"}</span>
             </button>
           </div>
@@ -523,7 +536,7 @@ export default function ApartmentPage() {
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
-            <span>📋</span>
+            <ClipboardList className="w-4 h-4 text-indigo-400" />
             <span>Bills & Community Ledger</span>
             <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-300">
               {bills.length}
@@ -537,7 +550,7 @@ export default function ApartmentPage() {
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
-            <span>📈</span>
+            <TrendingUp className="w-4 h-4 text-teal-400" />
             <span>Insights & Trends</span>
             <span className="rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[10px] font-bold text-teal-300">
               Charts
@@ -677,9 +690,9 @@ export default function ApartmentPage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1.5 text-xs text-slate-400 hover:text-white"
+                  className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-white"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -698,7 +711,7 @@ export default function ApartmentPage() {
           </div>
         ) : filteredBills.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-12 text-center text-slate-400">
-            <span className="text-4xl mb-3 block">📋</span>
+            <ClipboardList className="w-10 h-10 text-slate-500 mx-auto mb-3" />
             <p className="text-base font-bold text-white">No bills found</p>
             <p className="text-xs text-slate-400 mt-1">
               {searchQuery || categoryFilter !== "ALL" || statusFilter !== "ALL"
@@ -727,7 +740,13 @@ export default function ApartmentPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 font-bold text-sm">
-                          {catName.includes("Water") ? "💧" : catName.includes("Corpus") ? "🏦" : "🏢"}
+                          {catName.includes("Water") ? (
+                            <Droplets className="w-4 h-4 text-cyan-400" />
+                          ) : catName.includes("Corpus") ? (
+                            <Landmark className="w-4 h-4 text-emerald-400" />
+                          ) : (
+                            <Building2 className="w-4 h-4 text-indigo-400" />
+                          )}
                         </span>
                         <div>
                           <div className="text-xs font-bold text-indigo-300 uppercase tracking-wider">
@@ -805,10 +824,11 @@ export default function ApartmentPage() {
                         href={`/api/apartment/receipts/${bill.id}?type=invoice`}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-lg bg-slate-800 hover:bg-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-300 hover:text-white transition"
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-800 hover:bg-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-300 hover:text-white transition"
                         title="Download Invoice PDF"
                       >
-                        📄 Invoice
+                        <FileText className="w-3 h-3 text-slate-400" />
+                        <span>Invoice</span>
                       </a>
 
                       {/* Receipt PDF */}
@@ -817,10 +837,11 @@ export default function ApartmentPage() {
                           href={`/api/apartment/receipts/${bill.id}?type=receipt`}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/30 px-2 py-1 text-[11px] font-semibold text-emerald-300 hover:text-white transition"
+                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/30 px-2 py-1 text-[11px] font-semibold text-emerald-300 hover:text-white transition"
                           title="Download Receipt PDF"
                         >
-                          🧾 Receipt
+                          <Receipt className="w-3 h-3 text-emerald-400" />
+                          <span>Receipt</span>
                         </a>
                       )}
                     </div>
@@ -853,7 +874,7 @@ export default function ApartmentPage() {
                 onClick={() => setSelectedBill(null)}
                 className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -980,18 +1001,20 @@ export default function ApartmentPage() {
                   href={`/api/apartment/receipts/${selectedBill.id}?type=invoice`}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-xl border border-white/15 bg-slate-800 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-700 transition"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-slate-800 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-700 transition"
                 >
-                  📄 Download Invoice
+                  <FileText className="w-3.5 h-3.5 text-slate-300" />
+                  <span>Download Invoice</span>
                 </a>
                 {(selectedBill.status === "PAID" || selectedBill.status === "APPROVAL_PENDING") && (
                   <a
                     href={`/api/apartment/receipts/${selectedBill.id}?type=receipt`}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-xl border border-emerald-500/30 bg-emerald-950/60 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-900 transition"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/60 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-900 transition"
                   >
-                    🧾 Download Receipt
+                    <Receipt className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Download Receipt</span>
                   </a>
                 )}
               </div>
@@ -1025,7 +1048,7 @@ export default function ApartmentPage() {
                 }}
                 className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

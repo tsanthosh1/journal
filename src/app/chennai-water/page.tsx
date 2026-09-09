@@ -13,6 +13,21 @@ import {
 import { formatPropNo, formatCmcNo, formatAddress } from "@/lib/chennaiWater/client";
 import { ChennaiWaterInsights } from "@/components/chennaiWater/ChennaiWaterInsights";
 import { authFetch } from "@/lib/authFetch";
+import {
+  Droplets,
+  MapPin,
+  Lock,
+  Zap,
+  CheckCircle2,
+  ClipboardList,
+  Receipt,
+  TrendingUp,
+  Info,
+  CreditCard,
+  X,
+  FileText,
+  Download,
+} from "lucide-react";
 
 type ViewTab = "ASSESSMENT" | "RECEIPTS" | "INSIGHTS";
 
@@ -284,7 +299,7 @@ export default function ChennaiWaterPage() {
     <AuthGuard
       title="Chennai Metro Water Ledger"
       description="Private CMWSSB water tax assessments, consumer cards, and payment receipts. Sign in with your authorized Google account to access."
-      icon="💧"
+      icon="Droplets"
       badge="Private & Encrypted"
     >
       <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-sky-500/30">
@@ -300,7 +315,7 @@ export default function ChennaiWaterPage() {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/20 text-sky-400 font-extrabold text-base shadow-inner">
-                  💧
+                  <Droplets className="w-5 h-5 text-sky-400" />
                 </span>
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
@@ -365,8 +380,9 @@ export default function ChennaiWaterPage() {
 
                   {/* Address */}
                   {addressStr && (
-                    <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-                      📍 {addressStr}
+                    <p className="text-xs text-slate-400 max-w-2xl leading-relaxed flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <span>{addressStr}</span>
                     </p>
                   )}
                 </>
@@ -410,7 +426,7 @@ export default function ChennaiWaterPage() {
                 onClick={() => setIsAuthModalOpen(true)}
                 className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-slate-800/80 px-3.5 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700/80 transition cursor-pointer"
               >
-                <span>🔐</span>
+                <Lock className="w-3.5 h-3.5 text-slate-300" />
                 <span>{session?.token ? "Portal Connected" : "Connect Account"}</span>
               </button>
 
@@ -424,7 +440,7 @@ export default function ChennaiWaterPage() {
                 {isLinkingSub ? (
                   <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-r-transparent" />
                 ) : (
-                  <span>⚡</span>
+                  <Zap className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
                 )}
                 <span>Track in Subscriptions</span>
               </button>
@@ -434,7 +450,10 @@ export default function ChennaiWaterPage() {
           {/* Success Banner */}
           {linkSuccessMessage && (
             <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300 flex items-center justify-between">
-              <span>✓ {linkSuccessMessage}</span>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{linkSuccessMessage}</span>
+              </div>
               <Link href="/subscriptions" className="font-bold underline hover:text-emerald-200">
                 View in Subscriptions →
               </Link>
@@ -492,7 +511,7 @@ export default function ChennaiWaterPage() {
               {hasActiveProperty ? `₹${(duesData?.totalDue || 0).toFixed(2)}` : "-"}
             </div>
             <span className="text-[11px] text-emerald-400/80 font-medium block">
-              {hasActiveProperty ? "✓ No dues found • All clear" : "Connect account to check dues"}
+              {hasActiveProperty ? "No dues found • All clear" : "Connect account to check dues"}
             </span>
           </div>
         </div>
@@ -503,35 +522,38 @@ export default function ChennaiWaterPage() {
             <button
               type="button"
               onClick={() => setActiveTab("ASSESSMENT")}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+              className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "ASSESSMENT"
                   ? "bg-sky-500 text-slate-950 shadow-md"
                   : "bg-slate-900/80 text-slate-400 hover:text-white"
               }`}
             >
-              📋 Property Assessment & Dues
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>Property Assessment & Dues</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("RECEIPTS")}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+              className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "RECEIPTS"
                   ? "bg-sky-500 text-slate-950 shadow-md"
                   : "bg-slate-900/80 text-slate-400 hover:text-white"
               }`}
             >
-              🧾 Payment Receipts ({receipts.length})
+              <Receipt className="w-3.5 h-3.5" />
+              <span>Payment Receipts ({receipts.length})</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("INSIGHTS")}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+              className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "INSIGHTS"
                   ? "bg-sky-500 text-slate-950 shadow-md"
                   : "bg-slate-900/80 text-slate-400 hover:text-white"
               }`}
             >
-              📈 Trends & Insights
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Trends & Insights</span>
             </button>
           </div>
         </div>
@@ -541,8 +563,8 @@ export default function ChennaiWaterPage() {
           <div className="space-y-6">
             {!hasActiveProperty ? (
               <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-12 text-center space-y-4">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-500/10 text-3xl">
-                  💧
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-500/10">
+                  <Droplets className="w-8 h-8 text-sky-400" />
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-base font-bold text-white">No CMWSSB Account Connected</h3>
@@ -555,7 +577,7 @@ export default function ChennaiWaterPage() {
                   onClick={() => setIsAuthModalOpen(true)}
                   className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white transition shadow-lg cursor-pointer"
                 >
-                  <span>🔐</span>
+                  <Lock className="w-3.5 h-3.5" />
                   <span>Connect Account</span>
                 </button>
               </div>
@@ -629,7 +651,8 @@ export default function ChennaiWaterPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-2">
                     <div className="flex items-center gap-2 text-sky-300 font-bold text-xs">
-                      <span>ℹ️</span> How CMWSSB Water Tax Works
+                      <Info className="w-4 h-4 text-sky-400" />
+                      <span>How CMWSSB Water Tax Works</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
                       Metro Water Tax is levied semi-annually (half-yearly) based on the Annual Value (AV) assessed by the Greater Chennai Corporation. {annualValueStr !== "-" ? `For your property with an AV of ${annualValueStr}, the tax rate amounts to ${halfYearTaxStr} per half-year (Apr-Sep and Oct-Mar).` : "Water tax is calculated on your property's assessed Annual Value."}
@@ -638,7 +661,8 @@ export default function ChennaiWaterPage() {
 
                   <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-2">
                     <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs">
-                      <span>💳</span> Payment Modes & Receipts
+                      <CreditCard className="w-4 h-4 text-emerald-400" />
+                      <span>Payment Modes & Receipts</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
                       Payments are accepted online through the official portal, Bharat Bill Payment System (BBPS), and banking partners. Official e-Receipts are generated immediately with official CMWSSB digital verification.
@@ -698,7 +722,7 @@ export default function ChennaiWaterPage() {
                     onClick={() => setReceiptSearch("")}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
                   >
-                    ✕
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -749,9 +773,9 @@ export default function ChennaiWaterPage() {
                             <button
                               type="button"
                               onClick={() => setSelectedPdfReceipt(rec)}
-                              className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 transition cursor-pointer inline-flex items-center gap-1"
+                              className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 transition cursor-pointer inline-flex items-center gap-1.5"
                             >
-                              <span>📄</span>
+                              <FileText className="w-3.5 h-3.5" />
                               <span>View</span>
                             </button>
                           </td>
@@ -795,15 +819,15 @@ export default function ChennaiWaterPage() {
           <div className="w-full max-w-md rounded-3xl border border-white/15 bg-slate-900 p-6 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🔐</span>
+                <Lock className="w-4 h-4 text-sky-400" />
                 <h3 className="font-bold text-white text-sm">Connect CMWSSB Account</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAuthModalOpen(false)}
-                className="text-slate-400 hover:text-white text-base cursor-pointer"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -887,7 +911,7 @@ export default function ChennaiWaterPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-white/10 bg-slate-950/80 px-6 py-4">
               <div className="flex items-center gap-2.5">
-                <span className="text-xl">📄</span>
+                <FileText className="w-5 h-5 text-sky-400" />
                 <div>
                   <h3 className="font-bold text-white text-sm">
                     CMWSSB e-Receipt • {selectedPdfReceipt.receipt_no}
@@ -904,7 +928,7 @@ export default function ChennaiWaterPage() {
                   download={`CMWSSB_Receipt_${selectedPdfReceipt.receipt_no.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`}
                   className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 transition inline-flex items-center gap-1.5"
                 >
-                  <span>⬇️</span>
+                  <Download className="w-3.5 h-3.5" />
                   <span>Download PDF</span>
                 </a>
                 <button
@@ -912,7 +936,7 @@ export default function ChennaiWaterPage() {
                   onClick={() => setSelectedPdfReceipt(null)}
                   className="rounded-xl border border-white/10 bg-slate-800 p-1.5 text-slate-400 hover:text-white transition cursor-pointer"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>

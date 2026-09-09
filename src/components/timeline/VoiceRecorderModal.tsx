@@ -6,6 +6,21 @@ import {
   AiExtractionResult,
   ACTIVITY_META_MAP,
 } from "@/lib/timeline/types";
+import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import {
+  Mic,
+  Square,
+  X,
+  AlertTriangle,
+  Globe,
+  Sparkles,
+  Loader2,
+  Zap,
+  Clock,
+  Timer,
+  Dna,
+  Check,
+} from "lucide-react";
 
 interface VoiceRecorderModalProps {
   isOpen: boolean;
@@ -335,7 +350,7 @@ export function VoiceRecorderModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/40">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 font-bold text-sm">
-              🎙️
+              <Mic className="w-4 h-4 text-cyan-400" />
             </span>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-white">
@@ -351,7 +366,7 @@ export function VoiceRecorderModal({
             onClick={onClose}
             className="rounded-xl p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -359,7 +374,9 @@ export function VoiceRecorderModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {error && (
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-center justify-between">
-              <span>⚠️ {error}</span>
+              <span className="inline-flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> {error}
+              </span>
               {onOpenAiSettings && (
                 <button
                   type="button"
@@ -380,7 +397,9 @@ export function VoiceRecorderModal({
                 {/* Auto-detect Language Badge */}
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/80 border border-white/10 text-[11px] text-slate-300 shadow-inner">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>🌐 Auto-detect Language (English, தமிழ், Tanglish)</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Globe className="w-3 h-3 text-emerald-400" /> Auto-detect Language (English, தமிழ், Tanglish)
+                  </span>
                 </div>
 
                 <div className="relative flex items-center justify-center pt-2">
@@ -400,7 +419,11 @@ export function VoiceRecorderModal({
                     }`}
                     title={isRecording ? "Click to stop recording" : "Click to speak"}
                   >
-                    {isRecording ? "⏹️" : "🎙️"}
+                    {isRecording ? (
+                      <Square className="w-6 h-6 fill-current text-white" />
+                    ) : (
+                      <Mic className="w-6 h-6 text-slate-950" />
+                    )}
                   </button>
                 </div>
 
@@ -410,7 +433,7 @@ export function VoiceRecorderModal({
                   </p>
                   <div className="flex items-center justify-center gap-2 mt-1.5 flex-wrap">
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
-                      <span>✨</span>
+                      <Sparkles className="w-3 h-3 text-cyan-300" />
                       <span>{activeProvider === "gemini" ? "Gemini 2.0 Flash (Direct Audio Multimodal)" : "OpenRouter AI Engine"}</span>
                     </span>
                     {onOpenAiSettings && (
@@ -483,7 +506,7 @@ export function VoiceRecorderModal({
                   onClick={handleProcessWithAi}
                   className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-xs font-bold text-slate-950 shadow-md shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition disabled:opacity-50 active:scale-95 cursor-pointer"
                 >
-                  <span>{isProcessing ? "⏳" : "⚡"}</span>
+                  {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                   <span>{isProcessing ? "Decomposing with AI..." : "Extract Events with AI"}</span>
                 </button>
               </div>
@@ -496,7 +519,8 @@ export function VoiceRecorderModal({
               <div className="flex items-center justify-between rounded-2xl border border-cyan-500/20 bg-cyan-950/30 p-3 text-xs text-cyan-200">
                 <div className="space-y-0.5">
                   <div className="font-bold flex items-center gap-1.5">
-                    <span>✨ AI Extracted {candidateEvents.length} Life Event(s)</span>
+                    <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>AI Extracted {candidateEvents.length} Life Event(s)</span>
                   </div>
                   <p className="text-[11px] text-slate-400">
                     {extractionResult.summaryOfNarration}
@@ -522,8 +546,8 @@ export function VoiceRecorderModal({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-lg">
-                            {meta.icon}
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-slate-200">
+                            <DynamicIcon icon={meta.icon} className="w-4 h-4 text-white" />
                           </span>
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -534,14 +558,16 @@ export function VoiceRecorderModal({
                                 {meta.name}
                               </span>
                               {ev.startTime && (
-                                <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-slate-300">
-                                  🕒 {ev.startTime}
+                                <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-slate-300">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  {ev.startTime}
                                   {ev.endTime ? ` - ${ev.endTime}` : ""}
                                 </span>
                               )}
                               {ev.durationMinutes && (
-                                <span className="rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-slate-400">
-                                  ⏱️ {ev.durationMinutes}m
+                                <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-slate-400">
+                                  <Timer className="w-3 h-3 text-slate-400" />
+                                  {ev.durationMinutes}m
                                 </span>
                               )}
                               {ev.mood && (
@@ -577,7 +603,8 @@ export function VoiceRecorderModal({
                             {/* New Attribute Badge if Evolved */}
                             {ev.newAttributesDiscovered && ev.newAttributesDiscovered.length > 0 && (
                               <div className="text-[10px] text-emerald-400 font-semibold pt-1 flex items-center gap-1">
-                                <span>🧬 Evolved schema with:</span>
+                                <Dna className="w-3 h-3 text-emerald-400" />
+                                <span>Evolved schema with:</span>
                                 {ev.newAttributesDiscovered.map((na) => na.label).join(", ")}
                               </div>
                             )}
@@ -590,7 +617,7 @@ export function VoiceRecorderModal({
                           className="text-slate-500 hover:text-rose-400 p-1 text-xs cursor-pointer transition"
                           title="Remove this event"
                         >
-                          ✕
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -614,7 +641,7 @@ export function VoiceRecorderModal({
                   onClick={handleSaveAllEvents}
                   className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-5 py-2 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/20 hover:from-emerald-300 hover:to-teal-400 transition disabled:opacity-50 active:scale-95 cursor-pointer"
                 >
-                  <span>{isSaving ? "⏳" : "✓"}</span>
+                  {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   <span>{isSaving ? "Saving to Timeline..." : `Save All ${candidateEvents.length} Event(s)`}</span>
                 </button>
               </div>

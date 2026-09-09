@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { ParserTestResult } from "@/lib/subscriptionTypes";
 import { authFetch } from "@/lib/authFetch";
 import { useAuth } from "@/context/AuthContext";
+import { FlaskConical, Play } from "lucide-react";
 
 interface ParserSandboxModalProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ Axis Bank`,
   },
   UPIPaymentParser: {
     label: "HDFC UPI Payment (GPay)",
-    subject: "❗  You have done a UPI txn. Check details!",
+    subject: "You have done a UPI txn. Check details!",
     content: `Dear Customer,
 
 Greetings from HDFC Bank!
@@ -133,7 +134,7 @@ Branch : GAX,
 Scheme Amount : 30000.`,
   },
   AirtelPostpaid_Bill: {
-    label: "📱 Airtel Postpaid Bill (Google Pay BBPS)",
+    label: "Airtel Postpaid Bill (Google Pay BBPS)",
     subject: "New bill from Airtel Postpaid Mobile. Pay now on Google Pay.",
     content: `Airtel Postpaid Mobile
 Total amount
@@ -148,7 +149,7 @@ Bill date: 05 Aug 2026
 Bill number: DEL-123456789`,
   },
   AirtelPostpaid_Receipt: {
-    label: "📱 Airtel Payment Receipt",
+    label: "Airtel Payment Receipt",
     subject: "Here’s your Airtel payment receipt!",
     content: `Dear Customer,
 We have received a payment of Rs 529.82 for your Bill payment for Airtel mobile 9876543210 on 24-Aug-2026.
@@ -156,7 +157,7 @@ Payment Mode: Google Pay / UPI
 Transaction ID: AIRTEL891238912`,
   },
   Homefy_Water: {
-    label: "🏠 Homefy Water Bill",
+    label: "Homefy Water Bill",
     subject: "Your Apartment Water bill/receipt for Flat A-302",
     content: `Dear Resident,
 Here is your Monthly Water Consumption bill for Flat A-302.
@@ -249,7 +250,7 @@ export function ParserSandboxModal({
         <div className="flex items-center justify-between border-b border-white/10 px-4 sm:px-6 py-4 shrink-0 bg-slate-950/40">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-base">🧪</span>
+              <FlaskConical className="w-5 h-5 text-cyan-400" />
               <h2 className="text-base sm:text-lg font-bold text-white">
                 Live Email Parser Sandbox & Tester
               </h2>
@@ -300,17 +301,17 @@ export function ParserSandboxModal({
               onChange={(e) => setSelectedModule(e.target.value)}
               className="w-full min-h-[40px] rounded-xl border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none cursor-pointer"
             >
-              <option value="UniversalAutoParser">🪄 Universal Auto-Detect (Fallback Cascade)</option>
-              <option value="AirtelPostpaidParser">📱 Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
-              <option value="HDFCCardParser">💳 HDFC Bank Credit Card & Payments (HDFCCardParser)</option>
-              <option value="UPIPaymentParser">⚡ UPI Payment Alert Parser (UPIPaymentParser)</option>
-              <option value="ICICICardParser">💳 ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
-              <option value="AxisCardParser">💳 Axis Bank Credit Card (AxisCardParser)</option>
-              <option value="SBICardParser">💳 SBI Credit Card (SBICardParser)</option>
-              <option value="HomefyParser">🏠 Homefy Community Water & Maintenance (HomefyParser)</option>
-              <option value="JewellerySchemeParser">💍 Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
-              <option value="GenericUtilityParser">🛠️ Generic Utility, Telecom & OTT (GenericUtilityParser)</option>
-              <option value="CustomRegexParser">🧪 Custom Regex Pattern (CustomRegexParser)</option>
+              <option value="UniversalAutoParser">Universal Auto-Detect (Fallback Cascade)</option>
+              <option value="AirtelPostpaidParser">Airtel Postpaid Mobile & Broadband (AirtelPostpaidParser)</option>
+              <option value="HDFCCardParser">HDFC Bank Credit Card & Payments (HDFCCardParser)</option>
+              <option value="UPIPaymentParser">UPI Payment Alert Parser (UPIPaymentParser)</option>
+              <option value="ICICICardParser">ICICI Bank & Amazon Pay Card (ICICICardParser)</option>
+              <option value="AxisCardParser">Axis Bank Credit Card (AxisCardParser)</option>
+              <option value="SBICardParser">SBI Credit Card (SBICardParser)</option>
+              <option value="HomefyParser">Homefy Community Water & Maintenance (HomefyParser)</option>
+              <option value="JewellerySchemeParser">Jewellery Scheme - GRT / Tanishq (JewellerySchemeParser)</option>
+              <option value="GenericUtilityParser">Generic Utility, Telecom & OTT (GenericUtilityParser)</option>
+              <option value="CustomRegexParser">Custom Regex Pattern (CustomRegexParser)</option>
             </select>
           </div>
 
@@ -350,7 +351,7 @@ export function ParserSandboxModal({
               onClick={handleRunTest}
               className="min-h-[40px] flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-2 text-xs font-bold text-slate-950 shadow-md hover:bg-cyan-300 disabled:opacity-50 transition cursor-pointer"
             >
-              <span>▶</span>
+              <Play className="w-3.5 h-3.5 fill-current" />
               {isLoading ? "Running Auto-Detect Match..." : "Execute Test Extraction"}
             </button>
           </div>
