@@ -348,8 +348,13 @@ async function extractWithGemini(
   audioBase64?: string,
   audioMimeType?: string
 ): Promise<{ parsed: any; transcript?: string; modelUsed: string }> {
-  const geminiModel = model && model.includes("gemini") ? model : "gemini-2.0-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
+  // Candidate flash models in order of recency
+  const candidateModels = Array.from(new Set([
+    model || "gemini-3.6-flash",
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
+  ])).filter((m) => m.startsWith("gemini-"));
 
   const userParts: any[] = [];
 
@@ -387,34 +392,61 @@ async function extractWithGemini(
     },
   };
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Google Gemini API error (${response.status}): ${errText}`);
+  for (const candidateModel of candidateModels) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        if (response.status === 404) {
+          console.warn(`[aiExtractor] Gemini model ${candidateModel} returned 404, trying next candidate...`);
+          lastError = new Error(`Google Gemini model ${candidateModel} not found.`);
+          continue;
+        }
+
+        // Handle prepayment credits depletion
+        if (errText.includes("prepayment credits are depleted") || (response.status === 429 && errText.includes("RESOURCE_EXHAUSTED"))) {
+          throw new Error(
+            `Google Gemini: Prepayment credits are depleted on this project. To use Gemini 100% Free, create a key in Google AI Studio (aistudio.google.com) under a default project without Cloud billing attached, or switch to OpenRouter in AI Settings.`
+          );
+        }
+
+        throw new Error(`Google Gemini API error (${response.status}): ${errText}`);
+      }
+
+      const data = await response.json();
+      const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!textContent || !textContent.trim()) {
+        throw new Error("Google Gemini returned empty response content.");
+      }
+
+      let clean = textContent.trim();
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        clean = jsonMatch[0];
+      }
+
+      const parsed = JSON.parse(clean);
+      return {
+        parsed,
+        transcript: parsed.transcript || spokenText,
+        modelUsed: `Google ${candidateModel}`,
+      };
+    } catch (err: any) {
+      if (err.message.includes("Prepayment credits") || err.message.includes("API error")) {
+        throw err;
+      }
+      lastError = err;
+    }
   }
 
-  const data = await response.json();
-  const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!textContent || !textContent.trim()) {
-    throw new Error("Google Gemini returned empty response content.");
-  }
-
-  let clean = textContent.trim();
-  const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    clean = jsonMatch[0];
-  }
-
-  const parsed = JSON.parse(clean);
-  return {
-    parsed,
-    transcript: parsed.transcript || spokenText,
-    modelUsed: `Google ${geminiModel}`,
-  };
+  throw lastError || new Error("All Google Gemini candidate models failed.");
 }

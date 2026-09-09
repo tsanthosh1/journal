@@ -11,7 +11,7 @@ interface AiConfigModalProps {
 export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalProps) {
   const [provider, setProvider] = useState<"gemini" | "openrouter">("gemini");
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("gemini-2.0-flash");
+  const [model, setModel] = useState("gemini-3.6-flash");
   const [maskedKey, setMaskedKey] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +42,7 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
   const handleProviderChange = (newProvider: "gemini" | "openrouter") => {
     setProvider(newProvider);
     if (newProvider === "gemini") {
-      setModel("gemini-2.0-flash");
+      setModel("gemini-3.6-flash");
     } else {
       setModel("openrouter/free");
     }
@@ -204,10 +204,10 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none cursor-pointer"
               >
-                <option value="gemini-2.0-flash">⚡ Gemini 2.0 Flash (Recommended - Fastest &amp; Free Direct Audio)</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                <option value="gemini-3.6-flash">⚡ Gemini 3.6 Flash (Recommended - Latest &amp; Fastest)</option>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Highest Reasoning)</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
               </select>
             ) : (
               <select

@@ -307,7 +307,7 @@ export async function getAiConfig(): Promise<AiConfig> {
       const provider = (data.provider as "gemini" | "openrouter") || (data.apiKey?.startsWith("AIzaSy") ? "gemini" : "openrouter");
       const defaultKey = provider === "gemini" ? geminiEnvKey : openRouterEnvKey;
       const key = data.apiKey || defaultKey || geminiEnvKey || openRouterEnvKey;
-      const defaultModel = provider === "gemini" ? "gemini-2.0-flash" : "openrouter/free";
+      const defaultModel = provider === "gemini" ? "gemini-3.6-flash" : "openrouter/free";
 
       return {
         provider,
@@ -330,7 +330,7 @@ export async function getAiConfig(): Promise<AiConfig> {
     provider,
     apiKey: key,
     isConfigured: Boolean(key && key.trim().length > 0),
-    model: provider === "gemini" ? "gemini-2.0-flash" : "openrouter/free",
+    model: provider === "gemini" ? "gemini-3.6-flash" : "openrouter/free",
   };
 }
 
@@ -344,7 +344,7 @@ export async function saveAiConfig(config: {
   const existing = await getAiConfig();
 
   const provider = config.provider || (config.apiKey?.startsWith("AIzaSy") ? "gemini" : existing.provider) || "gemini";
-  const defaultModel = provider === "gemini" ? "gemini-2.0-flash" : "openrouter/free";
+  const defaultModel = provider === "gemini" ? "gemini-3.6-flash" : "openrouter/free";
 
   const toSave: AiConfig = {
     provider,
