@@ -103,9 +103,10 @@ export function EventEditModal({
         description: description.trim(),
         activityType,
         date,
-        startTime: startTime.trim() || undefined,
-        endTime: endTime.trim() || undefined,
-        mood: mood.trim() || undefined,
+        startTime: startTime.trim() || null,
+        endTime: endTime.trim() || null,
+        durationMinutes: !endTime.trim() ? null : undefined,
+        mood: mood.trim() || null,
         tags,
         attributes,
       };
@@ -197,7 +198,18 @@ export function EventEditModal({
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1">Start Time</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-300">Start Time</label>
+                {startTime && (
+                  <button
+                    type="button"
+                    onClick={() => setStartTime("")}
+                    className="text-[10px] text-slate-400 hover:text-slate-200 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <input
                 type="time"
                 value={startTime}
@@ -206,7 +218,20 @@ export function EventEditModal({
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1">End Time</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-300">
+                  End Time <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
+                </label>
+                {endTime && (
+                  <button
+                    type="button"
+                    onClick={() => setEndTime("")}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <input
                 type="time"
                 value={endTime}

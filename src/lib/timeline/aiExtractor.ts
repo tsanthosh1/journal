@@ -154,9 +154,9 @@ RULES:
    - "description": Complete context and narrative details mentioned for that specific event.
    - "activityType": Pick the best matching activity type from above.
    - "date": "${targetDate}" unless explicitly stated otherwise (e.g. yesterday, last night).
-   - "startTime": 24-hour HH:MM format if mentioned or implied (e.g. "08:30", "14:15"). If approximate (e.g. "in the morning"), infer a reasonable time like "09:00" or leave empty if completely unspecified.
-   - "endTime": 24-hour HH:MM if duration is given (e.g. started at 8:00 and ran for 30 min -> endTime: "08:30").
-   - "durationMinutes": Number of minutes spent if stated or calculated.
+   - "startTime": 24-hour HH:MM format if mentioned (e.g. "08:30", "14:15"). Leave empty/null if no specific time was mentioned.
+   - "endTime": 24-hour HH:MM. STRICT RULE: "endTime" is OPTIONAL. ONLY set "endTime" if the user EXPLICITLY stated an end time (e.g. "from 2:00 to 3:30pm") or an explicit duration (e.g. "worked out for 45 minutes"). DO NOT invent, assume, or guess an endTime or duration for moment-in-time activities, assessments, reviews, thoughts, meals, check-ins, or open-ended tasks (e.g. assessing work deadlines, writing in a diary, eating a snack). For all such activities, leave "endTime" as null and "durationMinutes" as null.
+   - "durationMinutes": Number of minutes ONLY if explicitly stated or calculated from an explicit end time. Otherwise null.
    - "mood": One of ["Energized", "Focused", "Happy", "Calm", "Tired", "Stressed", "Reflective"] or null if neutral.
    - "tags": Array of 2-4 clean keyword tags (lowercase, e.g. ["gaming", "colonist", "online"]).
    - "attributes": Key-value dictionary. Use standard attribute keys from the schema whenever applicable.
