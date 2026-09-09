@@ -75,9 +75,20 @@ export async function saveLifeEventsBatch(events: Omit<LifeEvent, "id">[]): Prom
 
 export async function getLifeEventsByDate(date: string, userId = "default_user"): Promise<LifeEvent[]> {
   const { db } = getFirebaseAdmin();
+  const possibleUserIds = Array.from(
+    new Set([
+      userId,
+      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      "default_user",
+      "default-user",
+      "tsanthosh.online@gmail.com",
+      "tsanthosh_online_gmail_com",
+    ]),
+  ).filter(Boolean);
+
   const snap = await db
     .collection(EVENTS_COLLECTION)
-    .where("userId", "==", userId)
+    .where("userId", "in", possibleUserIds.slice(0, 10))
     .where("date", "==", date)
     .get();
 
@@ -101,9 +112,20 @@ export async function getLifeEventsRange(
   userId = "default_user"
 ): Promise<LifeEvent[]> {
   const { db } = getFirebaseAdmin();
+  const possibleUserIds = Array.from(
+    new Set([
+      userId,
+      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      "default_user",
+      "default-user",
+      "tsanthosh.online@gmail.com",
+      "tsanthosh_online_gmail_com",
+    ]),
+  ).filter(Boolean);
+
   const snap = await db
     .collection(EVENTS_COLLECTION)
-    .where("userId", "==", userId)
+    .where("userId", "in", possibleUserIds.slice(0, 10))
     .where("date", ">=", startDate)
     .where("date", "<=", endDate)
     .get();

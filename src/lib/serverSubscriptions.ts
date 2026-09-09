@@ -141,12 +141,15 @@ export async function ensureSubscriptionCurrentMonth(
 export async function listSubscriptions(userId = "default_user"): Promise<Subscription[]> {
   const { db } = getFirebaseAdmin();
 
-  // Support flexible user ID matching (email, normalized email, and default_user)
+  // Support flexible user ID matching (email, normalized email, default_user, and default-user)
   const possibleUserIds = Array.from(
     new Set([
       userId,
       userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
       "default_user",
+      "default-user",
+      "tsanthosh.online@gmail.com",
+      "tsanthosh_online_gmail_com",
     ]),
   ).filter(Boolean);
 
