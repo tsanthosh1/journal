@@ -11,6 +11,7 @@ export function FinanceTopBar({ title }: { title?: string }) {
   const { userEmail, isSignedIn, isGmailSynced, isLoading, signInWithGoogle, signOut } = useAuth();
 
   const navLinks = [
+    { href: "/timeline", label: "Life Timeline", badge: "AI Voice" },
     { href: "/subscriptions", label: "Subscriptions & Bills", badge: "Sync" },
     { href: "/sync/logs", label: "Sync Logs", badge: "Files" },
     { href: "/tneb", label: "EB Bills", badge: "TNEB" },

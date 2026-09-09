@@ -1,0 +1,230 @@
+{
+  "WORK": {
+    "activityType": "WORK",
+    "version": 1,
+    "title": "Work & Projects Schema",
+    "description": "Schema for coding, meetings, deliverables, and workplace tasks",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "projectName": { "type": "string", "title": "Project or Company Name" },
+        "meetingType": { "type": "string", "title": "Meeting Type", "enum": ["1-on-1", "Standup", "Sprint Planning", "Client Call", "Deep Work", "Review", "Other"] },
+        "collaborators": { "type": "array", "title": "Collaborators", "items": { "type": "string" } },
+        "actionItems": { "type": "array", "title": "Action Items", "items": { "type": "string" } },
+        "decisions": { "type": "array", "title": "Key Decisions", "items": { "type": "string" } },
+        "productivityScore": { "type": "number", "title": "Productivity Score (1-10)" }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "projectName", "label": "Project Name", "type": "string", "description": "Name of project or repo" },
+      { "key": "meetingType", "label": "Meeting Type", "type": "string", "suggestedValues": ["1-on-1", "Standup", "Sprint Planning", "Client Call", "Deep Work"] },
+      { "key": "collaborators", "label": "Collaborators", "type": "list", "description": "People involved" },
+      { "key": "actionItems", "label": "Action Items", "type": "list", "description": "Next steps or tasks" },
+      { "key": "decisions", "label": "Key Decisions", "type": "list", "description": "Agreed upon decisions" },
+      { "key": "productivityScore", "label": "Productivity (1-10)", "type": "number" }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  },
+  "FITNESS": {
+    "activityType": "FITNESS",
+    "version": 1,
+    "title": "Health & Fitness Schema",
+    "description": "Schema for workouts, running, cycling, gym, and health metrics",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "exerciseType": { "type": "string", "title": "Exercise Type", "enum": ["Running", "Gym / Weights", "Cycling", "Swimming", "Yoga", "Walking", "HIIT", "Sports"] },
+        "distanceKm": { "type": "number", "title": "Distance", "unit": "km" },
+        "durationMins": { "type": "number", "title": "Duration", "unit": "min" },
+        "caloriesBurned": { "type": "number", "title": "Calories Burned", "unit": "kcal" },
+        "avgHeartRate": { "type": "number", "title": "Average Heart Rate", "unit": "bpm" },
+        "intensity": { "type": "string", "title": "Intensity", "enum": ["Light", "Moderate", "High", "Maximum"] }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "exerciseType", "label": "Exercise Type", "type": "string", "suggestedValues": ["Running", "Gym / Weights", "Cycling", "Swimming", "Yoga", "Walking"] },
+      { "key": "distanceKm", "label": "Distance (km)", "type": "unit_number", "unit": "km" },
+      { "key": "durationMins", "label": "Duration (min)", "type": "unit_number", "unit": "min" },
+      { "key": "caloriesBurned", "label": "Calories (kcal)", "type": "unit_number", "unit": "kcal" },
+      { "key": "avgHeartRate", "label": "Heart Rate (bpm)", "type": "unit_number", "unit": "bpm" },
+      { "key": "intensity", "label": "Intensity", "type": "string", "suggestedValues": ["Light", "Moderate", "High"] }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  },
+  "FOOD": {
+    "activityType": "FOOD",
+    "version": 1,
+    "title": "Food & Nutrition Schema",
+    "description": "Schema for meals, drinks, cooking, dining, and snacks",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "mealType": { "type": "string", "title": "Meal Type", "enum": ["Breakfast", "Lunch", "Dinner", "Snack", "Beverage / Coffee"] },
+        "foodItems": { "type": "array", "title": "Food Items", "items": { "type": "string" } },
+        "location": { "type": "string", "title": "Location or Restaurant" },
+        "caloriesEst": { "type": "number", "title": "Estimated Calories", "unit": "kcal" },
+        "dietaryNotes": { "type": "string", "title": "Dietary Notes" }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "mealType", "label": "Meal Type", "type": "string", "suggestedValues": ["Breakfast", "Lunch", "Dinner", "Snack", "Coffee"] },
+      { "key": "foodItems", "label": "Food Items", "type": "list", "description": "Dishes or ingredients consumed" },
+      { "key": "location", "label": "Place / Home", "type": "string" },
+      { "key": "caloriesEst", "label": "Estimated Calories", "type": "unit_number", "unit": "kcal" },
+      { "key": "dietaryNotes", "label": "Dietary Notes", "type": "string" }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  },
+  "FINANCE": {
+    "activityType": "FINANCE",
+    "version": 1,
+    "title": "Finance & Purchases Schema",
+    "description": "Schema for personal expenses, shopping, dining out, and transactions",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number", "title": "Amount Spent" },
+        "currency": { "type": "string", "title": "Currency", "default": "INR" },
+        "merchant": { "type": "string", "title": "Merchant / Store / Payee" },
+        "category": { "type": "string", "title": "Category" },
+        "paymentMode": { "type": "string", "title": "Payment Mode", "enum": ["UPI", "Credit Card", "Debit Card", "Cash", "Net Banking"] }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "amount", "label": "Amount", "type": "unit_number", "unit": "₹" },
+      { "key": "currency", "label": "Currency", "type": "string", "suggestedValues": ["INR", "USD", "EUR"] },
+      { "key": "merchant", "label": "Merchant", "type": "string" },
+      { "key": "category", "label": "Category", "type": "string", "suggestedValues": ["Groceries", "Dining", "Electronics", "Bills", "Shopping"] },
+      { "key": "paymentMode", "label": "Payment Mode", "type": "string", "suggestedValues": ["UPI", "Credit Card", "Cash"] }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  },
+  "SOCIAL": {
+    "activityType": "SOCIAL",
+    "version": 1,
+    "title": "Social & Connections Schema",
+    "description": "Schema for family, friends, meetings, calls, and outings",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "people": { "type": "array", "title": "People Present", "items": { "type": "string" } },
+        "location": { "type": "string", "title": "Location" },
+        "occasion": { "type": "string", "title": "Occasion" },
+        "relationship": { "type": "string", "title": "Relationship Circle", "enum": ["Family", "Close Friends", "Colleagues", "Community", "Other"] }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "people", "label": "People", "type": "list" },
+      { "key": "location", "label": "Location", "type": "string" },
+      { "key": "occasion", "label": "Occasion", "type": "string" },
+      { "key": "relationship", "label": "Group", "type": "string", "suggestedValues": ["Family", "Friends", "Colleagues"] }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  },
+  "TRAVEL": {
+    "activityType": "TRAVEL",
+    "version": 1,
+    "title": "Travel & Commute Schema",
+    "description": "Schema for commute, driving, rides, and journeys",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "origin": { "type": "string", "title": "Starting Point" },
+        "destination": { "type": "string", "title": "Destination" },
+        "modeOfTransport": { "type": "string", "title": "Mode", "enum": ["Car", "Metro / Train", "Bike", "Cab / Uber", "Flight", "Walking"] },
+        "distanceKm": { "type": "number", "title": "Distance", "unit": "km" },
+        "trafficLevel": { "type": "string", "title": "Traffic", "enum": ["Light", "Moderate", "Heavy"] }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "origin", "label": "From", "type": "string" },
+      { "key": "destination", "label": "To", "type": "string" },
+      { "key": "modeOfTransport", "label": "Transport Mode", "type": "string", "suggestedValues": ["Car", "Metro", "Bike", "Cab", "Flight"] },
+      { "key": "distanceKm", "label": "Distance (km)", "type": "unit_number", "unit": "km" },
+      { "key": "trafficLevel", "label": "Traffic", "type": "string", "suggestedValues": ["Light", "Moderate", "Heavy"] }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  },
+  "REFLECTION": {
+    "activityType": "REFLECTION",
+    "version": 1,
+    "title": "Reflection & Mood Schema",
+    "description": "Schema for journaling, daily mood, thoughts, and personal insights",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "energyLevel": { "type": "number", "title": "Energy Level (1-10)" },
+        "stressLevel": { "type": "number", "title": "Stress Level (1-10)" },
+        "gratitude": { "type": "array", "title": "Grateful For", "items": { "type": "string" } },
+        "keyTakeaway": { "type": "string", "title": "Daily Takeaway" }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "energyLevel", "label": "Energy (1-10)", "type": "number" },
+      { "key": "stressLevel", "label": "Stress (1-10)", "type": "number" },
+      { "key": "gratitude", "label": "Gratitude Items", "type": "list" },
+      { "key": "keyTakeaway", "label": "Daily Insight", "type": "string" }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  },
+  "GENERAL": {
+    "activityType": "GENERAL",
+    "version": 1,
+    "title": "General Life Events Schema",
+    "description": "Schema for flexible daily moments, chores, entertainment, and hobbies",
+    "jsonSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string", "title": "Category" },
+        "location": { "type": "string", "title": "Location" },
+        "notes": { "type": "string", "title": "Additional Notes" }
+      },
+      "additionalProperties": true
+    },
+    "fields": [
+      { "key": "category", "label": "Category", "type": "string" },
+      { "key": "location", "label": "Location", "type": "string" },
+      { "key": "notes", "label": "Notes", "type": "string" }
+    ],
+    "changelog": [
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+    ],
+    "updatedAt": "2026-09-09T00:00:00.000Z"
+  }
+}

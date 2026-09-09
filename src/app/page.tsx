@@ -3,6 +3,13 @@ import { FinanceTopBar } from "@/components/FinanceTopBar";
 
 const links = [
   {
+    href: "/timeline",
+    title: "Life Events Diary",
+    badge: "AI Voice & Schemas",
+    description:
+      "Speak your daily moments with voice recording. AI decomposes your stream into structured events across ever-evolving activity schemas.",
+  },
+  {
     href: "/subscriptions",
     title: "Subscriptions & Bills",
     badge: "Deterministic Sync",
