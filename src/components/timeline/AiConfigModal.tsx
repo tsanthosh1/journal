@@ -126,12 +126,20 @@ export function AiConfigModal({ isOpen, onClose, onConfigSaved }: AiConfigModalP
               onChange={(e) => setModel(e.target.value)}
               className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none cursor-pointer"
             >
-              <option value="google/gemini-2.5-flash">Google: Gemini 2.5 Flash (Fastest & Best JSON)</option>
-              <option value="google/gemini-2.5-pro">Google: Gemini 2.5 Pro (Deep Reasoning)</option>
-              <option value="openai/gpt-4o-mini">OpenAI: GPT-4o Mini</option>
-              <option value="openai/gpt-4o">OpenAI: GPT-4o</option>
-              <option value="anthropic/claude-3.5-haiku">Anthropic: Claude 3.5 Haiku</option>
-              <option value="meta-llama/llama-3.3-70b-instruct">Meta: Llama 3.3 70B</option>
+              <optgroup label="✨ Automatic Routers (Recommended)">
+                <option value="openrouter/free">✨ Auto: Best Free Model (openrouter/free - 100% Free)</option>
+                <option value="openrouter/auto">🤖 Auto: Smart Task Router (openrouter/auto)</option>
+              </optgroup>
+              <optgroup label="Popular Free Models">
+                <option value="meta-llama/llama-3.3-70b-instruct:free">Meta: Llama 3.3 70B (Free)</option>
+                <option value="google/gemini-2.0-flash-exp:free">Google: Gemini 2.0 Flash (Free)</option>
+                <option value="qwen/qwen-2.5-72b-instruct:free">Qwen: 2.5 72B Instruct (Free)</option>
+              </optgroup>
+              <optgroup label="Pinned Top Models">
+                <option value="google/gemini-2.5-flash">Google: Gemini 2.5 Flash</option>
+                <option value="openai/gpt-4o-mini">OpenAI: GPT-4o Mini</option>
+                <option value="anthropic/claude-3.5-haiku">Anthropic: Claude 3.5 Haiku</option>
+              </optgroup>
             </select>
           </div>
 

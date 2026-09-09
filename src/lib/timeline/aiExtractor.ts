@@ -187,6 +187,27 @@ Respond ONLY in valid JSON format matching this structure:
 
   try {
     console.log(`[aiExtractor] Invoking OpenRouter model "${aiConfig.model}"...`);
+    const isFreeRouter = aiConfig.model === "openrouter/free";
+    const requestBody: any = {
+      model: aiConfig.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: spokenText },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+    };
+
+    // If using the free router, configure fallback chain across top free models
+    if (isFreeRouter) {
+      requestBody.models = [
+        "openrouter/free",
+        "google/gemini-2.0-flash-exp:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "qwen/qwen-2.5-72b-instruct:free",
+      ];
+    }
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -195,15 +216,7 @@ Respond ONLY in valid JSON format matching this structure:
         "X-Title": "Track Everything AI - Life Events Diary",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: aiConfig.model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: spokenText },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -250,7 +263,7 @@ Respond ONLY in valid JSON format matching this structure:
       events,
       rawTranscript: spokenText,
       summaryOfNarration: parsed.summary || `Extracted ${events.length} event(s) from spoken transcript.`,
-      modelUsed: aiConfig.model,
+      modelUsed: resData.model || aiConfig.model,
       executionDurationMs: Date.now() - startTime,
     };
   } catch (err: any) {

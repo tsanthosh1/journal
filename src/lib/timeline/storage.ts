@@ -297,7 +297,7 @@ export async function evolveActivitySchema(
 
 export async function getAiConfig(): Promise<AiConfig> {
   const envKey = process.env.OPENROUTER_API_KEY;
-  const defaultModel = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+  const defaultModel = process.env.OPENROUTER_MODEL || "openrouter/free";
 
   try {
     const { db } = getFirebaseAdmin();
@@ -333,7 +333,7 @@ export async function saveAiConfig(config: { apiKey?: string; model?: string }):
   const toSave: AiConfig = {
     provider: "openrouter",
     apiKey: config.apiKey !== undefined ? config.apiKey.trim() : existing.apiKey,
-    model: config.model || existing.model || "google/gemini-2.5-flash",
+    model: config.model || existing.model || "openrouter/free",
     isConfigured: false,
     updatedAt: now,
   };
