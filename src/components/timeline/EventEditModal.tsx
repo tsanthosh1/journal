@@ -32,7 +32,17 @@ export function EventEditModal({
   const [isSaving, setIsSaving] = useState(false);
   const [activeSchema, setActiveSchema] = useState<ActivityJsonSchema | null>(null);
 
+  // AI Prompting to update state
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isAiApplying, setIsAiApplying] = useState(false);
+  const [aiChangeSummary, setAiChangeSummary] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
   useEffect(() => {
+    setAiPrompt("");
+    setAiChangeSummary(null);
+    setAiError(null);
+
     if (eventToEdit) {
       setTitle(eventToEdit.title || "");
       setDescription(eventToEdit.description || "");
@@ -55,6 +65,61 @@ export function EventEditModal({
       setAttributes({});
     }
   }, [eventToEdit, defaultDate, isOpen]);
+
+  const handleApplyAiPrompt = async () => {
+    if (!aiPrompt.trim() || isAiApplying) return;
+    setIsAiApplying(true);
+    setAiError(null);
+    setAiChangeSummary(null);
+
+    try {
+      const currentEventData = {
+        title,
+        description,
+        activityType,
+        date,
+        startTime,
+        endTime,
+        mood,
+        tags: tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
+        attributes,
+      };
+
+      const res = await fetch("/api/timeline/events/ai-modify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentEvent: currentEventData,
+          prompt: aiPrompt.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to update with AI");
+      }
+
+      const u = data.updatedEvent;
+      if (u.title) setTitle(u.title);
+      if (u.description !== undefined) setDescription(u.description);
+      if (u.activityType) setActivityType(u.activityType);
+      if (u.date) setDate(u.date);
+      if (u.startTime !== undefined) setStartTime(u.startTime || "");
+      if (u.endTime !== undefined) setEndTime(u.endTime || "");
+      if (u.mood !== undefined) setMood(u.mood || "");
+      if (Array.isArray(u.tags)) setTagsInput(u.tags.join(", "));
+      if (u.attributes && typeof u.attributes === "object") {
+        setAttributes(u.attributes);
+      }
+
+      setAiChangeSummary(data.changeSummary || "Event updated with AI!");
+      setAiPrompt("");
+    } catch (err: any) {
+      setAiError(err.message || "Could not apply AI prompt");
+    } finally {
+      setIsAiApplying(false);
+    }
+  };
 
   // Fetch schema for active activity type to show suggested fields
   useEffect(() => {
@@ -158,6 +223,91 @@ export function EventEditModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* AI Prompting Update Bar */}
+          <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-slate-950/60 to-indigo-950/40 p-3.5 shadow-md">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+                <span className="text-base">✨</span>
+                <span>Update with AI</span>
+              </div>
+              <span className="text-[10px] text-slate-400">English, தமிழ் & Tanglish</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleApplyAiPrompt();
+                    }
+                  }}
+                  placeholder="e.g. 'Change time to 3pm and mood to Happy' or 'நேரத்தை 2:30 ஆக்கு'..."
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/90 px-3 py-2 text-xs text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+                />
+                {aiPrompt && (
+                  <button
+                    type="button"
+                    onClick={() => setAiPrompt("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={!aiPrompt.trim() || isAiApplying}
+                onClick={handleApplyAiPrompt}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition cursor-pointer shrink-0 ${
+                  aiPrompt.trim() && !isAiApplying
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md shadow-cyan-500/20 hover:scale-[1.02] active:scale-95"
+                    : "bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5"
+                }`}
+              >
+                {isAiApplying ? (
+                  <>
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🪄</span>
+                    <span>Apply</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* AI Success Feedback / Change Notice */}
+            {aiChangeSummary && (
+              <div className="mt-2.5 flex items-center justify-between rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-300">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span>✓</span>
+                  <span className="truncate">{aiChangeSummary}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAiChangeSummary(null)}
+                  className="text-[10px] text-emerald-400 hover:underline shrink-0 ml-2 cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {aiError && (
+              <div className="mt-2 text-xs text-rose-400 flex items-center gap-1">
+                <span>⚠️</span>
+                <span>{aiError}</span>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1">Event Title *</label>
             <input
