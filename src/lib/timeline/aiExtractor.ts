@@ -157,20 +157,28 @@ RULES:
    - "durationMinutes": Number of minutes spent if stated or calculated.
    - "mood": One of ["Energized", "Focused", "Happy", "Calm", "Tired", "Stressed", "Reflective"] or null if neutral.
    - "tags": Array of 2-4 clean keyword tags (lowercase, e.g. ["running", "cardio", "morning"]).
-   - "attributes": Key-value dictionary. Use standard attribute keys from the schema whenever applicable.
-   - "newAttributesDiscovered": If the user mentions relevant attributes that are NOT part of the standard attributes for that activity type (e.g. "blood pressure", "coffee rating", "shoes used", "podcast listened to"), list them in "newAttributesDiscovered" so our system can evolve the activity's JSON Schema!
+   - "attributes": Key-value dictionary. Use standard attribute keys from the schema whenever applicable   - "newAttributesDiscovered": If the user mentions relevant attributes that are NOT part of the standard attributes for that activity type (e.g. "blood pressure", "coffee rating", "shoes used", "podcast listened to"), list them in "newAttributesDiscovered" so our system can evolve the activity's JSON Schema!
      - "fieldKey": camelCase identifier (e.g. "bloodPressure", "coffeeRating")
      - "label": Human readable label (e.g. "Blood Pressure", "Coffee Rating")
      - "suggestedType": "string" | "number" | "boolean" | "list" | "unit_number"
      - "unit": optional unit (e.g. "bpm", "mmHg", "stars")
      - "sampleValue": The extracted value
 
+PHONETIC SPEECH-TO-TEXT NORMALIZATION & HOMOPHONE CORRECTION:
+The user narration is captured via microphone speech recognition. It may contain phonetic homophones, speech recognition artifacts, brand name misspellings, or accented English slips.
+Examples:
+- "colonist.in online inversion" -> "Colonist.io online version"
+- "I want the game" (when recounting a score/session) -> "I won the game"
+- "one origo" -> "one round" or "one match"
+- "swiggy/zomato", "biryani", etc.
+Intelligently infer the speaker's true intent, reconstruct the actual events and proper names, and extract accurate life events!
+
 Respond ONLY in valid JSON format matching this structure:
 {
   "summary": "Brief 1-sentence summary of the entire log",
   "events": [
     {
-      "title": "...",
+      "title": "Short crisp title",
       "description": "...",
       "activityType": "...",
       "date": "${targetDate}",
@@ -187,24 +195,24 @@ Respond ONLY in valid JSON format matching this structure:
 
   try {
     console.log(`[aiExtractor] Invoking OpenRouter model "${aiConfig.model}"...`);
-    const isFreeRouter = aiConfig.model === "openrouter/free";
+    const isFreeRouter = !aiConfig.model || aiConfig.model === "openrouter/free" || aiConfig.model.endsWith(":free");
+    
+    // Construct clean OpenRouter payload.
+    // Note: Do NOT use response_format: { type: "json_object" } for free tier models as many free open-weights
+    // providers do not support OpenAI schema mode and will return 400 or empty message content.
     const requestBody: any = {
-      model: aiConfig.model,
+      model: aiConfig.model || "openrouter/free",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: spokenText },
       ],
-      response_format: { type: "json_object" },
       temperature: 0.2,
     };
 
-    // If using the free router, configure fallback chain (max 3 items per OpenRouter limit)
-    if (isFreeRouter) {
-      requestBody.models = [
-        "google/gemini-2.0-flash-exp:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "qwen/qwen-2.5-72b-instruct:free",
-      ];
+    // If using strict commercial models that support response_format, we can optionally pass it,
+    // otherwise prompt-enforced JSON is universally reliable.
+    if (!isFreeRouter && (aiConfig.model.includes("gpt-4") || aiConfig.model.includes("claude-3-5"))) {
+      requestBody.response_format = { type: "json_object" };
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -224,15 +232,20 @@ Respond ONLY in valid JSON format matching this structure:
     }
 
     const resData = await response.json();
-    const content = resData.choices?.[0]?.message?.content;
+    const choice = resData.choices?.[0];
+    
+    // Check multiple candidate response locations: content, reasoning, or text
+    let rawContent = choice?.message?.content || choice?.message?.reasoning || choice?.text || "";
 
-    if (!content) {
-      throw new Error("OpenRouter returned empty message content.");
+    if (!rawContent || !rawContent.trim()) {
+      throw new Error(`OpenRouter returned empty message content (model: ${resData.model || aiConfig.model}).`);
     }
 
-    let cleanContent = content.trim();
-    if (cleanContent.startsWith("```")) {
-      cleanContent = cleanContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    // Extract JSON string safely even if wrapped in markdown fences or reasoning blocks
+    let cleanContent = rawContent.trim();
+    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanContent = jsonMatch[0];
     }
 
     const parsed = JSON.parse(cleanContent);

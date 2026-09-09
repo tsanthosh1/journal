@@ -26,6 +26,19 @@ export function VoiceRecorderModal({
   const [transcript, setTranscript] = useState("");
   const [interimText, setInterimText] = useState("");
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [speechLang, setSpeechLang] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("journal_timeline_speech_lang");
+      if (saved) return saved;
+      const nav = (navigator.language || "").toLowerCase();
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      if (nav.includes("in") || tz.includes("Calcutta") || tz.includes("Kolkata") || tz.includes("Asia")) {
+        return "en-IN";
+      }
+      return navigator.language || "en-IN";
+    }
+    return "en-IN";
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [extractionResult, setExtractionResult] = useState<AiExtractionResult | null>(null);
@@ -33,8 +46,10 @@ export function VoiceRecorderModal({
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef(false);
+  isRecordingRef.current = isRecording;
 
-  // Initialize Web Speech API
+  // Initialize Web Speech API with selected accent
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
@@ -48,7 +63,8 @@ export function VoiceRecorderModal({
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
+      recognition.lang = speechLang;
 
       recognition.onresult = (event: any) => {
         let currentInterim = "";
@@ -77,12 +93,12 @@ export function VoiceRecorderModal({
       };
 
       recognition.onend = () => {
-        // If recording state is still active, restart (handles brief pauses)
-        if (isRecording) {
+        // If recording state is still active, restart (handles silence timeout)
+        if (isRecordingRef.current) {
           try {
             recognition.start();
           } catch (e) {
-            setIsRecording(false);
+            // Already started
           }
         }
       };
@@ -97,7 +113,28 @@ export function VoiceRecorderModal({
         } catch (e) {}
       }
     };
-  }, [isRecording]);
+  }, [speechLang]);
+
+  const handleLanguageChange = (newLang: string) => {
+    setSpeechLang(newLang);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("journal_timeline_speech_lang", newLang);
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = newLang;
+      // If currently recording, restart with new language
+      if (isRecording) {
+        try {
+          recognitionRef.current.stop();
+          setTimeout(() => {
+            if (isRecordingRef.current) {
+              recognitionRef.current.start();
+            }
+          }, 150);
+        } catch (e) {}
+      }
+    }
+  };
 
   const toggleRecording = () => {
     if (!speechSupported) {
@@ -268,8 +305,31 @@ export function VoiceRecorderModal({
           {!extractionResult && (
             <div className="space-y-4">
               {/* Pulsing Mic Hero */}
-              <div className="flex flex-col items-center justify-center py-6 space-y-3">
-                <div className="relative flex items-center justify-center">
+              <div className="flex flex-col items-center justify-center py-4 space-y-3">
+                {/* Language / Accent Selector */}
+                <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950/80 border border-white/10 shadow-inner">
+                  {[
+                    { id: "en-IN", label: "🇮🇳 Indian English" },
+                    { id: "en-US", label: "🇺🇸 US English" },
+                    { id: "en-GB", label: "🇬🇧 UK English" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleLanguageChange(opt.id)}
+                      className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                        speechLang === opt.id
+                          ? "bg-cyan-500 text-slate-950 shadow-sm shadow-cyan-500/20"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                      title={`Select ${opt.label} for speech recognition`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative flex items-center justify-center pt-2">
                   {isRecording && (
                     <>
                       <div className="absolute h-24 w-24 rounded-full bg-rose-500/20 animate-ping" />
@@ -292,10 +352,11 @@ export function VoiceRecorderModal({
 
                 <div className="text-center">
                   <p className="text-sm font-bold text-white">
-                    {isRecording ? "Listening to your voice..." : "Tap microphone to speak"}
+                    {isRecording ? "Listening in " + (speechLang === "en-IN" ? "Indian English" : speechLang === "en-US" ? "US English" : "UK English") + "..." : "Tap microphone to speak"}
                   </p>
-                  <p className="text-xs text-slate-400 max-w-xs mt-0.5">
-                    Describe what happened today: workouts, meetings, meals, thoughts, expenses.
+                  <p className="text-[11px] text-cyan-300/80 max-w-sm mt-0.5 flex items-center justify-center gap-1">
+                    <span>✨</span>
+                    <span>Phonetic AI auto-corrects accents, gaming terms &amp; brand names.</span>
                   </p>
                 </div>
               </div>
