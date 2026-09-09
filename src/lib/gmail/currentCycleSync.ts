@@ -131,6 +131,13 @@ export async function syncSubscriptionWithGmail(
             const ym = (stmtParsed.statementDate || actualMsgDate).slice(0, 7);
             if (ym) cycle.cycleMonth = ym;
 
+            if (!subscription.statementDayOfMonth && cycle.statementDate) {
+              const day = parseInt(cycle.statementDate.slice(8, 10), 10);
+              if (!isNaN(day) && day >= 1 && day <= 31) {
+                subscription.statementDayOfMonth = day;
+              }
+            }
+
             log("parse", `Statement extracted: ₹${stmtParsed.statementTotal.toLocaleString("en-IN")} | Due: ${cycle.dueDate || "N/A"} | Cycle: ${cycle.cycleMonth}`, {
               ...subCtx,
               details: {

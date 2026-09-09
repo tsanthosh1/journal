@@ -317,7 +317,7 @@ export function SubscriptionDetailView({
               <div className="flex justify-between py-1 border-b border-white/5 bg-cyan-500/10 px-2 rounded-lg items-center">
                 <span className="text-cyan-300 font-semibold flex items-center gap-1">
                   <span>📄</span>
-                  <span>Next Statement:</span>
+                  <span>Next Bill:</span>
                 </span>
                 <span className="font-bold text-cyan-200 font-mono text-xs">
                   {nextStatement.displayText} ({nextStatement.formattedDate})

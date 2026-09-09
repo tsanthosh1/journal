@@ -149,7 +149,7 @@ export function SubscriptionCard({
     statusBadge = (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-xs font-medium text-slate-300">
         <span className="h-1.5 w-1.5 rounded-full bg-cyan-400/80" />
-        ⏳ Awaiting Bill
+        {nextStatement ? nextStatement.displayText : "⏳ Bill Pending"}
       </span>
     );
   } else if (isPartiallyPaid) {
@@ -362,7 +362,7 @@ export function SubscriptionCard({
               <div className="mt-2.5 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs">
                 <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
                   <span>📄</span>
-                  <span>Next Statement</span>
+                  <span>Next Bill</span>
                 </span>
                 <span className="font-semibold text-cyan-300 font-mono text-[11px] bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-md">
                   {nextStatement.displayText} ({nextStatement.formattedDate})

@@ -576,15 +576,16 @@ export function CurrentMonthActionHub({
                         </span>
                       ) : isAwaitingBill ? (
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-slate-400 font-medium flex items-center gap-1">
-                            <span>⏳</span>
-                            <span>Awaiting bill</span>
-                          </span>
-                          {nextStatement && (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[11px] font-bold text-cyan-200 animate-pulse">
+                          {nextStatement ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-xs font-semibold text-cyan-200 animate-pulse">
                               <span>📄</span>
-                              <span>{nextStatement.displayText}</span>
+                              <strong className="font-bold">{nextStatement.displayText}</strong>
                               <span className="text-slate-300 font-normal">({nextStatement.formattedDate})</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-medium flex items-center gap-1">
+                              <span>⏳</span>
+                              <span>Next bill expected soon</span>
                             </span>
                           )}
                         </div>
@@ -657,7 +658,9 @@ export function CurrentMonthActionHub({
                       : isDueSoon
                       ? "DUE SOON"
                       : isAwaitingBill
-                      ? "⏳ AWAITING BILL"
+                      ? nextStatement
+                        ? `⏳ ${nextStatement.displayText.toUpperCase()}`
+                        : "⏳ BILL PENDING"
                       : isNoStatementService
                       ? "⚡ PAY YOUR DUE"
                       : "PENDING"}

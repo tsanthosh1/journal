@@ -255,9 +255,22 @@ export function getNextStatementInfo(
         }
       }
     }
+  } else if (
+    sub.currentCycle?.statementDate &&
+    (sub.category === "Credit Cards" ||
+      Boolean(sub.emailConfig?.statementQuery?.trim()) ||
+      sub.source === "TNEB_MODULE")
+  ) {
+    const parts = sub.currentCycle.statementDate.split(/[-/]/);
+    if (parts.length >= 3) {
+      const dayPart = parseInt(parts[2].slice(0, 2), 10);
+      if (!isNaN(dayPart) && dayPart > 1 && dayPart <= 31) {
+        statementDay = dayPart;
+      }
+    }
   }
 
-  // Only calculate next statement if explicitly configured on the subscription
+  // Only calculate next statement if statement day is resolved
   if (!statementDay) return null;
 
   const today = todayIso || getTodayIso();
@@ -304,11 +317,11 @@ export function getNextStatementInfo(
 
   let displayText: string;
   if (daysRemaining === 0) {
-    displayText = "Next statement today";
+    displayText = "Next bill today";
   } else if (daysRemaining === 1) {
-    displayText = "Next statement tomorrow";
+    displayText = "Next bill tomorrow";
   } else {
-    displayText = `Next statement in ${daysRemaining} days`;
+    displayText = `Next bill in ${daysRemaining} days`;
   }
 
   const SHORT_MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
