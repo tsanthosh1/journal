@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getAiConfig, getAllUserLifeEvents } from "@/lib/timeline/storage";
+import { resolveGeminiCandidateModels } from "@/lib/timeline/geminiModels";
 import { LifeEvent } from "@/lib/timeline/types";
 
 export const dynamic = "force-dynamic";
@@ -96,14 +97,7 @@ YOUR CAPABILITIES & INSTRUCTIONS:
       // ─────────────────────────────────────────────────────────────
       // Google Gemini Engine with Multi-Model Fallback
       // ─────────────────────────────────────────────────────────────
-      const candidateModels = Array.from(new Set([
-        aiConfig.model,
-        "gemini-2.5-flash",
-        "gemini-flash-latest",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-2.5-flash-lite",
-      ])).filter(Boolean);
+      const candidateModels = resolveGeminiCandidateModels(aiConfig.model);
 
       // Build Gemini conversation contents
       const contents = messages.map((m) => ({

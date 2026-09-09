@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
 import { getAiConfig } from "@/lib/timeline/storage";
+import { resolveGeminiCandidateModels } from "@/lib/timeline/geminiModels";
 
 export const dynamic = "force-dynamic";
 
@@ -60,14 +61,7 @@ RULES:
     let updatedEvent: any = null;
 
     if (isGemini) {
-      const candidateModels = Array.from(new Set([
-        aiConfig.model,
-        "gemini-2.5-flash",
-        "gemini-flash-latest",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-2.5-flash-lite",
-      ])).filter(Boolean);
+      const candidateModels = resolveGeminiCandidateModels(aiConfig.model);
 
       const payload = {
         system_instruction: {
