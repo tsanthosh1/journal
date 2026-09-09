@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApartmentSession, saveApartmentSession } from "@/lib/apartment/storage";
 import { fetchApartments, swapFlatToken } from "@/lib/apartment/client";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const session = await getApartmentSession();
+    const verifiedUserId = await getVerifiedUserId(request);
+    const session = await getApartmentSession(verifiedUserId);
     const token = session?.baseToken || session?.swappedToken;
 
     if (!token) {
@@ -40,7 +41,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to switch flat");
+  }
+
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const body = await request.json();
     const { requestId } = body;
 
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const session = await getApartmentSession();
+    const session = await getApartmentSession(verifiedUserId);
     const baseToken = session?.baseToken || session?.swappedToken;
 
     if (!baseToken) {
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
       flatNumber: meta.flatNumber,
       blockName: meta.blockName,
       role: meta.role,
-    });
+    }, verifiedUserId);
 
     return NextResponse.json({
       success: true,

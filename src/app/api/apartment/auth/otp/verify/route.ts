@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import {
   verifyHomefyOtp,
   fetchApartments,
@@ -15,10 +15,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const body = await request.json();
     const { code, otpToken, mobile } = body;
 
-    const session = await getApartmentSession();
+    const session = await getApartmentSession(verifiedUserId);
     const tokenToUse = otpToken || session?.otpToken;
     const mobileToUse = mobile || session?.mobile;
 
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
       flatNumber: chosenMeta.flatNumber,
       blockName: chosenMeta.blockName,
       role: chosenMeta.role,
-    });
+    }, verifiedUserId);
 
     return NextResponse.json({
       success: true,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApartmentSession, getCachedApartmentBills, saveCachedApartmentBills } from "@/lib/apartment/storage";
 import { fetchHomefyBills } from "@/lib/apartment/client";
 import { syncApartmentBillsToSubscriptions } from "@/lib/apartment/subscriptionBridge";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +15,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
     const status = (searchParams.get("status") || "ALL").toUpperCase() as "ALL" | "PENDING" | "PAID";
     const forceRealtime = searchParams.get("realtime") !== "false";
 
-    const session = await getApartmentSession();
+    const session = await getApartmentSession(verifiedUserId);
     const token = session?.swappedToken || session?.baseToken;
 
     if (!token) {
       // If no token, check if we have any cached bills
-      const cached = await getCachedApartmentBills();
+      const cached = await getCachedApartmentBills(verifiedUserId);
       if (cached.length > 0) {
         return NextResponse.json({
           success: true,
@@ -48,16 +49,16 @@ export async function GET(request: NextRequest) {
         bills = await fetchHomefyBills(token, status);
         // Cache to Firestore in the background
         if (bills.length > 0) {
-          saveCachedApartmentBills(bills).catch((e) => console.warn("Background cache error:", e));
-          syncApartmentBillsToSubscriptions(bills).catch((e) => console.warn("Background bridge sync error:", e));
+          saveCachedApartmentBills(bills, verifiedUserId).catch((e) => console.warn("Background cache error:", e));
+          syncApartmentBillsToSubscriptions(bills, verifiedUserId).catch((e) => console.warn("Background bridge sync error:", e));
         }
       } catch (apiErr: any) {
         console.warn("Homefy live API failed, falling back to cache:", apiErr);
-        bills = await getCachedApartmentBills();
+        bills = await getCachedApartmentBills(verifiedUserId);
         source = "CACHED_FALLBACK";
       }
     } else {
-      bills = await getCachedApartmentBills();
+      bills = await getCachedApartmentBills(verifiedUserId);
       source = "CACHED";
     }
 

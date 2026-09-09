@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { getApartmentSession } from "@/lib/apartment/storage";
 import { fetchReceiptPdfResponse } from "@/lib/apartment/client";
 
@@ -14,11 +14,12 @@ export async function GET(
   }
 
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
     const receiptType = (searchParams.get("type") || "invoice").toLowerCase() as "invoice" | "receipt";
 
-    const session = await getApartmentSession();
+    const session = await getApartmentSession(verifiedUserId);
     const token = session?.swappedToken || session?.baseToken;
 
     if (!token) {

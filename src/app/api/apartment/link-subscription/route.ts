@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { createSubscriptionForApartmentCategory } from "@/lib/apartment/subscriptionBridge";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const body = await request.json();
     const { categoryName, customNickname } = body;
 
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest) {
     const subscription = await createSubscriptionForApartmentCategory(
       categoryName.trim(),
       customNickname?.trim(),
+      verifiedUserId,
     );
 
     return NextResponse.json({

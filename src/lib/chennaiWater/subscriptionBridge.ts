@@ -89,16 +89,23 @@ export async function createSubscriptionForChennaiWater(
   userId: string = "default-user"
 ): Promise<Subscription> {
   const { db } = getFirebaseAdmin();
-  const session = await getChennaiWaterSession();
-  const properties = await getStoredProperties();
-  const activeBill = billNumber || session?.activeBillNo || "15-193-097538";
+  const session = await getChennaiWaterSession(userId);
+  const properties = await getStoredProperties(userId);
+  const activeBill = billNumber || session?.activeBillNo || properties[0]?.prop_no;
+
+  if (!activeBill) {
+    throw new Error("No Chennai Water property or bill number found for this account.");
+  }
 
   const prop =
     properties.find((p) => p.prop_no === activeBill) ||
-    properties[0] ||
-    INITIAL_PROPERTY_SEED;
+    properties[0];
 
-  const receipts = await getStoredReceipts(prop.id);
+  if (!prop) {
+    throw new Error("No matching Chennai Water property found.");
+  }
+
+  const receipts = await getStoredReceipts(prop.id, userId);
   const latestReceipt = receipts[0];
 
   const todayIso = new Date().toISOString();
@@ -112,7 +119,7 @@ export async function createSubscriptionForChennaiWater(
 
   let existingSubDoc = subSnap.docs.find((d) => {
     const s = d.data() as Subscription;
-    return s.chennaiWaterConfig?.billNumber === activeBill;
+    return (!s.userId || s.userId === userId) && s.chennaiWaterConfig?.billNumber === activeBill;
   });
 
   const latestReceiptCycleMonth = latestReceipt
@@ -209,11 +216,14 @@ export async function syncChennaiWaterToSubscriptions(
 
   if (subSnap.empty) return 0;
 
-  const receipts = await getStoredReceipts();
+  const receipts = await getStoredReceipts(undefined, userId);
   let updatedCount = 0;
 
   for (const doc of subSnap.docs) {
     const sub = doc.data() as Subscription;
+    if (userId && sub.userId && sub.userId !== userId) {
+      continue;
+    }
     const billNo = sub.chennaiWaterConfig?.billNumber;
 
     const matchingReceipts = receipts.filter(

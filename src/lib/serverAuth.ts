@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
 
+export interface VerifiedUser {
+  uid: string;
+  email: string | null;
+  primaryUserId: string;
+  candidateUserIds: string[];
+}
+
 /**
  * Extracts and verifies the Firebase ID token from the Authorization header.
- * Returns the decoded token UID on success, or null if missing/invalid.
- *
- * Clients must send: Authorization: Bearer <firebase_id_token>
+ * Returns decoded identity information on success, or null if missing/invalid.
  */
-export async function getVerifiedUserId(request: NextRequest): Promise<string | null> {
+export async function getVerifiedUser(request: NextRequest): Promise<VerifiedUser | null> {
   const authHeader = request.headers.get("Authorization");
   const token = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) return null;
@@ -15,10 +20,33 @@ export async function getVerifiedUserId(request: NextRequest): Promise<string | 
   try {
     const { auth } = getFirebaseAdmin();
     const decoded = await auth.verifyIdToken(token);
-    return decoded.uid;
+    const email = decoded.email || null;
+    const sanitizedEmail = email ? email.replace(/[^a-zA-Z0-9_-]/g, "_") : null;
+    const primaryUserId = sanitizedEmail || decoded.uid;
+    const candidateUserIds = Array.from(
+      new Set([decoded.uid, sanitizedEmail, email].filter(Boolean) as string[]),
+    );
+
+    return {
+      uid: decoded.uid,
+      email,
+      primaryUserId,
+      candidateUserIds,
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * Extracts and verifies the Firebase ID token from the Authorization header.
+ * Returns the verified primary user identifier on success, or undefined if missing/invalid.
+ *
+ * Clients must send: Authorization: Bearer <firebase_id_token>
+ */
+export async function getVerifiedUserId(request: NextRequest): Promise<string | undefined> {
+  const user = await getVerifiedUser(request);
+  return user?.primaryUserId || undefined;
 }
 
 /**
@@ -26,7 +54,7 @@ export async function getVerifiedUserId(request: NextRequest): Promise<string | 
  * All protected API routes must call this and return 401 on false.
  */
 export async function isAuthorizedUser(request: NextRequest): Promise<boolean> {
-  return (await getVerifiedUserId(request)) !== null;
+  return (await getVerifiedUserId(request)) !== undefined;
 }
 
 /**

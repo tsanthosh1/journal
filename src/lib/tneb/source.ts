@@ -49,7 +49,7 @@ export class TnebSource implements SubscriptionSource {
 
     try {
       onLog?.("info", `Syncing TNEB bills for consumer: ${consumerNo}`);
-      const accounts = await getAllTnebAccounts();
+      const accounts = await getAllTnebAccounts(subscription.userId);
       const targetAccount = accounts.find((a) => a.consumerNumber === consumerNo);
 
       if (!targetAccount) {
@@ -58,8 +58,8 @@ export class TnebSource implements SubscriptionSource {
         return { success: false, cyclesUpdated: 0, message: msg };
       }
 
-      const bills = await getTnebBillsForConsumer(consumerNo);
-      const updatedCount = await syncTnebToSubscriptions(targetAccount, bills);
+      const bills = await getTnebBillsForConsumer(consumerNo, subscription.userId);
+      const updatedCount = await syncTnebToSubscriptions(targetAccount, bills, subscription.userId);
       onLog?.("success", `TNEB subscription synchronized (${bills.length} bills processed).`);
 
       return {

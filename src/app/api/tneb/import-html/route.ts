@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { parseTnebServiceDetailsHtml } from "@/lib/tneb/parser";
 import { saveTnebAccountAndBills } from "@/lib/tneb/storage";
 
@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const saved = await saveTnebAccountAndBills(account, bills);
+    const verifiedUserId = await getVerifiedUserId(request);
+    const saved = await saveTnebAccountAndBills(account, bills, verifiedUserId || undefined);
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { createHash } from "crypto";
 import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
 import { RawSmsRecord } from "@/lib/subscriptionTypes";
@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const defaultUserId = data.userId || "default_user";
+    const verifiedUserId = await getVerifiedUserId(request);
+    const defaultUserId = verifiedUserId || data.userId || "default_user";
     const docsToCommit: { docRef: FirebaseFirestore.DocumentReference; record: RawSmsRecord }[] = [];
     let effectiveUserId = defaultUserId;
 
@@ -167,7 +168,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "default_user";
+    const verifiedUserId = await getVerifiedUserId(request);
+    const userId = verifiedUserId || searchParams.get("userId") || "default_user";
     const limitParam = parseInt(searchParams.get("limit") || "100", 10);
 
     const { db } = getFirebaseAdmin();

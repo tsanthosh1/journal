@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { sendHomefyOtp } from "@/lib/apartment/client";
 import { saveApartmentSession } from "@/lib/apartment/storage";
 
@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const body = await request.json();
     const { mobile, countryCode = "+91" } = body;
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       mobile: cleanMobile,
       countryCode: formattedCode,
       otpToken: res.token,
-    });
+    }, verifiedUserId);
 
     return NextResponse.json({
       success: true,

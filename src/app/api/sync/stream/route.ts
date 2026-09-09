@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { runUnifiedSync, UnifiedSyncSource } from "@/lib/sync/unifiedSyncOrchestrator";
 import { SyncLogEvent } from "@/lib/gmail/syncLogger";
 
@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const userId = body.userId || "default_user";
+  const verifiedUserId = await getVerifiedUserId(request);
+  const userId = verifiedUserId || body.userId || "default_user";
   const subscriptionId = body.subscriptionId;
   const mode = body.mode || "current"; // "current" | "historical"
   const maxStatements = body.maxStatements || 24;

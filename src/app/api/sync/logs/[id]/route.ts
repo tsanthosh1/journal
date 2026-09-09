@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSyncLogById } from "@/lib/sync/syncFileLogger";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { getVerifiedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +8,14 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!await isAuthorizedUser(request)) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
     return unauthorizedResponse("Authentication required to view sync log details");
   }
 
   try {
     const { id } = await params;
-    const log = getSyncLogById(id);
+    const log = getSyncLogById(id, user.candidateUserIds);
 
     if (!log) {
       return NextResponse.json(

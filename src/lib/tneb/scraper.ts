@@ -43,7 +43,7 @@ export async function scrapeAndSyncTneb(
     };
   }
 
-  const savedConfig = await getTnebConfig();
+  const savedConfig = await getTnebConfig(options.userId);
   const targetConsumerNumbers =
     options.targetConsumerNumbers && options.targetConsumerNumbers.length > 0
       ? options.targetConsumerNumbers.map((n) => n.trim())
@@ -346,7 +346,7 @@ export async function scrapeAndSyncTneb(
         log("success", `Parsed Consumer #${parsed.account.consumerNumber}: ${parsed.bills.length} billing cycles | Tariff: ${parsed.account.tariffCode} | Dues: ${parsed.account.duesToBePaid}`);
 
         // Save to Firestore
-        const saved = await saveTnebAccountAndBills(parsed.account, parsed.bills);
+        const saved = await saveTnebAccountAndBills(parsed.account, parsed.bills, options.userId);
         log("info", `Persisted account #${parsed.account.consumerNumber} and ${saved.billsSavedCount} bill records to Firestore`);
 
         accounts.push(parsed.account);

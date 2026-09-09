@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { getChennaiWaterSession, getStoredReceipts } from "@/lib/chennaiWater/storage";
 import { fetchReceiptPdf } from "@/lib/chennaiWater/client";
 
@@ -57,9 +57,14 @@ export async function GET(
 
   try {
     const { id } = await context.params;
-    const session = await getChennaiWaterSession();
-    const receipts = await getStoredReceipts();
+    const verifiedUserId = await getVerifiedUserId(req);
+    const session = await getChennaiWaterSession(verifiedUserId);
+    const receipts = await getStoredReceipts(undefined, verifiedUserId);
     const receipt = receipts.find((r) => String(r.id) === String(id) || r.receipt_no === id);
+
+    if (!receipt) {
+      return NextResponse.json({ success: false, error: "Receipt not found." }, { status: 404 });
+    }
 
     // 1. If live session token is available, attempt real-time PDF download from CMWSSB
     if (session?.token && receipt) {
@@ -80,13 +85,13 @@ export async function GET(
     }
 
     // 2. Generate clean official PDF representation from stored receipt
-    const recNo = receipt?.receipt_no || id;
-    const recDt = receipt?.receipt_dt || new Date().toISOString().split("T")[0];
-    const recAmt = receipt ? `INR ${Number(receipt.amount).toFixed(2)}` : "INR 0.00";
-    const pMode = receipt?.payment_mode || "Online / BBPS";
-    const billNo = receipt?.prop_no || session?.activeBillNo || "15-193-097538";
-    const cmcNo = receipt?.cmc_no || session?.activeCmcNo || "15-193-56648-000";
-    const cName = session?.customerName || "SANTHOSH T";
+    const recNo = receipt.receipt_no || id;
+    const recDt = receipt.receipt_dt || new Date().toISOString().split("T")[0];
+    const recAmt = `INR ${Number(receipt.amount).toFixed(2)}`;
+    const pMode = receipt.payment_mode || "Online / BBPS";
+    const billNo = receipt.prop_no || session?.activeBillNo || "";
+    const cmcNo = receipt.cmc_no || session?.activeCmcNo || "";
+    const cName = session?.customerName || "";
 
     const pdfBuffer = generateOfficialPdf("CMWSSB e-RECEIPT / PAYMENT ACKNOWLEDGEMENT", [
       "--------------------------------------------------------------------------------------------------",
@@ -99,7 +104,7 @@ export async function GET(
       `Total Amount Paid:    ${recAmt}`,
       `Payment Status:        SUCCESSFUL / COMPLETED`,
       "--------------------------------------------------------------------------------------------------",
-      `Property Address:     ${session?.address || "THORAIPAKKAM, Chennai - 600097"}`,
+      `Property Address:     ${session?.address || "Chennai, Tamil Nadu"}`,
     ]);
 
     return new NextResponse(pdfBuffer as any, {

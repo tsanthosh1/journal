@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStoredReceipts, getChennaiWaterSession, saveReceipts, INITIAL_PROPERTY_SEED } from "@/lib/chennaiWater/storage";
+import { getStoredReceipts, getChennaiWaterSession, saveReceipts } from "@/lib/chennaiWater/storage";
 import { fetchReceipts } from "@/lib/chennaiWater/client";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
   if (!await isAuthorizedUser(req)) {
@@ -12,10 +12,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const session = await getChennaiWaterSession();
-    const activePropertyId = session?.activePropertyId || INITIAL_PROPERTY_SEED.id;
+    const verifiedUserId = await getVerifiedUserId(req);
+    const session = await getChennaiWaterSession(verifiedUserId);
+    const activePropertyId = session?.activePropertyId;
 
-    let receipts = await getStoredReceipts(activePropertyId);
+    let receipts = activePropertyId
+      ? await getStoredReceipts(activePropertyId, verifiedUserId)
+      : await getStoredReceipts(undefined, verifiedUserId);
 
     // If live session token is available, attempt real-time sync
     if (session?.token && activePropertyId) {
@@ -23,7 +26,7 @@ export async function GET(req: NextRequest) {
         const liveRes = await fetchReceipts(activePropertyId, session.token);
         if (liveRes.receipts.length > 0) {
           receipts = liveRes.receipts;
-          await saveReceipts(receipts);
+          await saveReceipts(receipts, verifiedUserId);
         }
       } catch (err: any) {
         console.warn("Could not fetch real-time receipts from CMWSSB:", err.message);

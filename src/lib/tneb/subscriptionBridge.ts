@@ -11,6 +11,7 @@ import { TnebBillRecord, TnebConsumerAccount } from "./types";
 export async function syncTnebToSubscriptions(
   account: TnebConsumerAccount,
   bills: TnebBillRecord[],
+  userId?: string,
 ): Promise<number> {
   const { db } = getFirebaseAdmin();
   const subSnap = await db
@@ -22,6 +23,9 @@ export async function syncTnebToSubscriptions(
 
   for (const doc of subSnap.docs) {
     const sub = doc.data() as Subscription;
+    if (userId && sub.userId && sub.userId !== userId && !sub.userId.includes(userId)) {
+      continue;
+    }
     if (sub.tnebConfig?.consumerNumber === account.consumerNumber) {
       const latestBill = bills.length > 0 ? bills[0] : account.latestBill;
 
@@ -99,8 +103,8 @@ export async function createSubscriptionForTnebConsumer(
 ): Promise<Subscription> {
   const { db } = getFirebaseAdmin();
   const [account, bills] = await Promise.all([
-    getTnebAccount(consumerNumber),
-    getTnebBillsForConsumer(consumerNumber),
+    getTnebAccount(consumerNumber, userId),
+    getTnebBillsForConsumer(consumerNumber, userId),
   ]);
 
   const latestBill = bills.length > 0 ? bills[0] : account?.latestBill;

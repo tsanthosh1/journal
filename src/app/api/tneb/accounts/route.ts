@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllTnebAccounts } from "@/lib/tneb/storage";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const accounts = await getAllTnebAccounts();
+    const verifiedUserId = await getVerifiedUserId(request);
+    const accounts = await getAllTnebAccounts(verifiedUserId || undefined);
     return NextResponse.json({
       success: true,
       count: accounts.length,

@@ -5,12 +5,13 @@ import {
   getBackgroundSyncWorkerStatus,
 } from "@/lib/sync/backgroundSyncWorker";
 
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { getVerifiedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  if (!await isAuthorizedUser(request)) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
     return unauthorizedResponse("Authentication required to access sync logs", {
       logs: [],
       totalCount: 0,
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const action = searchParams.get("action");
 
-    let logs = listSyncLogs(limit);
+    let logs = listSyncLogs(limit, user.candidateUserIds);
     if (action) {
       logs = logs.filter((l) => l.actionName.toLowerCase().includes(action.toLowerCase()));
     }
@@ -45,12 +46,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
+    return unauthorizedResponse("Authentication required to clear sync logs");
+  }
+
   try {
-    const cleared = clearAllSyncLogs();
+    const cleared = clearAllSyncLogs(user.candidateUserIds);
     return NextResponse.json({
       success: cleared,
-      message: cleared ? "All sync logs cleared from file storage" : "Failed to clear sync logs",
+      message: cleared ? "Your sync logs were cleared from file storage" : "Failed to clear sync logs",
     });
   } catch (error) {
     console.error("DELETE /api/sync/logs error:", error);

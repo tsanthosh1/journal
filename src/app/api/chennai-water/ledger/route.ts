@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStoredProperties, getChennaiWaterSession, INITIAL_PROPERTY_SEED } from "@/lib/chennaiWater/storage";
+import { getStoredProperties, getChennaiWaterSession } from "@/lib/chennaiWater/storage";
 import { fetchCustomerDetails, formatPropNo, formatCmcNo, formatAddress } from "@/lib/chennaiWater/client";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
   if (!await isAuthorizedUser(req)) {
@@ -12,11 +12,21 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const session = await getChennaiWaterSession();
-    const properties = await getStoredProperties();
-    const activeId = session?.activePropertyId || INITIAL_PROPERTY_SEED.id;
+    const verifiedUserId = await getVerifiedUserId(req);
+    const session = await getChennaiWaterSession(verifiedUserId);
+    const properties = await getStoredProperties(verifiedUserId);
+    const activeId = session?.activePropertyId;
 
-    let prop = properties.find((p) => String(p.id) === String(activeId)) || properties[0] || INITIAL_PROPERTY_SEED;
+    let prop = (activeId ? properties.find((p) => String(p.id) === String(activeId)) : null) || properties[0];
+
+    if (!prop) {
+      return NextResponse.json({
+        success: true,
+        property: null,
+        dues: null,
+        message: "No registered property found.",
+      });
+    }
 
     // If live session token is available, query real-time details from CMWSSB
     if (session?.token && prop.id) {

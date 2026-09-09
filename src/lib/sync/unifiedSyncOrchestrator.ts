@@ -116,11 +116,11 @@ export async function runUnifiedSync(
       log("info", `Synchronizing TNEB subscription: ${sub.name}`, { subscriptionId: sub.id });
       try {
         if (sub.tnebConfig?.consumerNumber) {
-          const accounts = await getAllTnebAccounts();
+          const accounts = await getAllTnebAccounts(userId);
           const targetAccount = accounts.find((a) => a.consumerNumber === sub.tnebConfig?.consumerNumber);
           if (targetAccount) {
-            const bills = await getTnebBillsForConsumer(targetAccount.consumerNumber);
-            const count = await syncTnebToSubscriptions(targetAccount, bills);
+            const bills = await getTnebBillsForConsumer(targetAccount.consumerNumber, userId);
+            const count = await syncTnebToSubscriptions(targetAccount, bills, userId);
             tnebResultSummary = { accountsProcessed: 1, subscriptionsUpdated: count };
             log("success", `TNEB subscription synchronized with ${bills.length} stored bills.`);
           } else {
@@ -294,11 +294,11 @@ export async function runUnifiedSync(
     sourcesRun.push("TNEB");
     log("info", "─── Phase 3: Electricity Board (TNEB) Billing Reconciliation ───");
     try {
-      const accounts = await getAllTnebAccounts();
+      const accounts = await getAllTnebAccounts(userId);
       let updatedSubsTotal = 0;
       for (const account of accounts) {
-        const bills = await getTnebBillsForConsumer(account.consumerNumber);
-        const count = await syncTnebToSubscriptions(account, bills);
+        const bills = await getTnebBillsForConsumer(account.consumerNumber, userId);
+        const count = await syncTnebToSubscriptions(account, bills, userId);
         updatedSubsTotal += count;
       }
       tnebResultSummary = {

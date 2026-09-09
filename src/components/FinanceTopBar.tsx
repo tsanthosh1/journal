@@ -11,14 +11,14 @@ export function FinanceTopBar({ title }: { title?: string }) {
   const { userEmail, isSignedIn, isGmailSynced, isLoading, signInWithGoogle, signOut } = useAuth();
 
   const navLinks = [
-    { href: "/timeline", label: "Life Timeline", badge: "AI Voice" },
-    { href: "/subscriptions", label: "Subscriptions & Bills", badge: "Sync" },
-    { href: "/sync/logs", label: "Sync Logs", badge: "Files" },
-    { href: "/tneb", label: "EB Bills", badge: "TNEB" },
-    { href: "/apartment", label: "Apartment", badge: "Homefy" },
-    { href: "/chennai-water", label: "Metro Water", badge: "CMWSSB" },
+    { href: "/timeline", label: "Life Timeline" },
+    { href: "/subscriptions", label: "Subscriptions & Bills" },
+    { href: "/sync/logs", label: "Sync Logs" },
+    { href: "/tneb", label: "EB Bills" },
+    { href: "/apartment", label: "Apartment" },
+    { href: "/chennai-water", label: "Metro Water" },
     { href: "/statements", label: "Statements" },
-    { href: "/parsers", label: "Parsers", badge: "Labs" },
+    { href: "/parsers", label: "Parsers" },
     { href: "/import", label: "Import" },
     { href: "/categories", label: "Categories" },
   ];
@@ -58,11 +58,6 @@ export function FinanceTopBar({ title }: { title?: string }) {
                   }`}
                 >
                   <span>{link.label}</span>
-                  {link.badge && (
-                    <span className="rounded-full bg-cyan-500/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300">
-                      {link.badge}
-                    </span>
-                  )}
                 </Link>
               );
             })}
@@ -198,11 +193,6 @@ export function FinanceTopBar({ title }: { title?: string }) {
                 }`}
               >
                 <span>{link.label}</span>
-                {link.badge && (
-                  <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
-                    {link.badge}
-                  </span>
-                )}
               </Link>
             );
           })}

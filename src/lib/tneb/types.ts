@@ -72,6 +72,7 @@ export interface TnebConsumerAccount {
 }
 
 export interface TnebScrapeOptions {
+  userId?: string;
   username?: string;
   password?: string;
   targetConsumerNumbers?: string[]; // e.g. ["09299011890", "024310032538"]

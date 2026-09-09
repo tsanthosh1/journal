@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTnebConfig, saveTnebConfig } from "@/lib/tneb/storage";
 import { TnebConfig } from "@/lib/tneb/types";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const config = await getTnebConfig();
+    const verifiedUserId = await getVerifiedUserId(request);
+    const config = await getTnebConfig(verifiedUserId || undefined);
     return NextResponse.json({
       success: true,
       config,
@@ -40,7 +41,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updated = await saveTnebConfig(body);
+    const verifiedUserId = await getVerifiedUserId(request);
+    const updated = await saveTnebConfig(body, verifiedUserId || undefined);
     return NextResponse.json({
       success: true,
       message: "TNEB Configuration updated successfully",

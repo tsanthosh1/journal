@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApartmentSession } from "@/lib/apartment/storage";
 import { fetchHomefyBillDetail } from "@/lib/apartment/client";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,12 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse();
+  }
+
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const { id } = await context.params;
 
     if (!id) {
@@ -18,7 +24,7 @@ export async function GET(
       );
     }
 
-    const session = await getApartmentSession();
+    const session = await getApartmentSession(verifiedUserId);
     const token = session?.swappedToken || session?.baseToken;
 
     if (!token) {

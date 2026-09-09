@@ -123,13 +123,39 @@ export const INITIAL_RECEIPTS_SEED: ChennaiWaterReceipt[] = [
   },
 ];
 
+function getUserChennaiWaterDoc(db: FirebaseFirestore.Firestore, userId?: string) {
+  const safeId = userId && userId !== "default_user" && userId !== "default-user" ? userId : "default_user";
+  return db.collection("users").doc(safeId);
+}
+
+function isDeveloperUser(userId?: string): boolean {
+  if (!userId) return false;
+  const lower = userId.toLowerCase();
+  return lower.includes("santhosh") || lower.includes("tsanthosh");
+}
+
 /**
- * Retrieves the stored CMWSSB session from Firestore.
+ * Retrieves the stored CMWSSB session from Firestore scoped under the user.
  */
-export async function getChennaiWaterSession(): Promise<ChennaiWaterSession | null> {
+export async function getChennaiWaterSession(userId?: string): Promise<ChennaiWaterSession | null> {
   const { db } = getFirebaseAdmin();
-  const snap = await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).get();
+  const userDoc = getUserChennaiWaterDoc(db, userId);
+  const snap = await userDoc.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).get();
   if (!snap.exists) {
+    if (isDeveloperUser(userId)) {
+      const legacySnap = await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).get();
+      if (legacySnap.exists) {
+        const raw = legacySnap.data() as ChennaiWaterSession;
+        const session: ChennaiWaterSession = {
+          ...raw,
+          activeBillNo: formatPropNo(raw.activeBillNo),
+          activeCmcNo: formatCmcNo(raw.activeCmcNo),
+          address: formatAddress(raw.address),
+        };
+        await userDoc.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).set(session);
+        return session;
+      }
+    }
     return null;
   }
   const raw = snap.data() as ChennaiWaterSession;
@@ -142,46 +168,64 @@ export async function getChennaiWaterSession(): Promise<ChennaiWaterSession | nu
 }
 
 /**
- * Saves or updates CMWSSB session in Firestore.
+ * Saves or updates CMWSSB session in Firestore scoped under the user.
  */
 export async function saveChennaiWaterSession(
-  session: Partial<ChennaiWaterSession>
+  session: Partial<ChennaiWaterSession>,
+  userId?: string
 ): Promise<void> {
   const { db } = getFirebaseAdmin();
-  const existing = await getChennaiWaterSession();
+  const userDoc = getUserChennaiWaterDoc(db, userId);
+  const existing = await getChennaiWaterSession(userId);
   const merged: ChennaiWaterSession = {
     mobileOrEmail: session.mobileOrEmail || existing?.mobileOrEmail || "",
     registeredCustomerId: session.registeredCustomerId || existing?.registeredCustomerId,
     token: session.token || existing?.token,
-    activePropertyId: session.activePropertyId || existing?.activePropertyId || "193097538",
-    activeBillNo: formatPropNo(session.activeBillNo || existing?.activeBillNo || "15-193-097538"),
-    activeCmcNo: formatCmcNo(session.activeCmcNo || existing?.activeCmcNo || "15-193-56648-000"),
-    customerName: session.customerName || existing?.customerName || "SANTHOSH T",
+    activePropertyId: session.activePropertyId || existing?.activePropertyId || "",
+    activeBillNo: formatPropNo(session.activeBillNo || existing?.activeBillNo || ""),
+    activeCmcNo: formatCmcNo(session.activeCmcNo || existing?.activeCmcNo || ""),
+    customerName: session.customerName || existing?.customerName || "",
     address: formatAddress(session.address || existing?.address || ""),
     updatedAt: new Date().toISOString(),
   };
 
-  await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).set(merged, { merge: true });
+  await userDoc.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).set(merged, { merge: true });
 }
 
 /**
- * Clears stored CMWSSB session.
+ * Clears stored CMWSSB session scoped under the user.
  */
-export async function clearChennaiWaterSession(): Promise<void> {
+export async function clearChennaiWaterSession(userId?: string): Promise<void> {
   const { db } = getFirebaseAdmin();
-  await db.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).delete();
+  const userDoc = getUserChennaiWaterDoc(db, userId);
+  await userDoc.collection(CONFIG_COLLECTION).doc(CONFIG_DOC_ID).delete();
 }
 
 /**
- * Retrieves cached properties from Firestore, seeding initial if empty.
+ * Retrieves cached properties from Firestore scoped under the user.
  */
-export async function getStoredProperties(): Promise<ChennaiWaterProperty[]> {
+export async function getStoredProperties(userId?: string): Promise<ChennaiWaterProperty[]> {
   const { db } = getFirebaseAdmin();
-  const snap = await db.collection(PROPERTIES_COLLECTION).get();
+  const userDoc = getUserChennaiWaterDoc(db, userId);
+  const snap = await userDoc.collection(PROPERTIES_COLLECTION).get();
   if (snap.empty) {
-    // Seed initial property
-    await db.collection(PROPERTIES_COLLECTION).doc(String(INITIAL_PROPERTY_SEED.id)).set(INITIAL_PROPERTY_SEED);
-    return [INITIAL_PROPERTY_SEED];
+    if (isDeveloperUser(userId)) {
+      const legacySnap = await db.collection(PROPERTIES_COLLECTION).get();
+      if (!legacySnap.empty) {
+        const batch = db.batch();
+        const migrated: ChennaiWaterProperty[] = [];
+        for (const doc of legacySnap.docs) {
+          const p = doc.data() as ChennaiWaterProperty;
+          batch.set(userDoc.collection(PROPERTIES_COLLECTION).doc(String(p.id)), p);
+          migrated.push(p);
+        }
+        await batch.commit();
+        return migrated;
+      }
+      await userDoc.collection(PROPERTIES_COLLECTION).doc(String(INITIAL_PROPERTY_SEED.id)).set(INITIAL_PROPERTY_SEED);
+      return [INITIAL_PROPERTY_SEED];
+    }
+    return [];
   }
   return snap.docs.map((d) => {
     const p = d.data() as ChennaiWaterProperty;
@@ -195,13 +239,14 @@ export async function getStoredProperties(): Promise<ChennaiWaterProperty[]> {
 }
 
 /**
- * Saves properties to Firestore.
+ * Saves properties to Firestore scoped under the user.
  */
-export async function saveProperties(properties: ChennaiWaterProperty[]): Promise<void> {
+export async function saveProperties(properties: ChennaiWaterProperty[], userId?: string): Promise<void> {
   const { db } = getFirebaseAdmin();
+  const userDoc = getUserChennaiWaterDoc(db, userId);
   const batch = db.batch();
   for (const prop of properties) {
-    const docRef = db.collection(PROPERTIES_COLLECTION).doc(String(prop.id));
+    const docRef = userDoc.collection(PROPERTIES_COLLECTION).doc(String(prop.id));
     batch.set(
       docRef,
       {
@@ -217,21 +262,36 @@ export async function saveProperties(properties: ChennaiWaterProperty[]): Promis
 }
 
 /**
- * Retrieves receipts from Firestore, seeding initial if empty.
+ * Retrieves receipts from Firestore scoped under the user.
  */
-export async function getStoredReceipts(propertyId?: string | number): Promise<ChennaiWaterReceipt[]> {
+export async function getStoredReceipts(propertyId?: string | number, userId?: string): Promise<ChennaiWaterReceipt[]> {
   const { db } = getFirebaseAdmin();
-  const snap = await db.collection(RECEIPTS_COLLECTION).get();
+  const userDoc = getUserChennaiWaterDoc(db, userId);
+  const snap = await userDoc.collection(RECEIPTS_COLLECTION).get();
   if (snap.empty) {
-    const batch = db.batch();
-    for (const r of INITIAL_RECEIPTS_SEED) {
-      batch.set(db.collection(RECEIPTS_COLLECTION).doc(String(r.id)), r);
+    if (isDeveloperUser(userId)) {
+      const legacySnap = await db.collection(RECEIPTS_COLLECTION).get();
+      if (!legacySnap.empty) {
+        const batch = db.batch();
+        for (const doc of legacySnap.docs) {
+          batch.set(userDoc.collection(RECEIPTS_COLLECTION).doc(doc.id), doc.data());
+        }
+        await batch.commit();
+      } else {
+        const batch = db.batch();
+        for (const r of INITIAL_RECEIPTS_SEED) {
+          batch.set(userDoc.collection(RECEIPTS_COLLECTION).doc(String(r.id)), r);
+        }
+        await batch.commit();
+        return INITIAL_RECEIPTS_SEED;
+      }
+    } else {
+      return [];
     }
-    await batch.commit();
-    return INITIAL_RECEIPTS_SEED;
   }
 
-  let receipts = snap.docs.map((d) => {
+  const currentSnap = await userDoc.collection(RECEIPTS_COLLECTION).get();
+  let receipts = currentSnap.docs.map((d) => {
     const r = d.data() as ChennaiWaterReceipt;
     return {
       ...r,
@@ -269,13 +329,14 @@ export async function getStoredReceipts(propertyId?: string | number): Promise<C
 }
 
 /**
- * Saves receipts to Firestore.
+ * Saves receipts to Firestore scoped under the user.
  */
-export async function saveReceipts(receipts: ChennaiWaterReceipt[]): Promise<void> {
+export async function saveReceipts(receipts: ChennaiWaterReceipt[], userId?: string): Promise<void> {
   const { db } = getFirebaseAdmin();
+  const userDoc = getUserChennaiWaterDoc(db, userId);
   const batch = db.batch();
   for (const r of receipts) {
-    const docRef = db.collection(RECEIPTS_COLLECTION).doc(String(r.id));
+    const docRef = userDoc.collection(RECEIPTS_COLLECTION).doc(String(r.id));
     batch.set(
       docRef,
       {

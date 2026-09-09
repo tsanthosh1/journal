@@ -60,6 +60,9 @@ export async function syncApartmentBillsToSubscriptions(
     }
 
     const sub = doc.data() as Subscription;
+    if (userId && sub.userId && sub.userId !== userId) {
+      continue;
+    }
     const catFilter = sub.apartmentConfig?.categoryFilter || "ALL";
 
     // Filter matching bills
@@ -269,6 +272,9 @@ export async function createSubscriptionForApartmentCategory(
 
   for (const doc of existingSnap.docs) {
     const s = doc.data() as Subscription;
+    if (userId && s.userId && s.userId !== userId) {
+      continue;
+    }
     if (
       s.apartmentConfig?.categoryFilter?.toLowerCase() === categoryName.toLowerCase() &&
       (!s.apartmentConfig?.apartmentId || s.apartmentConfig.apartmentId === session?.apartmentId)

@@ -7,7 +7,7 @@ import {
   formatCmcNo,
   formatAddress,
 } from "@/lib/chennaiWater/client";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
   if (!await isAuthorizedUser(req)) {
@@ -19,8 +19,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const session = await getChennaiWaterSession();
-    let properties = await getStoredProperties();
+    const verifiedUserId = await getVerifiedUserId(req);
+    const session = await getChennaiWaterSession(verifiedUserId);
+    let properties = await getStoredProperties(verifiedUserId);
 
     // If live token is available, refresh from server
     if (session?.token && session?.registeredCustomerId) {
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
         const res = await fetchCustomerProperties(session.registeredCustomerId, session.token);
         if (res.properties.length > 0) {
           properties = res.properties;
-          await saveProperties(properties);
+          await saveProperties(properties, verifiedUserId);
         }
       } catch (err) {
         console.warn("Could not refresh live properties from CMWSSB:", err);
@@ -47,7 +48,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!await isAuthorizedUser(req)) {
+    return unauthorizedResponse("Authentication required to switch property");
+  }
+
   try {
+    const verifiedUserId = await getVerifiedUserId(req);
     const body = await req.json();
     const { propertyId } = body;
 
@@ -55,21 +61,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "propertyId is required." }, { status: 400 });
     }
 
-    const properties = await getStoredProperties();
+    const properties = await getStoredProperties(verifiedUserId);
     const targetProp = properties.find((p) => String(p.id) === String(propertyId));
 
     if (!targetProp) {
       return NextResponse.json({ success: false, error: "Property not found." }, { status: 404 });
     }
 
-    const session = await getChennaiWaterSession();
+    const session = await getChennaiWaterSession(verifiedUserId);
     await saveChennaiWaterSession({
       activePropertyId: String(targetProp.id),
-      activeBillNo: formatPropNo(targetProp.prop_no) || session?.activeBillNo || "15-193-097538",
-      activeCmcNo: formatCmcNo(targetProp.cmc_no) || session?.activeCmcNo || "15-193-56648-000",
-      customerName: targetProp.c_name || session?.customerName || "SANTHOSH T",
+      activeBillNo: targetProp.prop_no ? formatPropNo(targetProp.prop_no) : (session?.activeBillNo || ""),
+      activeCmcNo: targetProp.cmc_no ? formatCmcNo(targetProp.cmc_no) : (session?.activeCmcNo || ""),
+      customerName: targetProp.c_name || session?.customerName || "",
       address: formatAddress(targetProp.addr || session?.address || ""),
-    });
+    }, verifiedUserId);
 
     return NextResponse.json({
       success: true,

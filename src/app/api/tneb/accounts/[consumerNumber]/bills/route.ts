@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTnebAccount, getTnebBillsForConsumer } from "@/lib/tneb/storage";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +21,10 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Missing consumerNumber" }, { status: 400 });
     }
 
+    const verifiedUserId = await getVerifiedUserId(request);
     const [account, bills] = await Promise.all([
-      getTnebAccount(consumerNumber),
-      getTnebBillsForConsumer(consumerNumber),
+      getTnebAccount(consumerNumber, verifiedUserId || undefined),
+      getTnebBillsForConsumer(consumerNumber, verifiedUserId || undefined),
     ]);
 
     return NextResponse.json({

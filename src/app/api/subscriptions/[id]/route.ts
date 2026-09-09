@@ -5,6 +5,7 @@ import {
   listHistoricalCycles,
   updateSubscription,
 } from "@/lib/serverSubscriptions";
+import { getVerifiedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,11 +14,20 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
     const subscription = await getSubscription(id);
 
     if (!subscription) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
+    if (subscription.userId && !user.candidateUserIds.includes(subscription.userId)) {
       return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
     }
 
@@ -55,9 +65,25 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
+    const existing = await getSubscription(id);
+
+    if (!existing) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
+    if (existing.userId && !user.candidateUserIds.includes(existing.userId)) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
     const body = await request.json();
+    delete body.userId;
 
     const updated = await updateSubscription(id, body);
     if (!updated) {
@@ -78,8 +104,23 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
+    const existing = await getSubscription(id);
+
+    if (!existing) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
+    if (existing.userId && !user.candidateUserIds.includes(existing.userId)) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
     await deleteSubscription(id);
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { createSubscriptionForChennaiWater } from "@/lib/chennaiWater/subscriptionBridge";
 
 export async function POST(req: NextRequest) {
@@ -8,13 +8,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const verifiedUserId = await getVerifiedUserId(req);
     const body = await req.json().catch(() => ({}));
-    const { billNumber, customNickname, userId = "default-user" } = body;
+    const { billNumber, customNickname } = body;
 
     const subscription = await createSubscriptionForChennaiWater(
       billNumber,
       customNickname,
-      userId
+      verifiedUserId
     );
 
     return NextResponse.json({

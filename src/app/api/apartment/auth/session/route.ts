@@ -9,7 +9,7 @@ import {
   swapFlatToken,
   fetchHomefyProfile,
 } from "@/lib/apartment/client";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const session = await getApartmentSession();
+    const verifiedUserId = await getVerifiedUserId(request);
+    const session = await getApartmentSession(verifiedUserId);
 
     if (!session || (!session.swappedToken && !session.baseToken)) {
       return NextResponse.json({
@@ -71,7 +72,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAuthorizedUser(request)) {
+    return unauthorizedResponse("Authentication required to configure apartment session");
+  }
+
   try {
+    const verifiedUserId = await getVerifiedUserId(request);
     const body = await request.json();
     const { token, mobile } = body;
 
@@ -143,7 +149,7 @@ export async function POST(request: NextRequest) {
       flatNumber: chosenMeta.flatNumber,
       blockName: chosenMeta.blockName,
       role: chosenMeta.role,
-    });
+    }, verifiedUserId);
 
     return NextResponse.json({
       success: true,
@@ -168,7 +174,8 @@ export async function DELETE(request: NextRequest) {
     return unauthorizedResponse("Authentication required to clear apartment session");
   }
   try {
-    await clearApartmentSession();
+    const verifiedUserId = await getVerifiedUserId(request);
+    await clearApartmentSession(verifiedUserId);
     return NextResponse.json({
       success: true,
       message: "Apartment session cleared successfully.",

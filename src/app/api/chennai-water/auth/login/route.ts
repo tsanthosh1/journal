@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import {
   loginCustomer,
   fetchCustomerProperties,
@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const verifiedUserId = await getVerifiedUserId(req);
     const body = await req.json();
     const { mobileOrEmail, password } = body;
 
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
       properties = propRes.properties;
       if (properties.length > 0) {
         activeProp = properties[0];
-        await saveProperties(properties);
+        await saveProperties(properties, verifiedUserId);
 
         // Fetch detailed ledger for the active property
         const detailRes = await fetchCustomerDetails(activeProp.id, propRes.nextToken);
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
         const recRes = await fetchReceipts(activeProp.id, detailRes.nextToken);
         receipts = recRes.receipts;
         if (receipts.length > 0) {
-          await saveReceipts(receipts);
+          await saveReceipts(receipts, verifiedUserId);
         }
       }
     } catch (fetchErr: any) {
@@ -67,15 +68,15 @@ export async function POST(req: NextRequest) {
       mobileOrEmail,
       registeredCustomerId: loginRes.registeredCustomerId,
       token: loginRes.token,
-      activePropertyId: activeProp?.id || "193097538",
-      activeBillNo: formatPropNo(activeProp?.prop_no) || "15-193-097538",
-      activeCmcNo: formatCmcNo(activeProp?.cmc_no) || "15-193-56648-000",
-      customerName: activeProp?.c_name || loginRes.customerData?.name || "SANTHOSH T",
+      activePropertyId: activeProp?.id || "",
+      activeBillNo: activeProp?.prop_no ? formatPropNo(activeProp.prop_no) : "",
+      activeCmcNo: activeProp?.cmc_no ? formatCmcNo(activeProp.cmc_no) : "",
+      customerName: activeProp?.c_name || loginRes.customerData?.name || "",
       address: formatAddress(activeProp?.addr || ""),
       updatedAt: new Date().toISOString(),
     };
 
-    await saveChennaiWaterSession(sessionData);
+    await saveChennaiWaterSession(sessionData, verifiedUserId);
 
     return NextResponse.json({
       success: true,

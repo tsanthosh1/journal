@@ -28,8 +28,8 @@ export class ChennaiWaterSource implements SubscriptionSource {
 
   createDefaultConfig() {
     return {
-      billNumber: "15-193-097538",
-      existingBillNumber: "15-193-56648-000",
+      billNumber: "",
+      existingBillNumber: "",
       componentType: "TAX_AND_CHARGES" as const,
       autoSyncWithMetroWaterModule: true,
     };

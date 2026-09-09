@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getChennaiWaterSession, clearChennaiWaterSession } from "@/lib/chennaiWater/storage";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 
 export async function GET(req: NextRequest) {
   if (!await isAuthorizedUser(req)) {
@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const session = await getChennaiWaterSession();
+    const verifiedUserId = await getVerifiedUserId(req);
+    const session = await getChennaiWaterSession(verifiedUserId);
     return NextResponse.json({
       success: true,
       session,
@@ -28,7 +29,8 @@ export async function DELETE(req: NextRequest) {
     return unauthorizedResponse("Authentication required to disconnect session");
   }
   try {
-    await clearChennaiWaterSession();
+    const verifiedUserId = await getVerifiedUserId(req);
+    await clearChennaiWaterSession(verifiedUserId);
     return NextResponse.json({ success: true, message: "Disconnected CMWSSB session." });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

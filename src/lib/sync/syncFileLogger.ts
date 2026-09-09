@@ -115,11 +115,15 @@ export function saveSyncLogFile(data: {
 }
 
 /**
- * Returns summaries of all saved sync logs, ordered newest first.
+ * Returns summaries of all saved sync logs for the given candidate user IDs, ordered newest first.
  */
-export function listSyncLogs(limit = 100): SyncFileLogSummary[] {
+export function listSyncLogs(limit = 100, candidateUserIds?: string[]): SyncFileLogSummary[] {
   try {
     ensureLogsDir();
+
+    if (!candidateUserIds || candidateUserIds.length === 0) {
+      return [];
+    }
 
     const files = fs
       .readdirSync(LOGS_DIR)
@@ -129,15 +133,25 @@ export function listSyncLogs(limit = 100): SyncFileLogSummary[] {
 
     const summaries: SyncFileLogSummary[] = [];
 
-    for (const file of files.slice(0, limit)) {
+    for (const file of files) {
       try {
         const content = fs.readFileSync(path.join(LOGS_DIR, file), "utf-8");
         const parsed: SyncFileLogRecord = JSON.parse(content);
+
+        // Strict per-user filtering
+        if (!parsed.userId || !candidateUserIds.includes(parsed.userId)) {
+          continue;
+        }
+
         const { events, ...summary } = parsed;
         summaries.push({
           ...summary,
           eventCount: events ? events.length : 0,
         });
+
+        if (summaries.length >= limit) {
+          break;
+        }
       } catch (err) {
         console.warn(`[syncFileLogger] Error reading log file ${file}:`, err);
       }
@@ -151,28 +165,36 @@ export function listSyncLogs(limit = 100): SyncFileLogSummary[] {
 }
 
 /**
- * Returns full log record by ID.
+ * Returns full log record by ID, verifying user ownership if candidateUserIds are provided.
  */
-export function getSyncLogById(id: string): SyncFileLogRecord | null {
+export function getSyncLogById(id: string, candidateUserIds?: string[]): SyncFileLogRecord | null {
   try {
     ensureLogsDir();
 
     const safeId = path.basename(id).replace(/\.json$/, "");
     const filePath = path.join(LOGS_DIR, `${safeId}.json`);
 
-    if (!fs.existsSync(filePath)) {
-      // Try searching files
+    let content = "";
+    if (fs.existsSync(filePath)) {
+      content = fs.readFileSync(filePath, "utf-8");
+    } else {
       const files = fs.readdirSync(LOGS_DIR).filter((f) => f.endsWith(".json"));
       const match = files.find((f) => f.includes(safeId));
       if (match) {
-        const content = fs.readFileSync(path.join(LOGS_DIR, match), "utf-8");
-        return JSON.parse(content);
+        content = fs.readFileSync(path.join(LOGS_DIR, match), "utf-8");
+      } else {
+        return null;
       }
-      return null;
     }
 
-    const content = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(content);
+    const record: SyncFileLogRecord = JSON.parse(content);
+    if (candidateUserIds && candidateUserIds.length > 0) {
+      if (!record.userId || !candidateUserIds.includes(record.userId)) {
+        return null; // Not authorized to access this log
+      }
+    }
+
+    return record;
   } catch (err) {
     console.error(`[syncFileLogger] Failed to read sync log ${id}:`, err);
     return null;
@@ -180,15 +202,23 @@ export function getSyncLogById(id: string): SyncFileLogRecord | null {
 }
 
 /**
- * Purges all sync log files.
+ * Purges sync log files belonging to candidate user IDs.
  */
-export function clearAllSyncLogs(): boolean {
+export function clearAllSyncLogs(candidateUserIds?: string[]): boolean {
   try {
     ensureLogsDir();
+    if (!candidateUserIds || candidateUserIds.length === 0) {
+      return false;
+    }
     const files = fs.readdirSync(LOGS_DIR).filter((f) => f.endsWith(".json"));
     for (const file of files) {
       try {
-        fs.unlinkSync(path.join(LOGS_DIR, file));
+        const fullPath = path.join(LOGS_DIR, file);
+        const content = fs.readFileSync(fullPath, "utf-8");
+        const parsed: SyncFileLogRecord = JSON.parse(content);
+        if (parsed.userId && candidateUserIds.includes(parsed.userId)) {
+          fs.unlinkSync(fullPath);
+        }
       } catch (_) {}
     }
     return true;

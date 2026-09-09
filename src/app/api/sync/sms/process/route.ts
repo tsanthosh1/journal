@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { runSmsSyncEngine } from "@/lib/sms/smsSyncEngine";
 import { saveSyncLogFile } from "@/lib/sync/syncFileLogger";
 
@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const body = await request.json().catch(() => ({}));
-    const userId = body.userId || searchParams.get("userId") || "default_user";
+    const verifiedUserId = await getVerifiedUserId(request);
+    const userId = verifiedUserId || body.userId || searchParams.get("userId") || "default_user";
 
     if (!userId || userId === "default_user") {
       return NextResponse.json(

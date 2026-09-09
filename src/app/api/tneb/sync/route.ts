@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUserId } from "@/lib/serverAuth";
 import { scrapeAndSyncTneb } from "@/lib/tneb/scraper";
 import { TnebScrapeOptions } from "@/lib/tneb/types";
 
@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
   } catch {
     // empty payload is fine
   }
+
+  const verifiedUserId = await getVerifiedUserId(request);
+  body.userId = verifiedUserId || body.userId;
 
   if (isStream) {
     const encoder = new TextEncoder();
