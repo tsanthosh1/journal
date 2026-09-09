@@ -7,6 +7,8 @@ import {
   ACTIVITY_META_MAP,
 } from "@/lib/timeline/types";
 import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/authFetch";
 import {
   Mic,
   Square,
@@ -37,12 +39,15 @@ export function VoiceRecorderModal({
   onEventsSaved,
   onOpenAiSettings,
 }: VoiceRecorderModalProps) {
+  const { user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interimText, setInterimText] = useState("");
   const [speechSupported, setSpeechSupported] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasRecordedAudio, setHasRecordedAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [extractionResult, setExtractionResult] = useState<AiExtractionResult | null>(null);
   const [candidateEvents, setCandidateEvents] = useState<ExtractedEventCandidate[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +67,8 @@ export function VoiceRecorderModal({
 
   // Load AI configuration status
   useEffect(() => {
-    if (isOpen) {
-      fetch("/api/timeline/ai-config")
+    if (isOpen && user) {
+      authFetch(user, "/api/timeline/ai-config")
         .then((res) => res.json())
         .then((data) => {
           if (data?.config) {
@@ -73,7 +78,7 @@ export function VoiceRecorderModal({
         })
         .catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   // Start raw microphone audio capture
   const startAudioCapture = async (): Promise<boolean> => {
@@ -104,6 +109,15 @@ export function VoiceRecorderModal({
         recorder.onstop = () => {
           if (audioChunksRef.current.length > 0) {
             const blob = new Blob(audioChunksRef.current, { type: audioMimeTypeRef.current });
+            try {
+              const url = URL.createObjectURL(blob);
+              setAudioUrl((prev) => {
+                if (prev) URL.revokeObjectURL(prev);
+                return url;
+              });
+              setHasRecordedAudio(true);
+            } catch (e) {}
+
             const reader = new FileReader();
             reader.onloadend = () => {
               const base64data = reader.result as string;
@@ -271,7 +285,7 @@ export function VoiceRecorderModal({
 
   const handleProcessWithAi = async () => {
     const fullText = (transcript + " " + interimText).trim();
-    if (!fullText && !audioBase64Ref.current) {
+    if (!fullText && !audioBase64Ref.current && !hasRecordedAudio) {
       setError("Please speak or type something before processing.");
       return;
     }
@@ -285,14 +299,16 @@ export function VoiceRecorderModal({
       } catch (e) {}
     }
 
-    // Brief delay to allow MediaRecorder onstop to finalize base64 blob conversion
-    await new Promise((r) => setTimeout(r, 200));
+    // Brief delay to allow MediaRecorder onstop to finalize base64 blob conversion if just stopped
+    if (!audioBase64Ref.current && audioChunksRef.current.length > 0) {
+      await new Promise((r) => setTimeout(r, 300));
+    }
 
     setIsProcessing(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/timeline/process-speech", {
+      const res = await authFetch(user, "/api/timeline/process-speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -306,7 +322,7 @@ export function VoiceRecorderModal({
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Processing failed (${res.status})`);
       }
 
@@ -320,6 +336,7 @@ export function VoiceRecorderModal({
         setInterimText("");
       }
     } catch (err: any) {
+      // Audio copy is intentionally preserved in state & audioBase64Ref so user can retry directly without re-recording
       setError(err.message || "Failed to process speech");
     } finally {
       setIsProcessing(false);
@@ -337,7 +354,7 @@ export function VoiceRecorderModal({
     setError(null);
 
     try {
-      const res = await fetch("/api/timeline/events", {
+      const res = await authFetch(user, "/api/timeline/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -350,7 +367,7 @@ export function VoiceRecorderModal({
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to save events");
       }
 
@@ -369,6 +386,7 @@ export function VoiceRecorderModal({
       try {
         recognitionRef.current?.stop();
       } catch (e) {}
+      stopAudioCapture();
     }
     setIsRecording(false);
     setTranscript("");
@@ -376,6 +394,13 @@ export function VoiceRecorderModal({
     setExtractionResult(null);
     setCandidateEvents([]);
     setError(null);
+    setHasRecordedAudio(false);
+    setAudioUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    audioChunksRef.current = [];
+    audioBase64Ref.current = null;
   };
 
   if (!isOpen) return null;
@@ -416,6 +441,16 @@ export function VoiceRecorderModal({
                   <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" /> {error}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
+                  {!isProcessing && (hasRecordedAudio || transcript.trim()) && !error.includes("Microphone") && (
+                    <button
+                      type="button"
+                      onClick={handleProcessWithAi}
+                      className="rounded-lg bg-cyan-500 px-3 py-1 text-[11px] font-bold text-slate-950 hover:bg-cyan-400 cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <Zap className="w-3 h-3" />
+                      Retry Extract
+                    </button>
+                  )}
                   {error.includes("Microphone") && (
                     <button
                       type="button"
@@ -541,6 +576,24 @@ export function VoiceRecorderModal({
                 </div>
               </div>
 
+              {/* Preserved Audio Playback Banner */}
+              {hasRecordedAudio && audioUrl && (
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-3 text-xs text-emerald-200">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                      <Mic className="w-3.5 h-3.5" />
+                    </span>
+                    <div>
+                      <div className="font-semibold text-white">Audio Recording Preserved</div>
+                      <p className="text-[10px] text-slate-400">
+                        Kept in memory. You can retry AI extraction anytime without re-recording.
+                      </p>
+                    </div>
+                  </div>
+                  <audio src={audioUrl} controls className="h-7 max-w-[200px] outline-none shrink-0" />
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-2">
                 <button
@@ -557,12 +610,18 @@ export function VoiceRecorderModal({
 
                 <button
                   type="button"
-                  disabled={isProcessing || (!transcript.trim() && !interimText.trim())}
+                  disabled={isProcessing || (!transcript.trim() && !interimText.trim() && !hasRecordedAudio)}
                   onClick={handleProcessWithAi}
                   className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-xs font-bold text-slate-950 shadow-md shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 transition disabled:opacity-50 active:scale-95 cursor-pointer"
                 >
                   {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                  <span>{isProcessing ? "Decomposing with AI..." : "Extract Events with AI"}</span>
+                  <span>
+                    {isProcessing
+                      ? "Decomposing with AI..."
+                      : error
+                      ? "Retry Extract with AI"
+                      : "Extract Events with AI"}
+                  </span>
                 </button>
               </div>
             </div>
