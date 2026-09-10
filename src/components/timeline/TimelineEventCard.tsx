@@ -45,11 +45,10 @@ export function TimelineEventCard({
         {/* Compact Spine Connector */}
         <div className="absolute left-0 top-2 bottom-0 w-px bg-slate-800 group-last:bg-transparent" />
         <div
-          className="absolute -left-2 sm:-left-2.5 top-2.5 flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded-full border border-slate-950 shadow-sm text-[9px] sm:text-[10px] transition-transform group-hover:scale-110 shrink-0"
-          style={{ backgroundColor: meta.color }}
+          className="absolute -left-2 top-2 flex items-center justify-center bg-slate-950 py-0.5 transition-transform group-hover:scale-110 shrink-0"
           title={meta.name}
         >
-          <DynamicIcon icon={meta.icon} className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+          <DynamicIcon icon={meta.icon} className="w-4 h-4" style={{ color: meta.color }} />
         </div>
 
         {/* Compact Card Container */}
@@ -191,11 +190,10 @@ export function TimelineEventCard({
       {/* Timeline Node & Vertical Connector Line */}
       <div className="absolute left-0 top-1.5 bottom-0 w-px bg-slate-800 group-last:bg-transparent" />
       <div
-        className="absolute -left-3 top-1 flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full border-2 border-slate-950 shadow-md text-xs transition-transform group-hover:scale-110"
-        style={{ backgroundColor: meta.color }}
+        className="absolute -left-2.5 top-1 flex items-center justify-center bg-slate-950 py-0.5 transition-transform group-hover:scale-110"
         title={meta.name}
       >
-        <DynamicIcon icon={meta.icon} className="w-3.5 h-3.5 text-white" />
+        <DynamicIcon icon={meta.icon} className="w-5 h-5" style={{ color: meta.color }} />
       </div>
 
       {/* Main Card */}
