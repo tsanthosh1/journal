@@ -13,6 +13,7 @@ import { AiConfigModal } from "@/components/timeline/AiConfigModal";
 import { JournalChatDrawer } from "@/components/timeline/JournalChatDrawer";
 import { DynamicIcon } from "@/components/ui/DynamicIcon";
 import { authFetch } from "@/lib/authFetch";
+import Link from "next/link";
 import {
   BookOpen,
   ChevronLeft,
@@ -25,6 +26,8 @@ import {
   LayoutList,
   Menu,
   X,
+  Calendar,
+  Utensils,
 } from "lucide-react";
 
 function getLocalIsoDate(d: Date = new Date()): string {
@@ -209,9 +212,26 @@ export default function TimelinePage() {
                 )}
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                {formattedDateTitle}
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  {formattedDateTitle}
+                </h1>
+
+                {/* Switcher Tabs */}
+                <div className="inline-flex rounded-xl bg-slate-900/90 p-1 border border-white/10 text-xs font-semibold">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                    <LayoutList className="w-3.5 h-3.5" />
+                    <span>Daily Timeline</span>
+                  </div>
+                  <Link
+                    href="/food-calendar"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
+                  >
+                    <Utensils className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Food Calendar</span>
+                  </Link>
+                </div>
+              </div>
 
               {/* Date Navigation: Chevrons flanking the date input with "Today" clickable text below */}
               <div className="flex flex-col items-start gap-1 pt-1">

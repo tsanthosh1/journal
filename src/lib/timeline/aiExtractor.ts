@@ -51,10 +51,35 @@ function heuristicSpeechParser(spokenText: string, targetDate: string): Extracte
       if (calMatch) attributes.caloriesBurned = parseInt(calMatch[1], 10);
     } else if (/breakfast|lunch|dinner|eat|ate|meal|snack|coffee|tea|juice|food/i.test(lower)) {
       activityType = "FOOD";
-      if (/breakfast/i.test(lower)) attributes.mealType = "Breakfast";
-      else if (/lunch/i.test(lower)) attributes.mealType = "Lunch";
-      else if (/dinner/i.test(lower)) attributes.mealType = "Dinner";
-      else if (/coffee|tea/i.test(lower)) attributes.mealType = "Coffee / Beverage";
+      if (/breakfast/i.test(lower)) {
+        attributes.primaryAnchor = "Breakfast";
+        attributes.occasionType = "Main Meal";
+        attributes.occasion = "Breakfast";
+        attributes.mealType = "Breakfast";
+      } else if (/lunch|brunch/i.test(lower)) {
+        attributes.primaryAnchor = "Lunch";
+        attributes.occasionType = "Main Meal";
+        attributes.occasion = "Lunch / Brunch";
+        attributes.mealType = "Lunch";
+      } else if (/dinner|supper/i.test(lower)) {
+        attributes.primaryAnchor = "Dinner";
+        attributes.occasionType = "Main Meal";
+        attributes.occasion = "Dinner / Supper";
+        attributes.mealType = "Dinner";
+      } else if (/snack|coffee|tea|juice|biscuit/i.test(lower)) {
+        attributes.occasionType = "Snack";
+        if (startTime && startTime < "11:30") {
+          attributes.primaryAnchor = "Breakfast";
+          attributes.occasion = "Pre-Breakfast Snack";
+        } else if (startTime && startTime < "16:30") {
+          attributes.primaryAnchor = "Lunch";
+          attributes.occasion = "Post-Lunch Snack";
+        } else {
+          attributes.primaryAnchor = "Dinner";
+          attributes.occasion = "Pre-Dinner Snack";
+        }
+        attributes.mealType = /coffee|tea/i.test(lower) ? "Coffee / Beverage" : "Snack";
+      }
     } else if (/meeting|standup|sprint|code|coding|review|client|work|call with|project/i.test(lower)) {
       activityType = "WORK";
       const withMatch = sentence.match(/(?:with|talking to)\s+([A-Z][a-z]+(?:\s+and\s+[A-Z][a-z]+)*)/);
@@ -167,6 +192,29 @@ RULES:
      - "suggestedType": "string" | "number" | "boolean" | "list" | "unit_number"
      - "unit": optional unit
      - "sampleValue": The extracted value
+
+FOOD OCCASION TAXONOMY (MANDATORY FOR ALL "FOOD" EVENTS):
+Whenever an event has activityType "FOOD", you MUST structure attributes with the Food Occasion Model:
+- "primaryAnchor": One of ["Breakfast", "Lunch", "Dinner"] based on the meal window:
+  - Morning / early day -> "Breakfast"
+  - Midday / afternoon -> "Lunch"
+  - Evening / night -> "Dinner"
+- "occasionType": "Main Meal" or "Snack"
+- "occasion": Exactly one of the following 9 canonical occasions:
+  * Under Breakfast:
+    - "Breakfast" (Main Meal)
+    - "Pre-Breakfast Snack" (Snack before breakfast, early tea/coffee)
+    - "Post-Breakfast Snack" (Snack between breakfast and lunch)
+  * Under Lunch:
+    - "Lunch / Brunch" (Main Meal)
+    - "Pre-Lunch Snack" (Snack immediately before lunch)
+    - "Post-Lunch Snack" (Snack after lunch, afternoon tea/snack)
+  * Under Dinner:
+    - "Dinner / Supper" (Main Meal)
+    - "Pre-Dinner Snack" (Evening snack before dinner)
+    - "Late-Night Snack" (Snack after dinner or before bed)
+- "foodItems": Array of individual dishes or food items mentioned (e.g. ["Idli", "Sambar", "Filter Coffee"]).
+- "mealType": Friendly label (e.g. "Breakfast", "Lunch", "Dinner", "Snack", "Coffee / Beverage").
 
 MULTILINGUAL & TAMIL (தமிழ் / TANGLISH) COMPREHENSION:
 The user narration can be spoken in Tamil (தமிழ்), Tanglish (Tamil words written in English/Latin script or mixed Tamil-English), or English.

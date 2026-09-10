@@ -63,13 +63,38 @@
   },
   "FOOD": {
     "activityType": "FOOD",
-    "version": 1,
+    "version": 2,
     "title": "Food & Nutrition Schema",
-    "description": "Schema for meals, drinks, cooking, dining, and snacks",
+    "description": "Schema for meals, drinks, cooking, dining, and snacks with structured occasion model",
     "jsonSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
       "properties": {
+        "primaryAnchor": {
+          "type": "string",
+          "title": "Primary Anchor",
+          "enum": ["Breakfast", "Lunch", "Dinner"]
+        },
+        "occasionType": {
+          "type": "string",
+          "title": "Occasion Type",
+          "enum": ["Main Meal", "Snack"]
+        },
+        "occasion": {
+          "type": "string",
+          "title": "Food Occasion",
+          "enum": [
+            "Breakfast",
+            "Pre-Breakfast Snack",
+            "Post-Breakfast Snack",
+            "Lunch / Brunch",
+            "Pre-Lunch Snack",
+            "Post-Lunch Snack",
+            "Dinner / Supper",
+            "Pre-Dinner Snack",
+            "Late-Night Snack"
+          ]
+        },
         "mealType": { "type": "string", "title": "Meal Type", "enum": ["Breakfast", "Lunch", "Dinner", "Snack", "Beverage / Coffee"] },
         "foodItems": { "type": "array", "title": "Food Items", "items": { "type": "string" } },
         "location": { "type": "string", "title": "Location or Restaurant" },
@@ -79,6 +104,37 @@
       "additionalProperties": true
     },
     "fields": [
+      {
+        "key": "primaryAnchor",
+        "label": "Primary Anchor",
+        "type": "string",
+        "suggestedValues": ["Breakfast", "Lunch", "Dinner"],
+        "description": "Anchor meal window: Breakfast, Lunch, or Dinner"
+      },
+      {
+        "key": "occasionType",
+        "label": "Occasion Type",
+        "type": "string",
+        "suggestedValues": ["Main Meal", "Snack"],
+        "description": "Main Meal vs Snack"
+      },
+      {
+        "key": "occasion",
+        "label": "Occasion",
+        "type": "string",
+        "suggestedValues": [
+          "Breakfast",
+          "Pre-Breakfast Snack",
+          "Post-Breakfast Snack",
+          "Lunch / Brunch",
+          "Pre-Lunch Snack",
+          "Post-Lunch Snack",
+          "Dinner / Supper",
+          "Pre-Dinner Snack",
+          "Late-Night Snack"
+        ],
+        "description": "Specific occasion in the daily anchor sequence"
+      },
       { "key": "mealType", "label": "Meal Type", "type": "string", "suggestedValues": ["Breakfast", "Lunch", "Dinner", "Snack", "Coffee"] },
       { "key": "foodItems", "label": "Food Items", "type": "list", "description": "Dishes or ingredients consumed" },
       { "key": "location", "label": "Place / Home", "type": "string" },
@@ -86,9 +142,10 @@
       { "key": "dietaryNotes", "label": "Dietary Notes", "type": "string" }
     ],
     "changelog": [
-      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" }
+      { "version": 1, "fieldKey": "*", "fieldType": "baseline", "action": "ADDED", "timestamp": "2026-09-09T00:00:00.000Z", "reason": "Baseline schema" },
+      { "version": 2, "fieldKey": "primaryAnchor,occasionType,occasion", "fieldType": "string", "action": "ADDED", "timestamp": "2026-09-10T00:00:00.000Z", "reason": "Add Food Occasion Taxonomy model" }
     ],
-    "updatedAt": "2026-09-09T00:00:00.000Z"
+    "updatedAt": "2026-09-10T00:00:00.000Z"
   },
   "FINANCE": {
     "activityType": "FINANCE",

@@ -10,6 +10,31 @@ export type StandardActivityType =
   | "REFLECTION"
   | "GENERAL";
 
+export type FoodPrimaryAnchor = "Breakfast" | "Lunch" | "Dinner";
+export type FoodOccasionType = "Main Meal" | "Snack";
+export type FoodOccasion =
+  | "Breakfast"
+  | "Pre-Breakfast Snack"
+  | "Post-Breakfast Snack"
+  | "Lunch / Brunch"
+  | "Pre-Lunch Snack"
+  | "Post-Lunch Snack"
+  | "Dinner / Supper"
+  | "Pre-Dinner Snack"
+  | "Late-Night Snack";
+
+export interface FoodAttributes {
+  primaryAnchor?: FoodPrimaryAnchor;
+  occasionType?: FoodOccasionType;
+  occasion?: FoodOccasion;
+  mealType?: string;
+  foodItems?: string[];
+  location?: string;
+  caloriesEst?: number;
+  dietaryNotes?: string;
+  [key: string]: any;
+}
+
 export interface ActivityMeta {
   id: string;
   name: string;

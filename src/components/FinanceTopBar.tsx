@@ -13,6 +13,7 @@ export function FinanceTopBar({ title }: { title?: string }) {
 
   const navLinks = [
     { href: "/timeline", label: "Life Timeline" },
+    { href: "/food-calendar", label: "Food Calendar" },
     { href: "/subscriptions", label: "Subscriptions & Bills" },
     { href: "/sync/logs", label: "Sync Logs" },
     { href: "/tneb", label: "EB Bills" },
