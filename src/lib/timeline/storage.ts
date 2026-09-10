@@ -124,17 +124,33 @@ export async function getLifeEventsRange(
     ]),
   ).filter(Boolean);
 
-  const snap = await db
-    .collection(EVENTS_COLLECTION)
-    .where("userId", "in", possibleUserIds.slice(0, 10))
-    .where("date", ">=", startDate)
-    .where("date", "<=", endDate)
-    .get();
-
   const events: LifeEvent[] = [];
-  snap.forEach((doc) => {
-    events.push({ ...(doc.data() as LifeEvent), id: doc.id });
-  });
+
+  try {
+    const snap = await db
+      .collection(EVENTS_COLLECTION)
+      .where("userId", "in", possibleUserIds.slice(0, 10))
+      .where("date", ">=", startDate)
+      .where("date", "<=", endDate)
+      .get();
+
+    snap.forEach((doc) => {
+      events.push({ ...(doc.data() as LifeEvent), id: doc.id });
+    });
+  } catch (err: any) {
+    // If Firestore requires a composite index, fallback to querying by userId and filtering date range in memory
+    const snap = await db
+      .collection(EVENTS_COLLECTION)
+      .where("userId", "in", possibleUserIds.slice(0, 10))
+      .get();
+
+    snap.forEach((doc) => {
+      const data = doc.data() as LifeEvent;
+      if (data.date >= startDate && data.date <= endDate) {
+        events.push({ ...data, id: doc.id });
+      }
+    });
+  }
 
   return events.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
