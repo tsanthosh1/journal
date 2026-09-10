@@ -32,20 +32,31 @@ export async function POST(request: NextRequest) {
     const {
       eventId,
       targetDate,
-      targetAnchor,
+      targetAnchor: reqTargetAnchor,
+      targetTime,
       isCopy = false,
     }: {
       eventId: string;
       targetDate: string;
-      targetAnchor: FoodPrimaryAnchor;
+      targetAnchor?: FoodPrimaryAnchor;
+      targetTime?: string;
       isCopy: boolean;
     } = body;
 
-    if (!eventId || !targetDate || !targetAnchor) {
+    if (!eventId || !targetDate) {
       return NextResponse.json(
-        { error: "eventId, targetDate, and targetAnchor are required." },
+        { error: "eventId and targetDate are required." },
         { status: 400 }
       );
+    }
+
+    // Determine target anchor (explicit or derived from targetTime)
+    let targetAnchor: FoodPrimaryAnchor = reqTargetAnchor || "Breakfast";
+    if (!reqTargetAnchor && targetTime) {
+      const h = parseInt(targetTime.split(":")[0], 10);
+      if (h < 11) targetAnchor = "Breakfast";
+      else if (h < 16) targetAnchor = "Lunch";
+      else targetAnchor = "Dinner";
     }
 
     const event = await getLifeEventById(eventId);
@@ -72,10 +83,11 @@ export async function POST(request: NextRequest) {
     if (isCopy) {
       // Create duplicate entry on target date and anchor
       const now = new Date().toISOString();
+      const finalStartTime = targetTime !== undefined ? targetTime : event.startTime;
       const newEventData = {
         userId: event.userId,
         date: targetDate,
-        startTime: event.startTime,
+        startTime: finalStartTime,
         endTime: event.endTime,
         durationMinutes: event.durationMinutes,
         title: event.title,
@@ -97,8 +109,10 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Move entry to target date and anchor
+      const finalStartTime = targetTime !== undefined ? targetTime : event.startTime;
       const updated = await updateLifeEvent(eventId, {
         date: targetDate,
+        startTime: finalStartTime,
         attributes: updatedAttributes,
       });
 

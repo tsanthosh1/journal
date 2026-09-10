@@ -32,6 +32,7 @@ interface FoodEntryModalProps {
   onSaved: () => void;
   date: string; // "YYYY-MM-DD"
   defaultAnchor?: FoodPrimaryAnchor;
+  defaultTime?: string; // "HH:MM"
   existingEvent?: LifeEvent | null;
 }
 
@@ -62,6 +63,7 @@ export function FoodEntryModal({
   onSaved,
   date,
   defaultAnchor = "Breakfast",
+  defaultTime,
   existingEvent,
 }: FoodEntryModalProps) {
   const { user, userId } = useAuth();
@@ -130,7 +132,7 @@ export function FoodEntryModal({
       const defaultOcc = OCCASIONS_BY_ANCHOR[initialAnchor][0].occasion;
       setOccasion(defaultOcc);
       setTitle(`${initialAnchor} Meal`);
-      setStartTime("");
+      setStartTime(defaultTime || "");
       setFoodItems([]);
       setCaloriesEst("");
       setDietaryNotes("");
@@ -138,7 +140,7 @@ export function FoodEntryModal({
     setAiPrompt("");
     setAiAppliedMsg(null);
     setFeedbackMsg(null);
-  }, [isOpen, existingEvent, defaultAnchor]);
+  }, [isOpen, existingEvent, defaultAnchor, defaultTime]);
 
   // When primaryAnchor changes, ensure occasion matches allowed occasions for that anchor
   const handleAnchorChange = (newAnchor: FoodPrimaryAnchor) => {

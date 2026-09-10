@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -20,56 +20,26 @@ import {
   Edit2,
   Calendar,
   LayoutList,
-  Coffee,
   Sun,
   Moon,
   Loader2,
-  X,
   CheckCircle2,
   Copy,
   Move,
-  Mic,
   Send,
   AlertCircle,
 } from "lucide-react";
 
-const PRIMARY_ANCHORS: {
-  anchor: FoodPrimaryAnchor;
-  title: string;
-  subtitle: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-  badgeBg: string;
-  badgeBorder: string;
-}[] = [
-  {
-    anchor: "Breakfast",
-    title: "Breakfast Anchor",
-    subtitle: "Breakfast & Morning Snacks",
-    icon: Sun,
-    color: "text-amber-400",
-    badgeBg: "bg-amber-500/10",
-    badgeBorder: "border-amber-500/30",
-  },
-  {
-    anchor: "Lunch",
-    title: "Lunch Anchor",
-    subtitle: "Lunch / Brunch & Afternoon Snacks",
-    icon: Utensils,
-    color: "text-emerald-400",
-    badgeBg: "bg-emerald-500/10",
-    badgeBorder: "border-emerald-500/30",
-  },
-  {
-    anchor: "Dinner",
-    title: "Dinner Anchor",
-    subtitle: "Dinner / Supper & Evening / Late Snacks",
-    icon: Moon,
-    color: "text-indigo-400",
-    badgeBg: "bg-indigo-500/10",
-    badgeBorder: "border-indigo-500/30",
-  },
-];
+// Google Calendar time scale hours: 6 AM to 11 PM
+const START_HOUR = 6;
+const END_HOUR = 23;
+const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+
+function formatHourLabel(h: number): string {
+  const meridiem = h >= 12 ? "PM" : "AM";
+  const display = h % 12 === 0 ? 12 : h % 12;
+  return `${display} ${meridiem}`;
+}
 
 function getStartOfWeek(date: Date): Date {
   const d = new Date(date);
@@ -88,6 +58,38 @@ function formatDateIso(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// Derive sensible hour from occasion/anchor if startTime is not explicitly specified
+function getEventHour(ev: LifeEvent): number {
+  if (ev.startTime) {
+    const parts = ev.startTime.split(":");
+    const h = parseInt(parts[0], 10);
+    if (!isNaN(h) && h >= 0 && h <= 23) {
+      return h;
+    }
+  }
+
+  const occasion = (ev.attributes?.occasion || "").toLowerCase();
+  const anchor = (ev.attributes?.primaryAnchor || "").toLowerCase();
+
+  if (occasion.includes("pre-breakfast") || occasion.includes("early")) return 7;
+  if (occasion.includes("breakfast") || anchor === "breakfast") return 8;
+  if (occasion.includes("post-breakfast")) return 10;
+  if (occasion.includes("pre-lunch")) return 12;
+  if (occasion.includes("lunch") || occasion.includes("brunch") || anchor === "lunch") return 13;
+  if (occasion.includes("post-lunch") || occasion.includes("tea")) return 16;
+  if (occasion.includes("pre-dinner") || occasion.includes("evening")) return 18;
+  if (occasion.includes("dinner") || occasion.includes("supper") || anchor === "dinner") return 20;
+  if (occasion.includes("late-night") || occasion.includes("bedtime")) return 22;
+
+  return 12;
+}
+
+function inferAnchorFromHour(hour: number): FoodPrimaryAnchor {
+  if (hour < 11) return "Breakfast";
+  if (hour < 16) return "Lunch";
+  return "Dinner";
+}
+
 export default function FoodCalendarPage() {
   const { user, userId, isSignedIn } = useAuth();
 
@@ -102,16 +104,20 @@ export default function FoodCalendarPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTargetDate, setModalTargetDate] = useState<string>("");
   const [modalTargetAnchor, setModalTargetAnchor] = useState<FoodPrimaryAnchor>("Breakfast");
+  const [modalTargetTime, setModalTargetTime] = useState<string>("");
   const [modalExistingEvent, setModalExistingEvent] = useState<LifeEvent | null>(null);
 
   // Drag-and-Drop state
   const [draggedEvent, setDraggedEvent] = useState<LifeEvent | null>(null);
   const [isAltPressed, setIsAltPressed] = useState(false);
-  const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
+  const [dragOverSlotKey, setDragOverSlotKey] = useState<string | null>(null);
 
   // Dedicated Food AI bar state
   const [quickAiText, setQuickAiText] = useState("");
   const [isSubmittingQuickAi, setIsSubmittingQuickAi] = useState(false);
+
+  // Auto-scroll ref
+  const calendarGridRef = useRef<HTMLDivElement>(null);
 
   // Track Alt/Option key on window
   useEffect(() => {
@@ -133,7 +139,7 @@ export default function FoodCalendarPage() {
     };
   }, []);
 
-  // Generate 7 days of the active week
+  // Generate 7 days of the active week (Mon - Sun)
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(currentWeekStart);
@@ -197,54 +203,61 @@ export default function FoodCalendarPage() {
     return formatDateIso(currentWeekStart) === formatDateIso(getStartOfWeek(new Date()));
   }, [currentWeekStart]);
 
-  // Group events by Date and Primary Anchor
-  const foodEventsMatrix = useMemo(() => {
-    const map: Record<string, Record<FoodPrimaryAnchor, LifeEvent[]>> = {};
+  // Group events by Date and Hour for the Google Calendar timeline grid
+  const eventsByDayAndHour = useMemo(() => {
+    // map[date][hour] = LifeEvent[]
+    const map: Record<string, Record<number, LifeEvent[]>> = {};
 
     for (const d of weekDays) {
-      map[d.iso] = {
-        Breakfast: [],
-        Lunch: [],
-        Dinner: [],
-      };
+      map[d.iso] = {};
+      for (const h of HOURS) {
+        map[d.iso][h] = [];
+      }
     }
 
     for (const ev of events) {
       if (!map[ev.date]) continue;
 
-      let anchor: FoodPrimaryAnchor = "Breakfast";
-      const rawAnchor = ev.attributes?.primaryAnchor;
-      const rawMealType = (ev.attributes?.mealType || ev.title || "").toLowerCase();
-      const rawOccasion = (ev.attributes?.occasion || "").toLowerCase();
+      let h = getEventHour(ev);
+      // Clamp to visible hours
+      if (h < START_HOUR) h = START_HOUR;
+      if (h > END_HOUR) h = END_HOUR;
 
-      if (rawAnchor === "Breakfast" || rawAnchor === "Lunch" || rawAnchor === "Dinner") {
-        anchor = rawAnchor;
-      } else if (rawMealType.includes("lunch") || rawOccasion.includes("lunch") || rawOccasion.includes("brunch")) {
-        anchor = "Lunch";
-      } else if (rawMealType.includes("dinner") || rawMealType.includes("supper") || rawOccasion.includes("dinner") || rawOccasion.includes("supper") || rawOccasion.includes("late-night")) {
-        anchor = "Dinner";
-      } else if (ev.startTime) {
-        const h = parseInt(ev.startTime.split(":")[0], 10);
-        if (h >= 11 && h < 16) anchor = "Lunch";
-        else if (h >= 16) anchor = "Dinner";
-        else anchor = "Breakfast";
+      map[ev.date][h].push(ev);
+    }
+
+    // Sort events in each hour slot by exact startTime
+    for (const d of weekDays) {
+      for (const h of HOURS) {
+        map[d.iso][h].sort((a, b) => {
+          const tA = a.startTime || "";
+          const tB = b.startTime || "";
+          return tA.localeCompare(tB);
+        });
       }
-
-      map[ev.date][anchor].push(ev);
     }
 
     return map;
   }, [weekDays, events]);
 
-  // Open modal for direct field editing or adding
+  // Open modal for direct field editing or adding at a clicked hour
   const handleOpenModal = (
     dateIso: string,
-    anchor: FoodPrimaryAnchor,
+    hour?: number,
     existingEvent?: LifeEvent
   ) => {
     setModalTargetDate(dateIso);
-    setModalTargetAnchor(anchor);
-    setModalExistingEvent(existingEvent || null);
+    if (existingEvent) {
+      setModalExistingEvent(existingEvent);
+      setModalTargetAnchor((existingEvent.attributes?.primaryAnchor as FoodPrimaryAnchor) || "Breakfast");
+      setModalTargetTime(existingEvent.startTime || "");
+    } else {
+      const chosenHour = hour !== undefined ? hour : 8;
+      const formattedTime = `${String(chosenHour).padStart(2, "0")}:00`;
+      setModalExistingEvent(null);
+      setModalTargetAnchor(inferAnchorFromHour(chosenHour));
+      setModalTargetTime(formattedTime);
+    }
     setIsModalOpen(true);
   };
 
@@ -294,35 +307,34 @@ export default function FoodCalendarPage() {
     e.dataTransfer.setData("text/plain", ev.id);
   };
 
-  const handleDragOver = (e: React.DragEvent, cellKey: string) => {
+  const handleDragOver = (e: React.DragEvent, slotKey: string) => {
     e.preventDefault();
     const isCopy = e.altKey || isAltPressed;
     e.dataTransfer.dropEffect = isCopy ? "copy" : "move";
-    if (dragOverCellKey !== cellKey) {
-      setDragOverCellKey(cellKey);
+    if (dragOverSlotKey !== slotKey) {
+      setDragOverSlotKey(slotKey);
     }
   };
 
-  const handleDragLeave = (e: React.DragEvent, cellKey: string) => {
-    if (dragOverCellKey === cellKey) {
-      setDragOverCellKey(null);
+  const handleDragLeave = (e: React.DragEvent, slotKey: string) => {
+    if (dragOverSlotKey === slotKey) {
+      setDragOverSlotKey(null);
     }
   };
 
-  const handleDrop = async (
-    e: React.DragEvent,
-    targetDate: string,
-    targetAnchor: FoodPrimaryAnchor
-  ) => {
+  const handleDrop = async (e: React.DragEvent, targetDate: string, targetHour: number) => {
     e.preventDefault();
-    setDragOverCellKey(null);
+    setDragOverSlotKey(null);
 
     if (!draggedEvent) return;
 
     const isCopy = e.altKey || isAltPressed;
+    const targetTime = `${String(targetHour).padStart(2, "0")}:00`;
+    const targetAnchor = inferAnchorFromHour(targetHour);
+
     const sameSlot =
       draggedEvent.date === targetDate &&
-      draggedEvent.attributes?.primaryAnchor === targetAnchor;
+      getEventHour(draggedEvent) === targetHour;
 
     if (sameSlot && !isCopy) {
       setDraggedEvent(null);
@@ -335,13 +347,14 @@ export default function FoodCalendarPage() {
         ...draggedEvent,
         id: "temp-" + Date.now(),
         date: targetDate,
+        startTime: targetTime,
         attributes: {
           ...(draggedEvent.attributes || {}),
           primaryAnchor: targetAnchor,
         },
       };
       setEvents((prev) => [...prev, clonedEvent]);
-      setStatusMessage(`Duplicating to ${targetDate} (${targetAnchor})...`);
+      setStatusMessage(`Duplicating to ${targetDate} at ${formatHourLabel(targetHour)}...`);
     } else {
       setEvents((prev) =>
         prev.map((item) =>
@@ -349,6 +362,7 @@ export default function FoodCalendarPage() {
             ? {
                 ...item,
                 date: targetDate,
+                startTime: targetTime,
                 attributes: {
                   ...(item.attributes || {}),
                   primaryAnchor: targetAnchor,
@@ -357,7 +371,7 @@ export default function FoodCalendarPage() {
             : item
         )
       );
-      setStatusMessage(`Moving to ${targetDate} (${targetAnchor})...`);
+      setStatusMessage(`Moving to ${targetDate} at ${formatHourLabel(targetHour)}...`);
     }
 
     try {
@@ -368,6 +382,7 @@ export default function FoodCalendarPage() {
           eventId: draggedEvent.id,
           targetDate,
           targetAnchor,
+          targetTime,
           isCopy,
         }),
       });
@@ -391,15 +406,15 @@ export default function FoodCalendarPage() {
   return (
     <AuthGuard
       title="Weekly Food Calendar"
-      description="View and log your meals and snacks in a weekly calendar view structured around your daily meal anchors."
+      description="View and log your meals and snacks in a weekly calendar view structured on an hourly timeline scale."
       icon="utensils"
       badge="Private & Encrypted"
     >
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col select-none">
         <FinanceTopBar title="Food Calendar" />
 
-        <main className="mx-auto flex-1 w-full max-w-7xl px-3 sm:px-6 py-6 pb-28 sm:pb-12 space-y-6">
-          {/* Top Control & Navigation */}
+        <main className="mx-auto flex-1 w-full max-w-7xl px-2 sm:px-6 py-6 pb-28 sm:pb-12 space-y-6">
+          {/* Top Control & Hero Banner */}
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-amber-950/20 p-6 sm:p-8 shadow-2xl backdrop-blur-md">
             <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
@@ -412,7 +427,7 @@ export default function FoodCalendarPage() {
                     <Utensils className="w-4 h-4 text-amber-300" />
                   </span>
                   <span className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">
-                    Nutrition & Food Calendar
+                    Nutrition Timeline
                   </span>
                 </div>
 
@@ -438,11 +453,11 @@ export default function FoodCalendarPage() {
                 </div>
 
                 <p className="text-xs text-slate-400 max-w-xl">
-                  Weekly diet overview with the 3 Primary Anchors. Drag meal cards to move them, or hold{" "}
+                  Weekly food timeline using time as the scale. Drag cards to change meal time or day, or hold{" "}
                   <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-white/10 font-mono text-[11px]">
                     Option (Alt)
                   </kbd>{" "}
-                  while dragging to copy. Click any entry or cell to edit fields and master food items.
+                  to duplicate. Click any hour slot to log meals.
                 </p>
               </div>
 
@@ -501,7 +516,7 @@ export default function FoodCalendarPage() {
                     type="text"
                     value={quickAiText}
                     onChange={(e) => setQuickAiText(e.target.value)}
-                    placeholder="Log meals with AI (e.g., 'Had 2 idlis, vada and filter coffee for breakfast at 8:30am')..."
+                    placeholder="Log meals with AI (e.g., 'Had 2 idlis, vada and filter coffee at 8:30am')..."
                     disabled={isSubmittingQuickAi}
                     className="w-full rounded-2xl border border-white/15 bg-slate-950/80 pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
                   />
@@ -524,7 +539,7 @@ export default function FoodCalendarPage() {
             </div>
           </div>
 
-          {/* Feedback or Status Toast */}
+          {/* Feedback Banner */}
           {statusMessage && (
             <div className="flex items-center gap-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-300 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
@@ -539,154 +554,176 @@ export default function FoodCalendarPage() {
             </div>
           )}
 
-          {/* Weekly Calendar Grid with Drag & Drop */}
-          <div className="rounded-3xl border border-white/10 bg-slate-900/60 shadow-2xl backdrop-blur-md overflow-hidden">
-            {/* Day Header Row */}
-            <div className="grid grid-cols-7 border-b border-white/10 bg-slate-950/80">
-              {weekDays.map((day) => (
-                <div
-                  key={day.iso}
-                  className={`p-3 text-center border-r last:border-r-0 border-white/5 transition ${
-                    day.isToday ? "bg-amber-500/10" : ""
-                  }`}
-                >
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    {day.dayName}
-                  </div>
-                  <div className="flex items-center justify-center gap-1 mt-0.5">
-                    <span
-                      className={`text-base sm:text-lg font-black ${
-                        day.isToday
-                          ? "text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40"
-                          : "text-white"
-                      }`}
-                    >
-                      {day.dayNum}
-                    </span>
-                    <span className="text-[10px] text-slate-500">{day.monthShort}</span>
-                  </div>
+          {/* Google Calendar-Style Weekly Time Grid */}
+          <div
+            ref={calendarGridRef}
+            className="rounded-3xl border border-white/10 bg-slate-900/60 shadow-2xl backdrop-blur-md overflow-hidden overflow-x-auto"
+          >
+            <div className="min-w-[780px]">
+              {/* Day Header Row (Sticky) */}
+              <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-white/10 bg-slate-950/90 sticky top-0 z-20 backdrop-blur-md">
+                {/* Top-left corner time icon */}
+                <div className="p-3 border-r border-white/10 flex items-center justify-center text-slate-500">
+                  <Clock className="w-4 h-4" />
                 </div>
-              ))}
-            </div>
 
-            {/* Anchor Rows (Breakfast, Lunch, Dinner) */}
-            <div className="divide-y divide-white/10">
-              {PRIMARY_ANCHORS.map((anchorSpec) => {
-                const IconComponent = anchorSpec.icon;
-
-                return (
-                  <div key={anchorSpec.anchor} className="flex flex-col">
-                    {/* Anchor Row Banner */}
-                    <div className="px-4 py-2 bg-slate-950/60 border-b border-white/5 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <IconComponent className={`w-4 h-4 ${anchorSpec.color}`} />
-                        <span className="text-xs font-bold text-white tracking-wide">
-                          {anchorSpec.title}
-                        </span>
-                        <span className="text-[10px] text-slate-400 hidden sm:inline">
-                          — {anchorSpec.subtitle}
-                        </span>
-                      </div>
+                {/* 7 Days of the Week */}
+                {weekDays.map((day) => (
+                  <div
+                    key={day.iso}
+                    className={`p-3 text-center border-r last:border-r-0 border-white/10 transition ${
+                      day.isToday ? "bg-amber-500/10" : ""
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      {day.dayName}
                     </div>
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <span
+                        className={`text-base sm:text-lg font-black ${
+                          day.isToday
+                            ? "text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40"
+                            : "text-white"
+                        }`}
+                      >
+                        {day.dayNum}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{day.monthShort}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                    {/* 7 Columns for this Anchor */}
-                    <div className="grid grid-cols-7 divide-x divide-white/5 min-h-[140px]">
+              {/* Time Grid: Hourly Rows */}
+              <div className="divide-y divide-white/5 bg-slate-950/30">
+                {HOURS.map((hour) => {
+                  return (
+                    <div
+                      key={hour}
+                      className="grid grid-cols-[60px_repeat(7,1fr)] min-h-[72px] transition-colors"
+                    >
+                      {/* Left Time Gutter */}
+                      <div className="p-2 border-r border-white/10 text-[11px] font-mono font-medium text-slate-400 text-right pr-2.5 select-none shrink-0 pt-2">
+                        {formatHourLabel(hour)}
+                      </div>
+
+                      {/* 7 Day Columns for this Hour */}
                       {weekDays.map((day) => {
-                        const cellKey = `${day.iso}-${anchorSpec.anchor}`;
-                        const isDragOver = dragOverCellKey === cellKey;
-                        const cellEvents = foodEventsMatrix[day.iso]?.[anchorSpec.anchor] || [];
+                        const slotKey = `${day.iso}-${hour}`;
+                        const isDragOver = dragOverSlotKey === slotKey;
+                        const slotEvents = eventsByDayAndHour[day.iso]?.[hour] || [];
 
                         return (
                           <div
-                            key={cellKey}
-                            onDragOver={(e) => handleDragOver(e, cellKey)}
-                            onDragLeave={(e) => handleDragLeave(e, cellKey)}
-                            onDrop={(e) => handleDrop(e, day.iso, anchorSpec.anchor)}
-                            className={`p-2 flex flex-col justify-between group/cell transition-all relative ${
-                              day.isToday ? "bg-amber-500/[0.02]" : ""
+                            key={slotKey}
+                            onDragOver={(e) => handleDragOver(e, slotKey)}
+                            onDragLeave={(e) => handleDragLeave(e, slotKey)}
+                            onDrop={(e) => handleDrop(e, day.iso, hour)}
+                            onClick={(e) => {
+                              // If clicked empty slot area, open add modal at this hour
+                              if ((e.target as HTMLElement).closest(".meal-card")) return;
+                              handleOpenModal(day.iso, hour);
+                            }}
+                            className={`p-1.5 border-r last:border-r-0 border-white/5 transition-all relative group/slot cursor-pointer ${
+                              day.isToday ? "bg-amber-500/[0.015]" : ""
                             } ${
                               isDragOver
-                                ? "bg-amber-500/15 border-2 border-dashed border-amber-400/80 rounded-xl"
-                                : "hover:bg-white/[0.02]"
+                                ? "bg-amber-500/20 ring-2 ring-amber-400 ring-inset rounded-lg"
+                                : "hover:bg-white/[0.03]"
                             }`}
                           >
-                            {/* Drag-over indicator banner */}
+                            {/* Drag-over indicator badge */}
                             {isDragOver && (
-                              <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center gap-1 rounded-lg bg-amber-500 text-slate-950 py-1 text-[10px] font-extrabold shadow-lg animate-pulse">
+                              <div className="absolute inset-x-1 top-1 z-20 flex items-center justify-center gap-1 rounded-md bg-amber-500 text-slate-950 py-0.5 text-[9px] font-extrabold shadow-lg animate-pulse">
                                 {isAltPressed ? (
                                   <>
-                                    <Copy className="w-3 h-3" />
-                                    <span>Drop to Copy</span>
+                                    <Copy className="w-2.5 h-2.5" />
+                                    <span>Copy at {formatHourLabel(hour)}</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Move className="w-3 h-3" />
-                                    <span>Drop to Move</span>
+                                    <Move className="w-2.5 h-2.5" />
+                                    <span>Move to {formatHourLabel(hour)}</span>
                                   </>
                                 )}
                               </div>
                             )}
 
-                            {/* Cell Content: Meal Event Cards */}
-                            <div className="space-y-2 flex-1">
-                              {cellEvents.map((ev) => {
+                            {/* Sequential Meal Cards inside this hour slot */}
+                            <div className="space-y-1.5">
+                              {slotEvents.map((ev) => {
                                 const isSnack = ev.attributes?.occasionType === "Snack";
+                                const anchor = (ev.attributes?.primaryAnchor as FoodPrimaryAnchor) || inferAnchorFromHour(hour);
                                 const foodItems = ev.attributes?.foodItems as string[] | undefined;
                                 const calories = ev.attributes?.caloriesEst;
                                 const isBeingDragged = draggedEvent?.id === ev.id;
+
+                                const anchorBorder =
+                                  anchor === "Breakfast"
+                                    ? "border-amber-500/40 hover:border-amber-400 bg-amber-500/10"
+                                    : anchor === "Lunch"
+                                    ? "border-emerald-500/40 hover:border-emerald-400 bg-emerald-500/10"
+                                    : "border-indigo-500/40 hover:border-indigo-400 bg-indigo-500/10";
 
                                 return (
                                   <div
                                     key={ev.id}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, ev)}
-                                    onClick={() => handleOpenModal(day.iso, anchorSpec.anchor, ev)}
-                                    className={`group/card relative rounded-xl border p-2.5 transition-all duration-200 cursor-grab active:cursor-grabbing hover:scale-[1.02] hover:shadow-lg ${
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenModal(day.iso, hour, ev);
+                                    }}
+                                    className={`meal-card group/card relative rounded-xl border p-2 shadow-sm transition-all duration-200 cursor-grab active:cursor-grabbing hover:scale-[1.01] hover:shadow-md ${
                                       isBeingDragged ? "opacity-30 scale-95 border-dashed" : ""
                                     } ${
                                       isSnack
-                                        ? "bg-slate-950/70 border-white/10 hover:border-amber-500/40"
-                                        : `${anchorSpec.badgeBg} ${anchorSpec.badgeBorder} hover:border-amber-400/60`
+                                        ? "bg-slate-950/85 border-white/15 hover:border-amber-400/50"
+                                        : anchorBorder
                                     }`}
                                   >
-                                    <div className="flex items-start justify-between gap-1">
+                                    <div className="flex items-center justify-between gap-1">
                                       <span
-                                        className={`text-[10px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-md ${
+                                        className={`text-[9px] font-extrabold tracking-wider uppercase px-1.5 py-0.5 rounded ${
                                           isSnack
-                                            ? "bg-slate-800 text-slate-300 border border-white/5"
-                                            : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                            ? "bg-slate-800 text-slate-300 border border-white/10"
+                                            : anchor === "Breakfast"
+                                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                            : anchor === "Lunch"
+                                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                            : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
                                         }`}
                                       >
-                                        {ev.attributes?.occasion || (isSnack ? "Snack" : "Meal")}
+                                        {ev.attributes?.occasion || (isSnack ? "Snack" : anchor)}
                                       </span>
 
                                       {ev.startTime && (
                                         <span className="flex items-center gap-0.5 text-[9px] text-slate-400 font-mono">
-                                          <Clock className="w-2.5 h-2.5" />
+                                          <Clock className="w-2.5 h-2.5 text-slate-500" />
                                           {ev.startTime}
                                         </span>
                                       )}
                                     </div>
 
-                                    {/* Food Title */}
-                                    <div className="text-xs font-bold text-white mt-1.5 line-clamp-2 leading-tight">
+                                    {/* Meal Title */}
+                                    <div className="text-xs font-bold text-white mt-1 leading-snug line-clamp-2">
                                       {ev.title}
                                     </div>
 
                                     {/* Food Items Pill List */}
                                     {foodItems && foodItems.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1.5">
-                                        {foodItems.slice(0, 3).map((item, idx) => (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {foodItems.slice(0, 2).map((item, idx) => (
                                           <span
                                             key={idx}
-                                            className="text-[9px] font-medium bg-black/40 text-slate-300 px-1.5 py-0.5 rounded border border-white/5 truncate max-w-[90px]"
+                                            className="text-[9px] font-medium bg-black/40 text-slate-300 px-1.5 py-0.5 rounded border border-white/5 truncate max-w-[85px]"
                                           >
                                             {item}
                                           </span>
                                         ))}
-                                        {foodItems.length > 3 && (
+                                        {foodItems.length > 2 && (
                                           <span className="text-[9px] text-slate-500">
-                                            +{foodItems.length - 3}
+                                            +{foodItems.length - 2}
                                           </span>
                                         )}
                                       </div>
@@ -694,14 +731,14 @@ export default function FoodCalendarPage() {
 
                                     {/* Calories badge */}
                                     {calories && (
-                                      <div className="flex items-center gap-1 mt-1.5 text-[10px] font-medium text-amber-400">
-                                        <Flame className="w-3 h-3" />
+                                      <div className="flex items-center gap-1 mt-1 text-[9px] font-medium text-amber-400">
+                                        <Flame className="w-2.5 h-2.5" />
                                         <span>{calories} kcal</span>
                                       </div>
                                     )}
 
-                                    {/* Hover Edit Action Hint */}
-                                    <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/card:opacity-100 transition-opacity bg-slate-900/90 rounded-md p-1 text-slate-300 hover:text-white">
+                                    {/* Edit icon on hover */}
+                                    <div className="absolute top-1 right-1 opacity-0 group-hover/card:opacity-100 transition-opacity bg-slate-900/90 rounded p-0.5 text-slate-300 hover:text-white">
                                       <Edit2 className="w-2.5 h-2.5" />
                                     </div>
                                   </div>
@@ -709,23 +746,22 @@ export default function FoodCalendarPage() {
                               })}
                             </div>
 
-                            {/* Add Meal Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenModal(day.iso, anchorSpec.anchor)}
-                              className="mt-2 w-full py-1.5 px-2 rounded-lg border border-dashed border-white/10 text-slate-400 hover:text-white hover:border-amber-400/40 hover:bg-amber-500/10 transition-all flex items-center justify-center gap-1 text-[10px] font-semibold cursor-pointer opacity-60 group-hover/cell:opacity-100"
-                              title={`Log ${anchorSpec.anchor} entry`}
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span className="hidden sm:inline">Add</span>
-                            </button>
+                            {/* Subtle add button on slot hover when empty */}
+                            {slotEvents.length === 0 && (
+                              <div className="opacity-0 group-hover/slot:opacity-100 transition-opacity h-full flex items-center justify-center min-h-[30px]">
+                                <span className="text-[10px] text-slate-500 flex items-center gap-0.5 font-medium">
+                                  <Plus className="w-3 h-3 text-slate-400" />
+                                  <span>{formatHourLabel(hour)}</span>
+                                </span>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </main>
@@ -737,6 +773,7 @@ export default function FoodCalendarPage() {
           onSaved={fetchWeekEvents}
           date={modalTargetDate}
           defaultAnchor={modalTargetAnchor}
+          defaultTime={modalTargetTime}
           existingEvent={modalExistingEvent}
         />
       </div>
