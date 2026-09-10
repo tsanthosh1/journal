@@ -759,11 +759,11 @@ export default function FoodCalendarPage() {
                                   >
                                     {isUltraCompact ? (
                                       <div className="min-w-0 leading-tight">
-                                        <span className="text-[9px] font-mono font-bold text-slate-400 mr-1.5 inline-block shrink-0">
+                                        <span className="text-[10px] font-mono font-semibold text-slate-400 mr-1.5 inline-block shrink-0">
                                           {timeDisplay}
                                         </span>
                                         <span
-                                          className="text-[11px] font-medium text-white break-words whitespace-normal"
+                                          className="text-xs font-bold text-white break-words whitespace-normal tracking-tight"
                                           title={ev.title}
                                         >
                                           {ev.title}
@@ -771,11 +771,11 @@ export default function FoodCalendarPage() {
                                       </div>
                                     ) : (
                                       <div className="min-w-0">
-                                        <div className="text-[10px] font-mono font-medium text-slate-400 leading-none">
+                                        <div className="text-[10px] font-mono font-semibold text-slate-400 leading-none">
                                           {timeDisplay}
                                         </div>
                                         <div
-                                          className="text-xs font-semibold text-white mt-1 leading-snug break-words whitespace-normal"
+                                          className="text-sm font-bold text-white mt-1 leading-snug break-words whitespace-normal tracking-tight"
                                           title={ev.title}
                                         >
                                           {ev.title}
