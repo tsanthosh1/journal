@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 import { LifeEvent, FoodPrimaryAnchor } from "@/lib/timeline/types";
 import { authFetch } from "@/lib/authFetch";
+import { FoodEntryModal } from "@/components/timeline/FoodEntryModal";
 import {
   Utensils,
   ChevronLeft,
@@ -25,6 +26,11 @@ import {
   Loader2,
   X,
   CheckCircle2,
+  Copy,
+  Move,
+  Mic,
+  Send,
+  AlertCircle,
 } from "lucide-react";
 
 const PRIMARY_ANCHORS: {
@@ -90,15 +96,42 @@ export default function FoodCalendarPage() {
   const [events, setEvents] = useState<LifeEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Cell Action Modal state
-  const [isActionModalOpen, setIsActionModalOpen] = useState(false);
-  const [actionTargetDate, setActionTargetDate] = useState<string>("");
-  const [actionTargetAnchor, setActionTargetAnchor] = useState<FoodPrimaryAnchor>("Breakfast");
-  const [actionExistingEvent, setActionExistingEvent] = useState<LifeEvent | null>(null);
-  const [actionPrompt, setActionPrompt] = useState("");
-  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
-  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  // Field Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalTargetDate, setModalTargetDate] = useState<string>("");
+  const [modalTargetAnchor, setModalTargetAnchor] = useState<FoodPrimaryAnchor>("Breakfast");
+  const [modalExistingEvent, setModalExistingEvent] = useState<LifeEvent | null>(null);
+
+  // Drag-and-Drop state
+  const [draggedEvent, setDraggedEvent] = useState<LifeEvent | null>(null);
+  const [isAltPressed, setIsAltPressed] = useState(false);
+  const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
+
+  // Dedicated Food AI bar state
+  const [quickAiText, setQuickAiText] = useState("");
+  const [isSubmittingQuickAi, setIsSubmittingQuickAi] = useState(false);
+
+  // Track Alt/Option key on window
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Alt" || e.altKey) {
+        setIsAltPressed(true);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Alt" || !e.altKey) {
+        setIsAltPressed(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
   // Generate 7 days of the active week
   const weekDays = useMemo(() => {
@@ -203,79 +236,157 @@ export default function FoodCalendarPage() {
     return map;
   }, [weekDays, events]);
 
-  // Open prompt modal for adding or editing
-  const handleOpenCellAction = (
+  // Open modal for direct field editing or adding
+  const handleOpenModal = (
     dateIso: string,
     anchor: FoodPrimaryAnchor,
     existingEvent?: LifeEvent
   ) => {
-    setActionTargetDate(dateIso);
-    setActionTargetAnchor(anchor);
-    setActionExistingEvent(existingEvent || null);
-    setActionPrompt("");
-    setActionSuccessMsg(null);
-    setIsActionModalOpen(true);
+    setModalTargetDate(dateIso);
+    setModalTargetAnchor(anchor);
+    setModalExistingEvent(existingEvent || null);
+    setIsModalOpen(true);
   };
 
-  // Submit AI Cell Action
-  const handleSubmitCellAction = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!actionPrompt.trim()) return;
+  // Top AI Quick Bar Submit
+  const handleQuickAiSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAiText.trim()) return;
 
-    setIsSubmittingAction(true);
-    setActionSuccessMsg(null);
-
+    setIsSubmittingQuickAi(true);
+    setStatusMessage(null);
     try {
+      const todayIso = formatDateIso(new Date());
       const qUserId = user?.email || user?.uid || userId || "";
       const res = await authFetch(user, "/api/timeline/food/cell-action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: actionTargetDate,
-          primaryAnchor: actionTargetAnchor,
-          prompt: actionPrompt.trim(),
-          existingEventId: actionExistingEvent?.id,
+          date: todayIso,
+          primaryAnchor: "Breakfast",
+          prompt: quickAiText.trim(),
           userId: qUserId,
         }),
       });
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to process meal action");
+        throw new Error(err.error || "Failed to log meal with AI");
       }
 
       const data = await res.json();
-      setActionSuccessMsg(data.changeSummary || "Updated successfully!");
+      setQuickAiText("");
+      setStatusMessage(data.changeSummary || "Meal logged with AI!");
       await fetchWeekEvents();
-
-      // Close modal smoothly after brief feedback
-      setTimeout(() => {
-        setIsActionModalOpen(false);
-        setActionSuccessMsg(null);
-        setActionPrompt("");
-      }, 700);
+      setTimeout(() => setStatusMessage(null), 3000);
     } catch (err: any) {
-      alert(err.message || "Failed to complete action");
+      alert(err.message || "Failed to process meal log");
     } finally {
-      setIsSubmittingAction(false);
+      setIsSubmittingQuickAi(false);
     }
   };
 
-  // Quick prompt presets
-  const promptPresets = actionExistingEvent
-    ? [
-        "Delete this meal entry",
-        "Replace with protein shake & banana",
-        "Also had a cup of black coffee",
-        "Ate outside at a restaurant",
-      ]
-    : [
-        "2 Dosas with coconut chutney and sambar",
-        "Bowl of oats with milk, blueberries and almonds",
-        "Grilled chicken salad with olive oil",
-        "Rice, dal, stir-fried vegetables and curd",
-        "Filter coffee with 2 biscuits",
-      ];
+  // Drag and Drop Handlers
+  const handleDragStart = (e: React.DragEvent, ev: LifeEvent) => {
+    setDraggedEvent(ev);
+    const isCopy = e.altKey || isAltPressed;
+    e.dataTransfer.effectAllowed = isCopy ? "copy" : "move";
+    e.dataTransfer.setData("text/plain", ev.id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, cellKey: string) => {
+    e.preventDefault();
+    const isCopy = e.altKey || isAltPressed;
+    e.dataTransfer.dropEffect = isCopy ? "copy" : "move";
+    if (dragOverCellKey !== cellKey) {
+      setDragOverCellKey(cellKey);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent, cellKey: string) => {
+    if (dragOverCellKey === cellKey) {
+      setDragOverCellKey(null);
+    }
+  };
+
+  const handleDrop = async (
+    e: React.DragEvent,
+    targetDate: string,
+    targetAnchor: FoodPrimaryAnchor
+  ) => {
+    e.preventDefault();
+    setDragOverCellKey(null);
+
+    if (!draggedEvent) return;
+
+    const isCopy = e.altKey || isAltPressed;
+    const sameSlot =
+      draggedEvent.date === targetDate &&
+      draggedEvent.attributes?.primaryAnchor === targetAnchor;
+
+    if (sameSlot && !isCopy) {
+      setDraggedEvent(null);
+      return;
+    }
+
+    // Optimistic UI Update
+    if (isCopy) {
+      const clonedEvent: LifeEvent = {
+        ...draggedEvent,
+        id: "temp-" + Date.now(),
+        date: targetDate,
+        attributes: {
+          ...(draggedEvent.attributes || {}),
+          primaryAnchor: targetAnchor,
+        },
+      };
+      setEvents((prev) => [...prev, clonedEvent]);
+      setStatusMessage(`Duplicating to ${targetDate} (${targetAnchor})...`);
+    } else {
+      setEvents((prev) =>
+        prev.map((item) =>
+          item.id === draggedEvent.id
+            ? {
+                ...item,
+                date: targetDate,
+                attributes: {
+                  ...(item.attributes || {}),
+                  primaryAnchor: targetAnchor,
+                },
+              }
+            : item
+        )
+      );
+      setStatusMessage(`Moving to ${targetDate} (${targetAnchor})...`);
+    }
+
+    try {
+      const res = await authFetch(user, "/api/timeline/food/move-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: draggedEvent.id,
+          targetDate,
+          targetAnchor,
+          isCopy,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to move/copy meal entry");
+      }
+
+      const data = await res.json();
+      setStatusMessage(data.message || (isCopy ? "Meal duplicated" : "Meal moved"));
+      await fetchWeekEvents();
+      setTimeout(() => setStatusMessage(null), 2500);
+    } catch (err: any) {
+      alert(err.message || "Failed to complete drag-and-drop action");
+      await fetchWeekEvents();
+    } finally {
+      setDraggedEvent(null);
+    }
+  };
 
   return (
     <AuthGuard
@@ -284,7 +395,7 @@ export default function FoodCalendarPage() {
       icon="utensils"
       badge="Private & Encrypted"
     >
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col select-none">
         <FinanceTopBar title="Food Calendar" />
 
         <main className="mx-auto flex-1 w-full max-w-7xl px-3 sm:px-6 py-6 pb-28 sm:pb-12 space-y-6">
@@ -301,7 +412,7 @@ export default function FoodCalendarPage() {
                     <Utensils className="w-4 h-4 text-amber-300" />
                   </span>
                   <span className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">
-                    Nutrition & Meals
+                    Nutrition & Food Calendar
                   </span>
                 </div>
 
@@ -317,7 +428,7 @@ export default function FoodCalendarPage() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
                     >
                       <LayoutList className="w-3.5 h-3.5" />
-                      <span>Daily Timeline</span>
+                      <span>Daily Activity</span>
                     </Link>
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
                       <Calendar className="w-3.5 h-3.5" />
@@ -326,9 +437,12 @@ export default function FoodCalendarPage() {
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-400">
-                  Weekly overview structured by daily meal anchors (Breakfast, Lunch, Dinner & Snacks).
-                  Click any cell to create, update, or remove entries with AI.
+                <p className="text-xs text-slate-400 max-w-xl">
+                  Weekly diet overview with the 3 Primary Anchors. Drag meal cards to move them, or hold{" "}
+                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-white/10 font-mono text-[11px]">
+                    Option (Alt)
+                  </kbd>{" "}
+                  while dragging to copy. Click any entry or cell to edit fields and master food items.
                 </p>
               </div>
 
@@ -375,9 +489,57 @@ export default function FoodCalendarPage() {
                 </button>
               </div>
             </div>
+
+            {/* Dedicated Food AI Bar */}
+            <div className="mt-5 pt-4 border-t border-white/10">
+              <form onSubmit={handleQuickAiSubmit} className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400">
+                    <Sparkles className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={quickAiText}
+                    onChange={(e) => setQuickAiText(e.target.value)}
+                    placeholder="Log meals with AI (e.g., 'Had 2 idlis, vada and filter coffee for breakfast at 8:30am')..."
+                    disabled={isSubmittingQuickAi}
+                    className="w-full rounded-2xl border border-white/15 bg-slate-950/80 pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmittingQuickAi || !quickAiText.trim()}
+                  className="flex items-center gap-1.5 rounded-2xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-amber-400 transition disabled:opacity-40 cursor-pointer"
+                >
+                  {isSubmittingQuickAi ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Log Meal</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
 
-          {/* Weekly Calendar Grid */}
+          {/* Feedback or Status Toast */}
+          {statusMessage && (
+            <div className="flex items-center gap-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-300 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>{statusMessage}</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-2xl bg-rose-500/10 border border-rose-500/30 p-3 text-xs text-rose-300">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Weekly Calendar Grid with Drag & Drop */}
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 shadow-2xl backdrop-blur-md overflow-hidden">
             {/* Day Header Row */}
             <div className="grid grid-cols-7 border-b border-white/10 bg-slate-950/80">
@@ -415,7 +577,7 @@ export default function FoodCalendarPage() {
                 return (
                   <div key={anchorSpec.anchor} className="flex flex-col">
                     {/* Anchor Row Banner */}
-                    <div className="px-4 py-2.5 bg-slate-950/60 border-b border-white/5 flex items-center justify-between">
+                    <div className="px-4 py-2 bg-slate-950/60 border-b border-white/5 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <IconComponent className={`w-4 h-4 ${anchorSpec.color}`} />
                         <span className="text-xs font-bold text-white tracking-wide">
@@ -430,27 +592,58 @@ export default function FoodCalendarPage() {
                     {/* 7 Columns for this Anchor */}
                     <div className="grid grid-cols-7 divide-x divide-white/5 min-h-[140px]">
                       {weekDays.map((day) => {
+                        const cellKey = `${day.iso}-${anchorSpec.anchor}`;
+                        const isDragOver = dragOverCellKey === cellKey;
                         const cellEvents = foodEventsMatrix[day.iso]?.[anchorSpec.anchor] || [];
 
                         return (
                           <div
-                            key={day.iso + anchorSpec.anchor}
-                            className={`p-2 flex flex-col justify-between group/cell hover:bg-white/[0.02] transition relative ${
+                            key={cellKey}
+                            onDragOver={(e) => handleDragOver(e, cellKey)}
+                            onDragLeave={(e) => handleDragLeave(e, cellKey)}
+                            onDrop={(e) => handleDrop(e, day.iso, anchorSpec.anchor)}
+                            className={`p-2 flex flex-col justify-between group/cell transition-all relative ${
                               day.isToday ? "bg-amber-500/[0.02]" : ""
+                            } ${
+                              isDragOver
+                                ? "bg-amber-500/15 border-2 border-dashed border-amber-400/80 rounded-xl"
+                                : "hover:bg-white/[0.02]"
                             }`}
                           >
-                            {/* Cell Content: Event Cards */}
+                            {/* Drag-over indicator banner */}
+                            {isDragOver && (
+                              <div className="absolute inset-x-2 top-2 z-10 flex items-center justify-center gap-1 rounded-lg bg-amber-500 text-slate-950 py-1 text-[10px] font-extrabold shadow-lg animate-pulse">
+                                {isAltPressed ? (
+                                  <>
+                                    <Copy className="w-3 h-3" />
+                                    <span>Drop to Copy</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Move className="w-3 h-3" />
+                                    <span>Drop to Move</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Cell Content: Meal Event Cards */}
                             <div className="space-y-2 flex-1">
                               {cellEvents.map((ev) => {
                                 const isSnack = ev.attributes?.occasionType === "Snack";
                                 const foodItems = ev.attributes?.foodItems as string[] | undefined;
                                 const calories = ev.attributes?.caloriesEst;
+                                const isBeingDragged = draggedEvent?.id === ev.id;
 
                                 return (
                                   <div
                                     key={ev.id}
-                                    onClick={() => handleOpenCellAction(day.iso, anchorSpec.anchor, ev)}
-                                    className={`group/card relative rounded-xl border p-2.5 transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-lg ${
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, ev)}
+                                    onClick={() => handleOpenModal(day.iso, anchorSpec.anchor, ev)}
+                                    className={`group/card relative rounded-xl border p-2.5 transition-all duration-200 cursor-grab active:cursor-grabbing hover:scale-[1.02] hover:shadow-lg ${
+                                      isBeingDragged ? "opacity-30 scale-95 border-dashed" : ""
+                                    } ${
                                       isSnack
                                         ? "bg-slate-950/70 border-white/10 hover:border-amber-500/40"
                                         : `${anchorSpec.badgeBg} ${anchorSpec.badgeBorder} hover:border-amber-400/60`
@@ -507,7 +700,7 @@ export default function FoodCalendarPage() {
                                       </div>
                                     )}
 
-                                    {/* Hover Edit Icon */}
+                                    {/* Hover Edit Action Hint */}
                                     <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/card:opacity-100 transition-opacity bg-slate-900/90 rounded-md p-1 text-slate-300 hover:text-white">
                                       <Edit2 className="w-2.5 h-2.5" />
                                     </div>
@@ -516,10 +709,10 @@ export default function FoodCalendarPage() {
                               })}
                             </div>
 
-                            {/* Add Meal / Snack Cell Action Button */}
+                            {/* Add Meal Button */}
                             <button
                               type="button"
-                              onClick={() => handleOpenCellAction(day.iso, anchorSpec.anchor)}
+                              onClick={() => handleOpenModal(day.iso, anchorSpec.anchor)}
                               className="mt-2 w-full py-1.5 px-2 rounded-lg border border-dashed border-white/10 text-slate-400 hover:text-white hover:border-amber-400/40 hover:bg-amber-500/10 transition-all flex items-center justify-center gap-1 text-[10px] font-semibold cursor-pointer opacity-60 group-hover/cell:opacity-100"
                               title={`Log ${anchorSpec.anchor} entry`}
                             >
@@ -537,145 +730,15 @@ export default function FoodCalendarPage() {
           </div>
         </main>
 
-        {/* Interactive AI Cell Action Modal */}
-        {isActionModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-lg rounded-3xl border border-white/15 bg-slate-900 p-6 shadow-2xl space-y-4">
-              {/* Modal Header */}
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300">
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
-                      AI Food Assistant
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-bold text-white">
-                    {actionExistingEvent ? "Update or Delete Meal" : `Log ${actionTargetAnchor}`}
-                  </h3>
-                  <div className="text-xs text-slate-400">
-                    Target: <span className="font-semibold text-slate-200">{actionTargetDate}</span> •{" "}
-                    <span className="font-semibold text-slate-200">{actionTargetAnchor} Anchor</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsActionModalOpen(false)}
-                  disabled={isSubmittingAction}
-                  className="rounded-xl p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
-                  aria-label="Close modal"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Existing event snippet if modifying */}
-              {actionExistingEvent && (
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Current Entry:
-                  </div>
-                  <div className="text-sm font-semibold text-white">
-                    {actionExistingEvent.title}
-                  </div>
-                  {actionExistingEvent.description && (
-                    <div className="text-xs text-slate-400 line-clamp-2">
-                      {actionExistingEvent.description}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Form Input */}
-              <form onSubmit={handleSubmitCellAction} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="ai-food-prompt" className="text-xs font-semibold text-slate-300">
-                    {actionExistingEvent
-                      ? "Tell AI what to update or type 'delete' to remove:"
-                      : "What did you eat or drink?"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="ai-food-prompt"
-                      type="text"
-                      value={actionPrompt}
-                      onChange={(e) => setActionPrompt(e.target.value)}
-                      placeholder={
-                        actionExistingEvent
-                          ? "e.g., 'Change to oatmeal with walnuts' or 'delete this'"
-                          : "e.g., 2 dosas with sambar and filter coffee"
-                      }
-                      autoFocus
-                      disabled={isSubmittingAction}
-                      className="w-full rounded-2xl border border-white/15 bg-slate-950 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Presets */}
-                <div className="space-y-1.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Quick Suggestions:
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {promptPresets.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setActionPrompt(preset)}
-                        disabled={isSubmittingAction}
-                        className="text-xs font-medium rounded-xl border border-white/10 bg-slate-950/60 px-2.5 py-1 text-slate-300 hover:text-white hover:border-amber-500/40 hover:bg-amber-500/10 transition active:scale-95 text-left"
-                      >
-                        {preset}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Success Feedback */}
-                {actionSuccessMsg && (
-                  <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-2.5 text-xs text-emerald-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>{actionSuccessMsg}</span>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center justify-end gap-2.5 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsActionModalOpen(false)}
-                    disabled={isSubmittingAction}
-                    className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 transition"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmittingAction || !actionPrompt.trim()}
-                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-5 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-95 transition disabled:opacity-50 cursor-pointer"
-                  >
-                    {isSubmittingAction ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Processing with AI...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Submit</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Direct Field-Level & AI Food Entry Modal */}
+        <FoodEntryModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSaved={fetchWeekEvents}
+          date={modalTargetDate}
+          defaultAnchor={modalTargetAnchor}
+          existingEvent={modalExistingEvent}
+        />
       </div>
     </AuthGuard>
   );

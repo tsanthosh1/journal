@@ -35,6 +35,21 @@ export interface FoodAttributes {
   [key: string]: any;
 }
 
+export interface MasterFoodItem {
+  id: string;
+  userId: string;
+  name: string;
+  normalizedName: string;
+  defaultAnchor?: FoodPrimaryAnchor;
+  defaultOccasion?: FoodOccasion;
+  defaultCalories?: number;
+  category?: string;
+  frequencyCount: number;
+  lastConsumedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ActivityMeta {
   id: string;
   name: string;

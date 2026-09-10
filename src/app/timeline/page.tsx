@@ -96,7 +96,9 @@ export default function TimelinePage() {
         throw new Error(`Failed to load timeline for ${selectedDate}`);
       }
       const data = await res.json();
-      setEvents(data.events || []);
+      // Food entries are now completely separated and managed in the Food Calendar
+      const activityEvents = (data.events || []).filter((ev: LifeEvent) => ev.activityType !== "FOOD");
+      setEvents(activityEvents);
       setSummary(data.summary || null);
     } catch (err: any) {
       setError(err.message || "Failed to load events");
@@ -408,27 +410,29 @@ export default function TimelinePage() {
               All ({events.length})
             </button>
 
-            {Object.entries(ACTIVITY_META_MAP).map(([type, meta]) => {
-              const count = events.filter((e) => e.activityType === type).length;
-              if (count === 0 && selectedCategory !== type) return null;
-              const active = selectedCategory === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setSelectedCategory(type)}
-                  className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer shrink-0 ${
-                    active
-                      ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
-                      : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <DynamicIcon icon={meta.icon} className="w-3.5 h-3.5" />
-                  <span>{meta.name.split(" ")[0]}</span>
-                  {count > 0 && <span className="opacity-70 font-mono">({count})</span>}
-                </button>
-              );
-            })}
+            {Object.entries(ACTIVITY_META_MAP)
+              .filter(([type]) => type !== "FOOD")
+              .map(([type, meta]) => {
+                const count = events.filter((e) => e.activityType === type).length;
+                if (count === 0 && selectedCategory !== type) return null;
+                const active = selectedCategory === type;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setSelectedCategory(type)}
+                    className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer shrink-0 ${
+                      active
+                        ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                        : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <DynamicIcon icon={meta.icon} className="w-3.5 h-3.5" />
+                    <span>{meta.name.split(" ")[0]}</span>
+                    {count > 0 && <span className="opacity-70 font-mono">({count})</span>}
+                  </button>
+                );
+              })}
           </div>
 
           {/* Search Input & View Density Toggle */}

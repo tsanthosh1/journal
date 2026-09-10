@@ -9,6 +9,7 @@ import {
 } from "@/lib/timeline/storage";
 import { resolveGeminiCandidateModels } from "@/lib/timeline/geminiModels";
 import { FoodPrimaryAnchor, FoodOccasion, FoodOccasionType, LifeEvent } from "@/lib/timeline/types";
+import { recordFoodItemsConsumed } from "@/lib/timeline/foodMasterStorage";
 
 export const dynamic = "force-dynamic";
 
@@ -284,6 +285,16 @@ Return ONLY a single valid JSON object:
         attributes,
       });
 
+      if (actionPayload.foodItems && actionPayload.foodItems.length > 0) {
+        await recordFoodItemsConsumed(
+          userId,
+          actionPayload.foodItems,
+          actionPayload.primaryAnchor || primaryAnchor,
+          actionPayload.occasion,
+          date
+        );
+      }
+
       return NextResponse.json({
         success: true,
         action: "UPDATE",
@@ -315,6 +326,16 @@ Return ONLY a single valid JSON object:
     };
 
     const saved = await saveLifeEvent(newEventData);
+
+    if (actionPayload.foodItems && actionPayload.foodItems.length > 0) {
+      await recordFoodItemsConsumed(
+        userId,
+        actionPayload.foodItems,
+        actionPayload.primaryAnchor || primaryAnchor,
+        actionPayload.occasion,
+        date
+      );
+    }
 
     return NextResponse.json({
       success: true,
