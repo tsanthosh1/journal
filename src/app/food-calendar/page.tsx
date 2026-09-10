@@ -124,7 +124,7 @@ export default function FoodCalendarPage() {
       const saved = localStorage.getItem("food_calendar_scale_height");
       if (saved) {
         const val = parseInt(saved, 10);
-        if (!isNaN(val) && val >= 40 && val <= 160) return val;
+        if (!isNaN(val) && val >= 20 && val <= 160) return val;
       }
     }
     return 68;
@@ -595,9 +595,9 @@ export default function FoodCalendarPage() {
               <input
                 id="scale-slider"
                 type="range"
-                min={40}
+                min={20}
                 max={140}
-                step={4}
+                step={2}
                 value={scaleHeight}
                 onChange={(e) => setScaleHeight(Number(e.target.value))}
                 className="w-28 sm:w-40 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400 focus:outline-none"
@@ -664,7 +664,11 @@ export default function FoodCalendarPage() {
                       className="grid grid-cols-[60px_repeat(7,1fr)] transition-[min-height] duration-75"
                     >
                       {/* Left Time Gutter */}
-                      <div className="p-2 border-r border-white/10 text-[11px] font-mono font-medium text-slate-400 text-right pr-2.5 select-none shrink-0 pt-2">
+                      <div
+                        className={`border-r border-white/10 text-slate-400 text-right pr-2 font-mono font-medium select-none shrink-0 flex items-center justify-end ${
+                          scaleHeight < 36 ? "text-[9px] py-0 leading-none" : "text-[11px] py-1.5"
+                        }`}
+                      >
                         {formatHourLabel(hour)}
                       </div>
 
@@ -685,7 +689,9 @@ export default function FoodCalendarPage() {
                               if ((e.target as HTMLElement).closest(".meal-card")) return;
                               handleOpenModal(day.iso, hour);
                             }}
-                            className={`p-1.5 border-r last:border-r-0 border-white/5 transition-all relative group/slot cursor-pointer ${
+                            className={`${
+                              scaleHeight < 40 ? "p-0.5" : "p-1.5"
+                            } border-r last:border-r-0 border-white/5 transition-all relative group/slot cursor-pointer ${
                               day.isToday ? "bg-amber-500/[0.015]" : ""
                             } ${
                               isDragOver
@@ -711,12 +717,13 @@ export default function FoodCalendarPage() {
                             )}
 
                             {/* Sequential Meal Cards inside this hour slot */}
-                            <div className="space-y-1.5">
+                            <div className={scaleHeight < 40 ? "space-y-0.5" : "space-y-1.5"}>
                               {slotEvents.map((ev) => {
                                 const isSnack = ev.attributes?.occasionType === "Snack";
                                 const anchor = (ev.attributes?.primaryAnchor as FoodPrimaryAnchor) || inferAnchorFromHour(hour);
                                 const isBeingDragged = draggedEvent?.id === ev.id;
                                 const timeDisplay = ev.startTime || formatHourLabel(hour);
+                                const isUltraCompact = scaleHeight < 48;
 
                                 const anchorBorder =
                                   anchor === "Breakfast"
@@ -734,7 +741,9 @@ export default function FoodCalendarPage() {
                                       e.stopPropagation();
                                       handleOpenModal(day.iso, hour, ev);
                                     }}
-                                    className={`meal-card group/card relative rounded-lg border px-2.5 py-1.5 shadow-sm transition-all duration-150 cursor-grab active:cursor-grabbing hover:scale-[1.01] hover:shadow-md ${
+                                    className={`meal-card group/card relative rounded-lg border shadow-sm transition-all duration-150 cursor-grab active:cursor-grabbing hover:scale-[1.01] hover:shadow-md ${
+                                      isUltraCompact ? "px-1.5 py-0.5" : "px-2.5 py-1.5"
+                                    } ${
                                       isBeingDragged ? "opacity-30 scale-95 border-dashed" : ""
                                     } ${
                                       isSnack
@@ -742,15 +751,28 @@ export default function FoodCalendarPage() {
                                         : anchorBorder
                                     }`}
                                   >
-                                    <div className="text-[10px] font-mono font-medium text-slate-400 leading-none">
-                                      {timeDisplay}
-                                    </div>
-                                    <div
-                                      className="text-xs font-semibold text-white mt-1 leading-snug line-clamp-2"
-                                      title={ev.title}
-                                    >
-                                      {ev.title}
-                                    </div>
+                                    {isUltraCompact ? (
+                                      <div className="flex items-center gap-1.5 min-w-0 leading-none">
+                                        <span className="text-[9px] font-mono font-bold text-slate-400 shrink-0">
+                                          {timeDisplay}
+                                        </span>
+                                        <span className="text-[11px] font-medium text-white truncate" title={ev.title}>
+                                          {ev.title}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="text-[10px] font-mono font-medium text-slate-400 leading-none">
+                                          {timeDisplay}
+                                        </div>
+                                        <div
+                                          className="text-xs font-semibold text-white mt-1 leading-snug line-clamp-2"
+                                          title={ev.title}
+                                        >
+                                          {ev.title}
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 );
                               })}
