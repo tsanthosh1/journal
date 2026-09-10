@@ -17,6 +17,7 @@ import { SyncConsoleModal } from "@/components/subscriptions/SyncConsoleModal";
 import { SubscriptionsSkeleton } from "@/components/subscriptions/SubscriptionsSkeleton";
 import { SourceEmailRecord, Subscription } from "@/lib/subscriptionTypes";
 import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/authFetch";
 import {
   Lock,
   X,
@@ -155,7 +156,8 @@ function SubscriptionsPageContent() {
 
     try {
       const qUserId = user?.email || user?.uid || userId || "default_user";
-      const res = await fetch(
+      const res = await authFetch(
+        user,
         `/api/subscriptions?userId=${encodeURIComponent(qUserId)}&_t=${Date.now()}`,
         {
           cache: "no-store",
@@ -183,7 +185,7 @@ function SubscriptionsPageContent() {
   const handleSaveSubscription = async (subData: Partial<Subscription>) => {
     const qUserId = user?.email || user?.uid || userId || "default_user";
     if (editingSubscription) {
-      const res = await fetch(`/api/subscriptions/${editingSubscription.id}`, {
+      const res = await authFetch(user, `/api/subscriptions/${editingSubscription.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...subData, userId: qUserId }),
@@ -196,7 +198,7 @@ function SubscriptionsPageContent() {
         );
       }
     } else {
-      const res = await fetch("/api/subscriptions", {
+      const res = await authFetch(user, "/api/subscriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...subData, userId: qUserId }),
@@ -214,7 +216,7 @@ function SubscriptionsPageContent() {
 
   const handleDeleteSubscription = async (id: string) => {
     try {
-      const res = await fetch(`/api/subscriptions/${id}`, { method: "DELETE" });
+      const res = await authFetch(user, `/api/subscriptions/${id}`, { method: "DELETE" });
       if (res.ok) {
         setSubscriptions((prev) => prev.filter((s) => s.id !== id));
       }
@@ -229,7 +231,7 @@ function SubscriptionsPageContent() {
 
     if (!subId) return;
     try {
-      const res = await fetch(`/api/subscriptions/${subId}/cycle`, {
+      const res = await authFetch(user, `/api/subscriptions/${subId}/cycle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -283,7 +285,7 @@ function SubscriptionsPageContent() {
     );
 
     try {
-      const res = await fetch(`/api/subscriptions/${sub.id}/cycle`, {
+      const res = await authFetch(user, `/api/subscriptions/${sub.id}/cycle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -339,7 +341,7 @@ function SubscriptionsPageContent() {
     try {
       const qUserId = user?.email || user?.uid || userId;
       if (!qUserId) return;
-      const res = await fetch("/api/sync/sms/process", {
+      const res = await authFetch(user, "/api/sync/sms/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: qUserId }),

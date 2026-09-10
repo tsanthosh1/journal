@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const requestedUserId = searchParams.get("userId");
-    const targetUserId =
+    const userIdsToQuery =
       requestedUserId && user.candidateUserIds.includes(requestedUserId)
-        ? requestedUserId
-        : user.primaryUserId;
+        ? Array.from(new Set([requestedUserId, ...user.candidateUserIds]))
+        : user.candidateUserIds;
 
-    const subscriptions = await listSubscriptions(targetUserId);
+    const subscriptions = await listSubscriptions(userIdsToQuery);
     return NextResponse.json(
       { subscriptions },
       {
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Force ownership to authenticated user
-    body.userId = user.primaryUserId;
+    body.userId = user.email || user.primaryUserId;
 
     const subscription = await createSubscription(body);
     return NextResponse.json({ subscription }, { status: 201 });
