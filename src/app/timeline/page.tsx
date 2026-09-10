@@ -213,45 +213,54 @@ export default function TimelinePage() {
                 {formattedDateTitle}
               </h1>
 
-              {/* Date Navigation Strip */}
-              <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleShiftDate(-1)}
-                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer inline-flex items-center gap-1"
-                  title="Previous Day"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Yesterday
-                </button>
-
-                {!isToday && (
+              {/* Date Navigation: Chevrons flanking the date input with "Today" clickable text below */}
+              <div className="flex flex-col items-start gap-1 pt-1">
+                <div className="inline-flex items-center rounded-2xl border border-white/10 bg-slate-950/70 p-1 shadow-sm backdrop-blur-sm">
                   <button
                     type="button"
-                    onClick={handleSetToday}
-                    className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-500/20 transition cursor-pointer"
+                    onClick={() => handleShiftDate(-1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition active:scale-95 cursor-pointer"
+                    title="Previous Day"
+                    aria-label="Previous Day"
                   >
-                    Today
+                    <ChevronLeft className="w-4 h-4" />
                   </button>
-                )}
+
+                  <div className="relative px-1">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      aria-label="Pick timeline date"
+                      className="rounded-xl border border-white/10 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-slate-200 focus:border-cyan-500 focus:outline-none cursor-pointer [color-scheme:dark]"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleShiftDate(1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition active:scale-95 cursor-pointer"
+                    title="Next Day"
+                    aria-label="Next Day"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
 
                 <button
                   type="button"
-                  onClick={() => handleShiftDate(1)}
-                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer inline-flex items-center gap-1"
-                  title="Next Day"
+                  onClick={handleSetToday}
+                  disabled={isToday}
+                  className={`pl-1 text-[11px] transition cursor-pointer flex items-center gap-1 ${
+                    isToday
+                      ? "text-slate-500 cursor-default"
+                      : "text-cyan-400 hover:text-cyan-300 hover:underline font-medium"
+                  }`}
+                  title={isToday ? "Already on today" : "Jump back to today"}
                 >
-                  Tomorrow <ChevronRight className="w-3.5 h-3.5" />
+                  <span>Today</span>
+                  {isToday && <span className="text-[10px] text-slate-600">• current</span>}
                 </button>
-
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    aria-label="Pick timeline date"
-                    className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs text-slate-300 focus:border-cyan-500 focus:outline-none cursor-pointer"
-                  />
-                </div>
               </div>
             </div>
 
