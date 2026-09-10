@@ -14,10 +14,8 @@ import {
   ChevronRight,
   Plus,
   Sparkles,
-  Flame,
   Clock,
   Trash2,
-  Edit2,
   Calendar,
   LayoutList,
   Sun,
@@ -654,9 +652,8 @@ export default function FoodCalendarPage() {
                               {slotEvents.map((ev) => {
                                 const isSnack = ev.attributes?.occasionType === "Snack";
                                 const anchor = (ev.attributes?.primaryAnchor as FoodPrimaryAnchor) || inferAnchorFromHour(hour);
-                                const foodItems = ev.attributes?.foodItems as string[] | undefined;
-                                const calories = ev.attributes?.caloriesEst;
                                 const isBeingDragged = draggedEvent?.id === ev.id;
+                                const timeDisplay = ev.startTime || formatHourLabel(hour);
 
                                 const anchorBorder =
                                   anchor === "Breakfast"
@@ -674,72 +671,22 @@ export default function FoodCalendarPage() {
                                       e.stopPropagation();
                                       handleOpenModal(day.iso, hour, ev);
                                     }}
-                                    className={`meal-card group/card relative rounded-xl border p-2 shadow-sm transition-all duration-200 cursor-grab active:cursor-grabbing hover:scale-[1.01] hover:shadow-md ${
+                                    className={`meal-card group/card relative rounded-lg border px-2.5 py-1.5 shadow-sm transition-all duration-150 cursor-grab active:cursor-grabbing hover:scale-[1.01] hover:shadow-md ${
                                       isBeingDragged ? "opacity-30 scale-95 border-dashed" : ""
                                     } ${
                                       isSnack
-                                        ? "bg-slate-950/85 border-white/15 hover:border-amber-400/50"
+                                        ? "bg-slate-950/80 border-white/15 hover:border-amber-400/50"
                                         : anchorBorder
                                     }`}
                                   >
-                                    <div className="flex items-center justify-between gap-1">
-                                      <span
-                                        className={`text-[9px] font-extrabold tracking-wider uppercase px-1.5 py-0.5 rounded ${
-                                          isSnack
-                                            ? "bg-slate-800 text-slate-300 border border-white/10"
-                                            : anchor === "Breakfast"
-                                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                            : anchor === "Lunch"
-                                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                            : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                                        }`}
-                                      >
-                                        {ev.attributes?.occasion || (isSnack ? "Snack" : anchor)}
-                                      </span>
-
-                                      {ev.startTime && (
-                                        <span className="flex items-center gap-0.5 text-[9px] text-slate-400 font-mono">
-                                          <Clock className="w-2.5 h-2.5 text-slate-500" />
-                                          {ev.startTime}
-                                        </span>
-                                      )}
+                                    <div className="text-[10px] font-mono font-medium text-slate-400 leading-none">
+                                      {timeDisplay}
                                     </div>
-
-                                    {/* Meal Title */}
-                                    <div className="text-xs font-bold text-white mt-1 leading-snug line-clamp-2">
+                                    <div
+                                      className="text-xs font-semibold text-white mt-1 leading-snug line-clamp-2"
+                                      title={ev.title}
+                                    >
                                       {ev.title}
-                                    </div>
-
-                                    {/* Food Items Pill List */}
-                                    {foodItems && foodItems.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {foodItems.slice(0, 2).map((item, idx) => (
-                                          <span
-                                            key={idx}
-                                            className="text-[9px] font-medium bg-black/40 text-slate-300 px-1.5 py-0.5 rounded border border-white/5 truncate max-w-[85px]"
-                                          >
-                                            {item}
-                                          </span>
-                                        ))}
-                                        {foodItems.length > 2 && (
-                                          <span className="text-[9px] text-slate-500">
-                                            +{foodItems.length - 2}
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* Calories badge */}
-                                    {calories && (
-                                      <div className="flex items-center gap-1 mt-1 text-[9px] font-medium text-amber-400">
-                                        <Flame className="w-2.5 h-2.5" />
-                                        <span>{calories} kcal</span>
-                                      </div>
-                                    )}
-
-                                    {/* Edit icon on hover */}
-                                    <div className="absolute top-1 right-1 opacity-0 group-hover/card:opacity-100 transition-opacity bg-slate-900/90 rounded p-0.5 text-slate-300 hover:text-white">
-                                      <Edit2 className="w-2.5 h-2.5" />
                                     </div>
                                   </div>
                                 );
