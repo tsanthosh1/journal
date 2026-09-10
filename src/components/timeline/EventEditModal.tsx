@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { LifeEvent, ACTIVITY_META_MAP, ActivityJsonSchema } from "@/lib/timeline/types";
+import { useAuth } from "@/context/AuthContext";
+import { authFetch } from "@/lib/authFetch";
 import { Pencil, X, Sparkles, Wand2, Check, AlertTriangle } from "lucide-react";
 
 interface EventEditModalProps {
@@ -19,6 +21,7 @@ export function EventEditModal({
   defaultDate,
   onSaved,
 }: EventEditModalProps) {
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [activityType, setActivityType] = useState("WORK");
@@ -86,7 +89,7 @@ export function EventEditModal({
         attributes,
       };
 
-      const res = await fetch("/api/timeline/events/ai-modify", {
+      const res = await authFetch(user, "/api/timeline/events/ai-modify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -179,11 +182,12 @@ export function EventEditModal({
 
       const url = eventToEdit ? `/api/timeline/events/${eventToEdit.id}` : "/api/timeline/events";
       const method = eventToEdit ? "PATCH" : "POST";
+      const effectiveUserId = user?.email || user?.uid || "";
 
-      const res = await fetch(url, {
+      const res = await authFetch(user, url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, userId: effectiveUserId }),
       });
 
       if (!res.ok) {

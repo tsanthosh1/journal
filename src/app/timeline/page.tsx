@@ -27,12 +27,19 @@ import {
   X,
 } from "lucide-react";
 
+function getLocalIsoDate(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function TimelinePage() {
   const { user, userId, isSignedIn } = useAuth();
 
-  // Current selected date (YYYY-MM-DD)
+  // Current selected date (YYYY-MM-DD in local timezone)
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().split("T")[0];
+    return getLocalIsoDate();
   });
 
   const [events, setEvents] = useState<LifeEvent[]>([]);
@@ -101,16 +108,17 @@ export default function TimelinePage() {
 
   // Date Navigation Helpers
   const handleShiftDate = (days: number) => {
-    const current = new Date(selectedDate);
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    const current = new Date(y, m - 1, d);
     current.setDate(current.getDate() + days);
-    setSelectedDate(current.toISOString().split("T")[0]);
+    setSelectedDate(getLocalIsoDate(current));
   };
 
   const handleSetToday = () => {
-    setSelectedDate(new Date().toISOString().split("T")[0]);
+    setSelectedDate(getLocalIsoDate());
   };
 
-  const isToday = selectedDate === new Date().toISOString().split("T")[0];
+  const isToday = selectedDate === getLocalIsoDate();
 
   // Filtered Events
   const filteredEvents = useMemo(() => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedUser, unauthorizedResponse } from "@/lib/serverAuth";
+import { isAuthorizedUser, unauthorizedResponse, getVerifiedUser } from "@/lib/serverAuth";
 import {
   getLifeEventsByDate,
   getLifeEventsRange,
@@ -11,7 +11,8 @@ import { LifeEvent, TimelineDaySummary } from "@/lib/timeline/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  if (!await isAuthorizedUser(request)) {
+  const verifiedUser = await getVerifiedUser(request);
+  if (!verifiedUser) {
     return unauthorizedResponse();
   }
 
@@ -20,7 +21,11 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get("date");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const userId = searchParams.get("userId") || "default_user";
+    
+    // Resolve user ID: query param or authenticated user identity
+    const queryUserId = searchParams.get("userId");
+    const authUserId = verifiedUser.email || verifiedUser.primaryUserId;
+    const userId = (queryUserId && queryUserId !== "default_user") ? queryUserId : authUserId;
 
     let events: LifeEvent[] = [];
 
@@ -29,7 +34,7 @@ export async function GET(request: NextRequest) {
     } else if (startDate && endDate) {
       events = await getLifeEventsRange(startDate, endDate, userId);
     } else {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("en-CA");
       events = await getLifeEventsByDate(today, userId);
     }
 
@@ -45,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
 
     const summary: TimelineDaySummary = {
-      date: date || new Date().toISOString().split("T")[0],
+      date: date || new Date().toLocaleDateString("en-CA"),
       totalEvents: events.length,
       totalDurationMinutes,
       activityCounts,
@@ -67,19 +72,22 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!await isAuthorizedUser(request)) {
+  const verifiedUser = await getVerifiedUser(request);
+  if (!verifiedUser) {
     return unauthorizedResponse();
   }
 
   try {
     const body = await request.json();
-    const userId = body.userId || "default_user";
+    const authUserId = verifiedUser.email || verifiedUser.primaryUserId;
+    const userId = (body.userId && body.userId !== "default_user") ? body.userId : authUserId;
 
     // Handle batch save
     if (Array.isArray(body.events)) {
       const eventsToSave = body.events.map((ev: any) => ({
         ...ev,
-        userId,
+        userId: (ev.userId && ev.userId !== "default_user") ? ev.userId : userId,
+        date: ev.date || new Date().toLocaleDateString("en-CA"),
         tags: Array.isArray(ev.tags) ? ev.tags : [],
         attributes: ev.attributes || {},
       }));
@@ -92,8 +100,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Handle single event save
-    if (!body.title || !body.activityType) {
+    // Handle single event save (support both raw body or { event: ... })
+    const eventPayload = body.event || body;
+    if (!eventPayload.title || !eventPayload.activityType) {
       return NextResponse.json(
         { error: "title and activityType are required fields" },
         { status: 400 }
@@ -101,14 +110,14 @@ export async function POST(request: NextRequest) {
     }
 
     const eventToSave = {
-      ...body,
-      userId,
-      date: body.date || new Date().toISOString().split("T")[0],
-      tags: Array.isArray(body.tags) ? body.tags : [],
-      attributes: body.attributes || {},
+      ...eventPayload,
+      userId: (eventPayload.userId && eventPayload.userId !== "default_user") ? eventPayload.userId : userId,
+      date: eventPayload.date || new Date().toLocaleDateString("en-CA"),
+      tags: Array.isArray(eventPayload.tags) ? eventPayload.tags : [],
+      attributes: eventPayload.attributes || {},
     };
 
-    const saved = await saveLifeEvent(eventToSave, body.id);
+    const saved = await saveLifeEvent(eventToSave, eventPayload.id);
     return NextResponse.json({
       success: true,
       event: saved,

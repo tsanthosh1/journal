@@ -354,12 +354,15 @@ export function VoiceRecorderModal({
     setError(null);
 
     try {
+      const effectiveUserId = user?.email || user?.uid || "";
       const res = await authFetch(user, "/api/timeline/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          userId: effectiveUserId,
           events: candidateEvents.map((ev) => ({
             ...ev,
+            userId: effectiveUserId,
             date: ev.date || targetDate,
             rawSpokenText: transcript,
           })),
