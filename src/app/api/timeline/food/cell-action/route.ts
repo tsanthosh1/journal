@@ -91,11 +91,15 @@ export async function POST(request: NextRequest) {
       primaryAnchor = "Breakfast",
       prompt,
       existingEventId,
+      currentFields,
+      dryRun = false,
     }: {
       date: string;
       primaryAnchor: FoodPrimaryAnchor;
       prompt: string;
       existingEventId?: string;
+      currentFields?: any;
+      dryRun?: boolean;
     } = body;
 
     if (!date) {
@@ -115,6 +119,22 @@ export async function POST(request: NextRequest) {
       existingEvent = await getLifeEventById(existingEventId);
     }
 
+    // Build context data: prioritize current form fields if provided by client
+    const contextData = currentFields
+      ? {
+          title: currentFields.title || existingEvent?.title,
+          date,
+          startTime: currentFields.startTime || existingEvent?.startTime,
+          attributes: {
+            primaryAnchor: currentFields.primaryAnchor || primaryAnchor,
+            occasion: currentFields.occasion || existingEvent?.attributes?.occasion,
+            foodItems: currentFields.foodItems || existingEvent?.attributes?.foodItems || [],
+            caloriesEst: currentFields.caloriesEst || existingEvent?.attributes?.caloriesEst,
+            dietaryNotes: currentFields.dietaryNotes || existingEvent?.attributes?.dietaryNotes,
+          },
+        }
+      : existingEvent;
+
     const aiConfig = await getAiConfig();
     let actionPayload: CellActionPayload | null = null;
 
@@ -122,8 +142,8 @@ export async function POST(request: NextRequest) {
       const systemPrompt = `You are a food calendar assistant specializing in nutritional logging and the Food Occasion Model.
 User target date: "${date}".
 Default primary anchor for this calendar row: "${primaryAnchor}".
-Existing event currently in this slot:
-${JSON.stringify(existingEvent || null, null, 2)}
+Current entry data in this form slot:
+${JSON.stringify(contextData || null, null, 2)}
 
 User request: "${prompt.trim()}"
 
@@ -139,7 +159,7 @@ INSTRUCTIONS:
 1. Determine the user's intent:
    - If the user asks to remove, delete, skip, cancel, or says they didn't eat ("didn't have lunch", "delete this", "clear"):
      "action": "DELETE"
-   - If existingEvent is provided and user is altering or adding to it ("replace with salad", "also had tea", "correct time to 1pm"):
+   - If current/existing entry is provided and user is altering, adding, removing, or recalculating ("replace with salad", "also had tea", "add 1 cup rice"):
      "action": "UPDATE"
    - Otherwise:
      "action": "CREATE"
@@ -245,6 +265,28 @@ Return ONLY a single valid JSON object:
     // Fallback if AI was unavailable or couldn't parse
     if (!actionPayload) {
       actionPayload = ruleBasedFallback(prompt, primaryAnchor, existingEvent);
+    }
+
+    // If dryRun is requested, return the refined fields directly to update the UI form live
+    if (dryRun) {
+      return NextResponse.json({
+        success: true,
+        dryRun: true,
+        action: actionPayload.action,
+        updatedFields: {
+          title: actionPayload.title,
+          description: actionPayload.description,
+          primaryAnchor: actionPayload.primaryAnchor || primaryAnchor,
+          occasionType: actionPayload.occasionType || "Main Meal",
+          occasion: actionPayload.occasion,
+          mealType: actionPayload.mealType || primaryAnchor,
+          foodItems: actionPayload.foodItems || [],
+          startTime: actionPayload.startTime || null,
+          caloriesEst: actionPayload.caloriesEst !== undefined ? actionPayload.caloriesEst : null,
+          dietaryNotes: actionPayload.dietaryNotes || actionPayload.description || "",
+        },
+        changeSummary: actionPayload.changeSummary || "AI updated form fields.",
+      });
     }
 
     // Execute Database Action
