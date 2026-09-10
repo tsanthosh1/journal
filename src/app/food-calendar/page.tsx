@@ -26,6 +26,7 @@ import {
   Move,
   Send,
   AlertCircle,
+  SlidersHorizontal,
 } from "lucide-react";
 
 // Google Calendar time scale hours: 6 AM to 11 PM
@@ -116,6 +117,26 @@ export default function FoodCalendarPage() {
 
   // Auto-scroll ref
   const calendarGridRef = useRef<HTMLDivElement>(null);
+
+  // Time grid scale height (in px per hour row)
+  const [scaleHeight, setScaleHeight] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("food_calendar_scale_height");
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 40 && val <= 160) return val;
+      }
+    }
+    return 68;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("food_calendar_scale_height", scaleHeight.toString());
+    } catch {
+      // ignore
+    }
+  }, [scaleHeight]);
 
   // Track Alt/Option key on window
   useEffect(() => {
@@ -552,6 +573,47 @@ export default function FoodCalendarPage() {
             </div>
           )}
 
+          {/* Scale Control & Quick Hints Toolbar directly above the table */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/60 border border-white/10 text-[11px] text-slate-300">
+                <Move className="w-3 h-3 text-amber-400" />
+                <span>Drag to move</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/60 border border-white/10 text-[11px] text-slate-300">
+                <Copy className="w-3 h-3 text-amber-400" />
+                <span>Option-drag to copy</span>
+              </span>
+            </div>
+
+            {/* Scale Length Slider */}
+            <div className="flex items-center gap-2.5 bg-slate-900/80 border border-white/10 rounded-2xl px-3.5 py-1.5 backdrop-blur-sm shadow-sm">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <label htmlFor="scale-slider" className="text-xs font-semibold text-slate-300 select-none">
+                Scale Length:
+              </label>
+              <input
+                id="scale-slider"
+                type="range"
+                min={40}
+                max={140}
+                step={4}
+                value={scaleHeight}
+                onChange={(e) => setScaleHeight(Number(e.target.value))}
+                className="w-28 sm:w-40 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400 focus:outline-none"
+                title={`Scale length: ${scaleHeight}px per hour`}
+              />
+              <button
+                type="button"
+                onClick={() => setScaleHeight(68)}
+                className="text-[10px] font-mono text-slate-400 hover:text-amber-300 transition px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
+                title="Reset scale to default (68px)"
+              >
+                {scaleHeight}px
+              </button>
+            </div>
+          </div>
+
           {/* Google Calendar-Style Weekly Time Grid */}
           <div
             ref={calendarGridRef}
@@ -598,7 +660,8 @@ export default function FoodCalendarPage() {
                   return (
                     <div
                       key={hour}
-                      className="grid grid-cols-[60px_repeat(7,1fr)] min-h-[72px] transition-colors"
+                      style={{ minHeight: `${scaleHeight}px` }}
+                      className="grid grid-cols-[60px_repeat(7,1fr)] transition-[min-height] duration-75"
                     >
                       {/* Left Time Gutter */}
                       <div className="p-2 border-r border-white/10 text-[11px] font-mono font-medium text-slate-400 text-right pr-2.5 select-none shrink-0 pt-2">
