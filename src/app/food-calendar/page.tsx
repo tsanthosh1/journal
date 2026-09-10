@@ -621,9 +621,12 @@ export default function FoodCalendarPage() {
           >
             <div className="min-w-[780px]">
               {/* Day Header Row (Sticky) */}
-              <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-white/10 bg-slate-950/90 sticky top-0 z-20 backdrop-blur-md">
+              <div
+                style={{ gridTemplateColumns: "60px repeat(7, minmax(0, 1fr))" }}
+                className="grid border-b border-white/10 bg-slate-950/90 sticky top-0 z-20 backdrop-blur-md"
+              >
                 {/* Top-left corner time icon */}
-                <div className="p-3 border-r border-white/10 flex items-center justify-center text-slate-500">
+                <div className="p-3 border-r border-white/10 flex items-center justify-center text-slate-500 min-w-0">
                   <Clock className="w-4 h-4" />
                 </div>
 
@@ -631,14 +634,14 @@ export default function FoodCalendarPage() {
                 {weekDays.map((day) => (
                   <div
                     key={day.iso}
-                    className={`p-3 text-center border-r last:border-r-0 border-white/10 transition ${
+                    className={`p-3 text-center border-r last:border-r-0 border-white/10 transition min-w-0 overflow-hidden ${
                       day.isToday ? "bg-amber-500/10" : ""
                     }`}
                   >
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 truncate">
                       {day.dayName}
                     </div>
-                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                    <div className="flex items-center justify-center gap-1 mt-0.5 min-w-0">
                       <span
                         className={`text-base sm:text-lg font-black ${
                           day.isToday
@@ -660,12 +663,15 @@ export default function FoodCalendarPage() {
                   return (
                     <div
                       key={hour}
-                      style={{ minHeight: `${scaleHeight}px` }}
-                      className="grid grid-cols-[60px_repeat(7,1fr)] transition-[min-height] duration-75"
+                      style={{
+                        gridTemplateColumns: "60px repeat(7, minmax(0, 1fr))",
+                        minHeight: `${scaleHeight}px`,
+                      }}
+                      className="grid transition-[min-height] duration-75"
                     >
                       {/* Left Time Gutter */}
                       <div
-                        className={`border-r border-white/10 text-slate-400 text-right pr-2 font-mono font-medium select-none shrink-0 flex items-center justify-end ${
+                        className={`border-r border-white/10 text-slate-400 text-right pr-2 font-mono font-medium select-none shrink-0 flex items-center justify-end min-w-0 ${
                           scaleHeight < 36 ? "text-[9px] py-0 leading-none" : "text-[11px] py-1.5"
                         }`}
                       >
@@ -691,7 +697,7 @@ export default function FoodCalendarPage() {
                             }}
                             className={`${
                               scaleHeight < 40 ? "p-0.5" : "p-1.5"
-                            } border-r last:border-r-0 border-white/5 transition-all relative group/slot cursor-pointer ${
+                            } border-r last:border-r-0 border-white/5 transition-all relative group/slot cursor-pointer min-w-0 overflow-hidden ${
                               day.isToday ? "bg-amber-500/[0.015]" : ""
                             } ${
                               isDragOver
@@ -717,7 +723,7 @@ export default function FoodCalendarPage() {
                             )}
 
                             {/* Sequential Meal Cards inside this hour slot */}
-                            <div className={scaleHeight < 40 ? "space-y-0.5" : "space-y-1.5"}>
+                            <div className={`${scaleHeight < 40 ? "space-y-0.5" : "space-y-1.5"} min-w-0`}>
                               {slotEvents.map((ev) => {
                                 const isSnack = ev.attributes?.occasionType === "Snack";
                                 const anchor = (ev.attributes?.primaryAnchor as FoodPrimaryAnchor) || inferAnchorFromHour(hour);
@@ -741,7 +747,7 @@ export default function FoodCalendarPage() {
                                       e.stopPropagation();
                                       handleOpenModal(day.iso, hour, ev);
                                     }}
-                                    className={`meal-card group/card relative rounded-lg border shadow-sm transition-all duration-150 cursor-grab active:cursor-grabbing hover:scale-[1.01] hover:shadow-md ${
+                                    className={`meal-card group/card relative rounded-lg border shadow-sm transition-all duration-150 cursor-grab active:cursor-grabbing hover:scale-[1.01] hover:shadow-md min-w-0 max-w-full overflow-hidden ${
                                       isUltraCompact ? "px-1.5 py-0.5" : "px-2.5 py-1.5"
                                     } ${
                                       isBeingDragged ? "opacity-30 scale-95 border-dashed" : ""
@@ -752,26 +758,29 @@ export default function FoodCalendarPage() {
                                     }`}
                                   >
                                     {isUltraCompact ? (
-                                      <div className="flex items-center gap-1.5 min-w-0 leading-none">
-                                        <span className="text-[9px] font-mono font-bold text-slate-400 shrink-0">
+                                      <div className="min-w-0 leading-tight">
+                                        <span className="text-[9px] font-mono font-bold text-slate-400 mr-1.5 inline-block shrink-0">
                                           {timeDisplay}
                                         </span>
-                                        <span className="text-[11px] font-medium text-white truncate" title={ev.title}>
+                                        <span
+                                          className="text-[11px] font-medium text-white break-words whitespace-normal"
+                                          title={ev.title}
+                                        >
                                           {ev.title}
                                         </span>
                                       </div>
                                     ) : (
-                                      <>
+                                      <div className="min-w-0">
                                         <div className="text-[10px] font-mono font-medium text-slate-400 leading-none">
                                           {timeDisplay}
                                         </div>
                                         <div
-                                          className="text-xs font-semibold text-white mt-1 leading-snug line-clamp-2"
+                                          className="text-xs font-semibold text-white mt-1 leading-snug break-words whitespace-normal"
                                           title={ev.title}
                                         >
                                           {ev.title}
                                         </div>
-                                      </>
+                                      </div>
                                     )}
                                   </div>
                                 );
@@ -780,9 +789,9 @@ export default function FoodCalendarPage() {
 
                             {/* Subtle add button on slot hover when empty */}
                             {slotEvents.length === 0 && (
-                              <div className="opacity-0 group-hover/slot:opacity-100 transition-opacity h-full flex items-center justify-center min-h-[30px]">
-                                <span className="text-[10px] text-slate-500 flex items-center gap-0.5 font-medium">
-                                  <Plus className="w-3 h-3 text-slate-400" />
+                              <div className="opacity-0 group-hover/slot:opacity-100 transition-opacity h-full flex items-center justify-center py-0.5">
+                                <span className="text-[10px] text-slate-500 flex items-center gap-0.5 font-medium leading-none">
+                                  <Plus className="w-2.5 h-2.5 text-slate-400" />
                                   <span>{formatHourLabel(hour)}</span>
                                 </span>
                               </div>
