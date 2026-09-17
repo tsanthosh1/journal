@@ -6,8 +6,12 @@ import {
   RawSmsRecord,
   Subscription,
 } from "../subscriptionTypes";
-import { getCycleDocId } from "../subscriptionUtils";
+import { getCycleDocId, sanitizeForFirestore } from "../subscriptionUtils";
 import { parseLoanSms } from "../parsers/loanSmsParser";
+import {
+  getCycleOverridesForSubscription,
+  applyCycleOverride,
+} from "../serverCycleOverrides";
 
 export interface SmsSyncResult {
   success: boolean;
@@ -187,6 +191,9 @@ export async function runSmsSyncEngine(
       sub.dedupStrategy ||
       "SAME_DAY_SAME_AMOUNT";
 
+    // Load all manual overrides saved separately for this subscription
+    const overridesMap = await getCycleOverridesForSubscription(sub.id);
+
     // Process each cycle month
     for (const [month, items] of cyclesMap.entries()) {
       // Sort items chronologically within the cycle month
@@ -248,7 +255,7 @@ export async function runSmsSyncEngine(
         calculatedDueDate = `${yStr}-${mStr}-${String(validDay).padStart(2, "0")}`;
       }
 
-      const cycleState: CycleState = {
+      const baseCycleState: CycleState = {
         cycleMonth: month,
         dueDate: calculatedDueDate,
         statementTotal: expectedAmount,
@@ -260,6 +267,11 @@ export async function runSmsSyncEngine(
         sourceSms: sourceSmsList,
         updatedAt: new Date().toISOString(),
       };
+
+      // Apply separately saved manual override if present
+      const cycleState: CycleState = overridesMap.has(month)
+        ? applyCycleOverride(baseCycleState, overridesMap.get(month)!)
+        : baseCycleState;
 
       const cycleDocId = getCycleDocId(sub.id, month);
       const cycleRecord = {
@@ -274,7 +286,7 @@ export async function runSmsSyncEngine(
       await db
         .collection("subscription_cycles")
         .doc(cycleDocId)
-        .set(cycleRecord, { merge: true });
+        .set(sanitizeForFirestore(cycleRecord), { merge: true });
 
       // If current cycle month matches, update subscription currentCycle
       const currentMonthStr = new Date().toISOString().slice(0, 7);
@@ -287,9 +299,9 @@ export async function runSmsSyncEngine(
         subscriptionId: sub.id,
         subscriptionName: sub.name,
         cycleMonth: month,
-        amountPaid: totalPaid,
-        status,
-        smsDate: latestPaymentDate,
+        amountPaid: cycleState.paidAmount,
+        status: cycleState.status,
+        smsDate: cycleState.lastPaymentDate || latestPaymentDate,
       });
     }
 

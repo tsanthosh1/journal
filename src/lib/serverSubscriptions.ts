@@ -16,6 +16,14 @@ import {
   getCurrentCycleMonth,
   getCycleDocId,
 } from "./subscriptionUtils";
+import {
+  saveCycleOverride,
+  getCycleOverride,
+  getCycleOverridesForSubscription,
+  deleteCycleOverride,
+  deleteCycleOverridesForSubscription,
+  applyCycleOverride,
+} from "./serverCycleOverrides";
 
 export async function ensureSubscriptionCurrentMonth(
   sub: Subscription,
@@ -83,7 +91,7 @@ export async function ensureSubscriptionCurrentMonth(
     const remainingBalance = isPrepaid ? 0 : statementTotal;
     const status: PaymentStatus = isPrepaid ? "FULLY_PAID" : "UNPAID";
 
-    const newCycle: CycleState = {
+    let newCycle: CycleState = {
       cycleMonth: currentMonthStr,
       dueDate: calculatedDueDate,
       statementDate: `${currentMonthStr}-01`,
@@ -96,6 +104,16 @@ export async function ensureSubscriptionCurrentMonth(
       sourceSms: [],
       updatedAt: new Date().toISOString(),
     };
+
+    // Check and apply any separately saved override for the rolled over cycle
+    try {
+      const savedOverride = await getCycleOverride(sub.id, currentMonthStr);
+      if (savedOverride) {
+        newCycle = applyCycleOverride(newCycle, savedOverride);
+      }
+    } catch (overrideErr) {
+      console.warn(`Could not check override for rollover cycle ${currentMonthStr}:`, overrideErr);
+    }
 
     const updatedSub: Subscription = {
       ...sub,
@@ -117,12 +135,14 @@ export async function ensureSubscriptionCurrentMonth(
         subscriptionName: sub.name,
         currency: sub.currency || "INR",
         cycleMonth: currentMonthStr,
-        dueDate: calculatedDueDate,
-        statementDate: `${currentMonthStr}-01`,
-        statementTotal,
-        paidAmount,
-        remainingBalance,
-        status,
+        dueDate: newCycle.dueDate,
+        statementDate: newCycle.statementDate,
+        statementTotal: newCycle.statementTotal,
+        paidAmount: newCycle.paidAmount,
+        remainingBalance: newCycle.remainingBalance,
+        status: newCycle.status,
+        isManuallyOverridden: newCycle.isManuallyOverridden,
+        manualOverride: newCycle.manualOverride,
         processedMessageIds: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -168,8 +188,18 @@ export async function listSubscriptions(userIdInput: string | string[] = ""): Pr
   }
 
   const rawList: Subscription[] = [];
+  const seenGcp = new Set<string>();
+
   snap.forEach((doc) => {
-    rawList.push({ id: doc.id, ...(doc.data() as Omit<Subscription, "id">) });
+    const sub = { id: doc.id, ...(doc.data() as Omit<Subscription, "id">) };
+    if (sub.source === "GCP_BILLING_MODULE") {
+      // Deduplicate GCP subscriptions across candidate user IDs
+      if (seenGcp.has(sub.name)) {
+        return;
+      }
+      seenGcp.add(sub.name);
+    }
+    rawList.push(sub);
   });
 
   // Pure read: do not perform write-side-effects during read operations
@@ -341,6 +371,9 @@ export async function deleteSubscription(id: string): Promise<void> {
     batch.delete(doc.ref);
   });
   await batch.commit();
+
+  // Also delete all separately saved overrides for this subscription
+  await deleteCycleOverridesForSubscription(id);
 }
 
 export async function listHistoricalCycles(subscriptionId: string): Promise<HistoricalCycle[]> {
@@ -352,6 +385,9 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
     .collection("subscription_cycles")
     .where("subscriptionId", "==", subscriptionId)
     .get();
+
+  // Load all manual overrides saved separately for this subscription
+  const overridesMap = await getCycleOverridesForSubscription(subscriptionId);
 
   const isPrepaidSub = subscription ? isPrepaidSubscription(subscription) : false;
 
@@ -377,7 +413,7 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       cycleDueDate = calculateDueDate(month, subscription);
     }
 
-    cycleMap.set(month, {
+    const baseCycle: HistoricalCycle = {
       id: docId,
       subscriptionId,
       subscriptionName: subscription?.name || data.subscriptionName || "",
@@ -393,9 +429,18 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       processedMessageIds: data.processedMessageIds || [],
       sourceEmails: data.sourceEmails,
       sourceSms: data.sourceSms,
+      isManuallyOverridden: data.isManuallyOverridden,
+      manualOverride: data.manualOverride,
       createdAt: data.createdAt || new Date().toISOString(),
       updatedAt: data.updatedAt || new Date().toISOString(),
-    });
+    };
+
+    // Apply saved manual override on top if present
+    const finalCycle = overridesMap.has(month)
+      ? applyCycleOverride(baseCycle, overridesMap.get(month)!)
+      : baseCycle;
+
+    cycleMap.set(month, finalCycle);
   };
 
   snap.forEach((doc) => processDoc(doc.id, doc.data()));
@@ -409,6 +454,8 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       (curCycle.paidAmount && curCycle.paidAmount > 0) ||
       (curCycle.sourceEmails && curCycle.sourceEmails.length > 0) ||
       (curCycle.sourceSms && curCycle.sourceSms.length > 0) ||
+      curCycle.isManuallyOverridden ||
+      overridesMap.has(curMonth) ||
       isFixedTenure(subscription);
 
     if (!cycleMap.has(curMonth) && hasData) {
@@ -421,6 +468,8 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
       (c.statementTotal && c.statementTotal > 0) ||
       (c.paidAmount && c.paidAmount > 0) ||
       (c.sourceEmails && c.sourceEmails.length > 0) ||
+      (c.sourceSms && c.sourceSms.length > 0) ||
+      c.isManuallyOverridden ||
       (subscription ? isFixedTenure(subscription) : false),
   );
   return list.sort((a, b) => b.cycleMonth.localeCompare(a.cycleMonth));
@@ -428,7 +477,7 @@ export async function listHistoricalCycles(subscriptionId: string): Promise<Hist
 
 export async function overrideCycleState(
   subscriptionId: string,
-  updates: Partial<CycleState>,
+  updates: Partial<CycleState> & { resetOverride?: boolean },
 ): Promise<Subscription> {
   const { db } = getFirebaseAdmin();
   const subscription = await getSubscription(subscriptionId);
@@ -439,9 +488,67 @@ export async function overrideCycleState(
   const current = subscription.currentCycle;
   const targetMonth = updates.cycleMonth || current?.cycleMonth || getCurrentCycleMonth();
   const now = new Date().toISOString();
-
-  // Try to load existing cycle data for targetMonth
   const cycleDocId = getCycleDocId(subscriptionId, targetMonth);
+
+  // If user requested to clear/reset manual override back to automated state
+  if (updates.resetOverride) {
+    await deleteCycleOverride(subscriptionId, targetMonth);
+
+    const existingCycleSnap = await db.collection("subscription_cycles").doc(cycleDocId).get();
+    const existingData = existingCycleSnap.exists ? (existingCycleSnap.data() as CycleState) : current;
+
+    const total = existingData.statementTotal ?? subscription.defaultAmount ?? 0;
+    const paid = existingData.paidAmount ?? 0;
+    const remaining = computeRemainingBalance(total, paid);
+    const status = computePaymentStatus(total, paid);
+
+    const resetCycle: CycleState = {
+      ...existingData,
+      statementTotal: total,
+      paidAmount: paid,
+      remainingBalance: remaining,
+      status,
+      isManuallyOverridden: false,
+      manualOverride: undefined,
+      updatedAt: now,
+    };
+
+    const cycleRecord = {
+      ...resetCycle,
+      id: cycleDocId,
+      subscriptionId,
+      subscriptionName: subscription.name,
+      currency: subscription.currency,
+      updatedAt: now,
+    };
+
+    await db
+      .collection("subscription_cycles")
+      .doc(cycleDocId)
+      .set(sanitizeForFirestore(cycleRecord), { merge: true });
+
+    let updatedSub = subscription;
+    if (!current?.cycleMonth || targetMonth >= current.cycleMonth) {
+      updatedSub = await updateSubscription(subscriptionId, {
+        currentCycle: resetCycle,
+      });
+    }
+
+    return updatedSub;
+  }
+
+  // 1. Save manual override separately in dedicated cycle_overrides collection
+  const savedOverride = await saveCycleOverride(subscriptionId, targetMonth, {
+    status: updates.status,
+    statementTotal: updates.statementTotal,
+    paidAmount: updates.paidAmount,
+    remainingBalance: updates.remainingBalance,
+    dueDate: updates.dueDate,
+    statementDate: updates.statementDate,
+    lastPaymentDate: updates.lastPaymentDate,
+  });
+
+  // 2. Load existing cycle data for targetMonth
   const existingCycleSnap = await db.collection("subscription_cycles").doc(cycleDocId).get();
   const existingData = existingCycleSnap.exists ? (existingCycleSnap.data() as CycleState) : current;
 
@@ -456,7 +563,7 @@ export async function overrideCycleState(
     cycleDueDate = calculateDueDate(targetMonth, subscription);
   }
 
-  const mergedCycle: CycleState = {
+  const baseMerged: CycleState = {
     ...existingData,
     ...updates,
     cycleMonth: targetMonth,
@@ -467,6 +574,9 @@ export async function overrideCycleState(
     status,
     updatedAt: now,
   };
+
+  // Apply saved override to guarantee consistency and set isManuallyOverridden flag
+  const mergedCycle = applyCycleOverride(baseMerged, savedOverride);
 
   const cycleRecord = {
     ...mergedCycle,
@@ -508,6 +618,9 @@ export async function deleteSubscriptionCycle(
   // Single source of truth: only delete from subscription_cycles
   await db.collection("subscription_cycles").doc(cycleDocId).delete();
 
+  // Also delete separately saved override
+  await deleteCycleOverride(subscriptionId, cycleMonth);
+
   let updatedSub = subscription;
   if (subscription.currentCycle?.cycleMonth === cycleMonth) {
     const remainingCycles = await listHistoricalCycles(subscriptionId);
@@ -526,6 +639,8 @@ export async function deleteSubscriptionCycle(
           lastPaymentDate: latestRemaining.lastPaymentDate,
           sourceEmails: latestRemaining.sourceEmails,
           sourceSms: latestRemaining.sourceSms,
+          isManuallyOverridden: latestRemaining.isManuallyOverridden,
+          manualOverride: latestRemaining.manualOverride,
           processedMessageIds: latestRemaining.processedMessageIds || [],
           updatedAt: new Date().toISOString(),
         }

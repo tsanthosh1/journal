@@ -7,10 +7,15 @@ import {
   Subscription,
 } from "../subscriptionTypes";
 import {
-  isPrepaidSubscription,
+  computePaymentStatus,
   computeRemainingBalance,
   getCycleDocId,
+  isPrepaidSubscription,
 } from "../subscriptionUtils";
+import {
+  getCycleOverride,
+  applyCycleOverride,
+} from "../serverCycleOverrides";
 import { getGmailMessageDetails, searchGmailMessages } from "./apiClient";
 import { createSyncLogger, SyncLogCallback } from "./syncLogger";
 
@@ -428,6 +433,17 @@ export async function syncSubscriptionWithGmail(
       const lastDay = new Date(y, m, 0).getDate();
       cycle.dueDate = `${cycle.cycleMonth}-${String(lastDay).padStart(2, "0")}`;
     }
+  }
+
+  // Apply separately saved manual override if present
+  try {
+    const savedOverride = await getCycleOverride(subscription.id, cycle.cycleMonth);
+    if (savedOverride) {
+      const overridden = applyCycleOverride(cycle, savedOverride);
+      Object.assign(cycle, overridden);
+    }
+  } catch (overrideErr) {
+    console.warn(`Could not apply override for cycle ${cycle.cycleMonth}:`, overrideErr);
   }
 
   cycle.updatedAt = new Date().toISOString();

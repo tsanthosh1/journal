@@ -1,7 +1,11 @@
 import { getFirebaseAdmin } from "../firebaseAdmin";
 import { sanitizeForFirestore } from "../emailStorage";
 import { Subscription, CycleState, HistoricalCycle } from "../subscriptionTypes";
-import { getCycleDocId } from "../subscriptionUtils";
+import { getCycleDocId, areUserIdsEquivalent } from "../subscriptionUtils";
+import {
+  getCycleOverridesForSubscription,
+  applyCycleOverride,
+} from "../serverCycleOverrides";
 import { getTnebAccount, getTnebBillsForConsumer } from "./storage";
 import { TnebBillRecord, TnebConsumerAccount } from "./types";
 
@@ -23,7 +27,7 @@ export async function syncTnebToSubscriptions(
 
   for (const doc of subSnap.docs) {
     const sub = doc.data() as Subscription;
-    if (userId && sub.userId && sub.userId !== userId && !sub.userId.includes(userId)) {
+    if (userId && sub.userId && !areUserIdsEquivalent(sub.userId, userId)) {
       continue;
     }
     if (sub.tnebConfig?.consumerNumber === account.consumerNumber) {
@@ -57,12 +61,13 @@ export async function syncTnebToSubscriptions(
         });
 
         // Backfill cycles to subscription_cycles collection (single source of truth)
+        const overridesMap = await getCycleOverridesForSubscription(doc.id);
         const batch = db.batch();
         for (const bill of bills) {
           const bIsPaid = bill.isPaid || bill.amountPaid >= bill.totalCharges;
           const bRemaining = bIsPaid ? 0 : bill.amountToBePaid || Math.max(0, bill.totalCharges - bill.amountPaid);
           const cycleDocId = getCycleDocId(doc.id, bill.cycleMonth);
-          const histCycle: HistoricalCycle = {
+          const baseCycle: HistoricalCycle = {
             id: cycleDocId,
             subscriptionId: doc.id,
             subscriptionName: sub.name,
@@ -79,6 +84,10 @@ export async function syncTnebToSubscriptions(
             createdAt: bill.createdAt || new Date().toISOString(),
             updatedAt: bill.updatedAt || new Date().toISOString(),
           };
+
+          const histCycle = overridesMap.has(bill.cycleMonth)
+            ? applyCycleOverride(baseCycle, overridesMap.get(bill.cycleMonth)!)
+            : baseCycle;
 
           const cycleRef = db.collection("subscription_cycles").doc(cycleDocId);
           batch.set(cycleRef, sanitizeForFirestore(histCycle), { merge: true });

@@ -7,12 +7,14 @@ import { gmailSource } from "../gmail/source";
 import { smsSource } from "../sms/source";
 import { fixedAmountSource } from "./fixedSource";
 import { manualSource } from "./manualSource";
+import { gcpBillingSource } from "../gcpBilling/source";
 
 export const SUBSCRIPTION_SOURCES: Record<string, SubscriptionSource> = {
   apartment_maintenance: apartmentMaintenanceSource,
   apartment_water: apartmentWaterCorpusSource,
   tneb: tnebSource,
   chennai_water: chennaiWaterSource,
+  gcp_billing: gcpBillingSource,
   gmail: gmailSource,
   sms: smsSource,
   fixed: fixedAmountSource,
@@ -51,6 +53,10 @@ export function getSourceForSubscription(subscription: Subscription): Subscripti
 
   if (subscription.source === "CHENNAI_WATER_MODULE" || subscription.chennaiWaterConfig) {
     return chennaiWaterSource;
+  }
+
+  if (subscription.source === "GCP_BILLING_MODULE" || subscription.gcpBillingConfig) {
+    return gcpBillingSource;
   }
 
   if (subscription.source === "SMS_AUTOMATED" || subscription.smsConfig?.enabled) {

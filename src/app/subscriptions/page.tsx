@@ -125,6 +125,7 @@ function SubscriptionsPageContent() {
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleSub, setConsoleSub] = useState<Subscription | null>(null);
   const [consoleMode, setConsoleMode] = useState<"current" | "historical">("current");
+  const [consoleSources, setConsoleSources] = useState<("GMAIL" | "SMS" | "TNEB" | "APARTMENT" | "CHENNAI_WATER")[] | undefined>(undefined);
 
   const [bannerNotice, setBannerNotice] = useState<{ type: "success" | "error"; message: string } | null>(
     null,
@@ -329,9 +330,17 @@ function SubscriptionsPageContent() {
     }
   };
 
+  const handleTriggerSyncBoth = async () => {
+    setConsoleSub(null);
+    setConsoleMode("current");
+    setConsoleSources(["GMAIL", "SMS"]);
+    setIsConsoleOpen(true);
+  };
+
   const handleTriggerSync = async () => {
     setConsoleSub(null);
     setConsoleMode("current");
+    setConsoleSources(["GMAIL"]);
     setIsConsoleOpen(true);
   };
 
@@ -364,6 +373,7 @@ function SubscriptionsPageContent() {
   const handleTriggerDeepHistoricalSync = async () => {
     setConsoleSub(null);
     setConsoleMode("historical");
+    setConsoleSources(["GMAIL"]);
     setIsConsoleOpen(true);
   };
 
@@ -664,6 +674,7 @@ function SubscriptionsPageContent() {
                 isSyncing={isSyncing}
                 isHistoricalSyncing={isHistoricalSyncing}
                 isSmsSyncing={isSmsSyncing}
+                onTriggerSyncBoth={handleTriggerSyncBoth}
                 onTriggerSync={handleTriggerSync}
                 onTriggerHistoricalSync={handleTriggerDeepHistoricalSync}
                 onTriggerSmsSync={handleTriggerSmsSync}
@@ -743,6 +754,7 @@ function SubscriptionsPageContent() {
         userId={userId || "default_user"}
         initialSubscription={consoleSub}
         initialMode={consoleMode}
+        initialSources={consoleSources}
         onSyncComplete={fetchSubscriptions}
       />
     </div>

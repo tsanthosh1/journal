@@ -1,7 +1,7 @@
 // Billing Models & Schema definitions for Subscriptions and Outflow Tracker
 
 export type BillingType = "FIXED_TENURE" | "BILL_GENERATED";
-export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED" | "TNEB_MODULE" | "APARTMENT_MODULE" | "CHENNAI_WATER_MODULE";
+export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED" | "TNEB_MODULE" | "APARTMENT_MODULE" | "CHENNAI_WATER_MODULE" | "GCP_BILLING_MODULE";
 export type BillingCycle = "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "ANNUAL" | "CUSTOM";
 export type PaymentStatus =
   | "UNPAID"
@@ -116,6 +116,22 @@ export interface SourceEmailRecord {
   createdAt: string;
 }
 
+export interface CycleOverride {
+  id: string; // `${subscriptionId}_${cycleMonth}`
+  subscriptionId: string;
+  cycleMonth: string;
+  status?: PaymentStatus;
+  statementTotal?: number;
+  paidAmount?: number;
+  remainingBalance?: number;
+  dueDate?: string;
+  statementDate?: string;
+  lastPaymentDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CycleState {
   cycleMonth: string; // "YYYY-MM"
   statementDate?: string; // "YYYY-MM-DD"
@@ -132,6 +148,8 @@ export interface CycleState {
   processedMessageIds: string[];
   sourceEmails?: SourceEmailRecord[];
   sourceSms?: RawSmsRecord[];
+  isManuallyOverridden?: boolean;
+  manualOverride?: CycleOverride;
   updatedAt: string;
 }
 
@@ -157,6 +175,13 @@ export interface ChennaiWaterSubscriptionConfig {
   existingBillNumber?: string; // e.g. "15-193-56648-000"
   componentType?: "TAX_AND_CHARGES" | "TAX_ONLY" | "CHARGES_ONLY";
   autoSyncWithMetroWaterModule?: boolean;
+}
+
+export interface GcpBillingSubscriptionConfig {
+  configId?: string;
+  billingAccountId?: string;
+  datasetId?: string;
+  autoSyncWithGcpBilling?: boolean;
 }
 
 export interface Subscription {
@@ -187,6 +212,7 @@ export interface Subscription {
   tnebConfig?: TnebSubscriptionConfig;
   apartmentConfig?: ApartmentSubscriptionConfig;
   chennaiWaterConfig?: ChennaiWaterSubscriptionConfig;
+  gcpBillingConfig?: GcpBillingSubscriptionConfig;
   currentCycle: CycleState;
   createdAt: string;
   updatedAt: string;

@@ -1,6 +1,10 @@
 import { getFirebaseAdmin } from "../firebaseAdmin";
-import { sanitizeForFirestore, getCycleDocId } from "../subscriptionUtils";
+import { sanitizeForFirestore, getCycleDocId, areUserIdsEquivalent } from "../subscriptionUtils";
 import { Subscription, CycleState, HistoricalCycle } from "../subscriptionTypes";
+import {
+  getCycleOverridesForSubscription,
+  applyCycleOverride,
+} from "../serverCycleOverrides";
 import { HomefyBillRecord, HomefySession } from "./types";
 import { getApartmentSession, getCachedApartmentBills } from "./storage";
 import { fetchHomefyBills } from "./client";
@@ -60,7 +64,7 @@ export async function syncApartmentBillsToSubscriptions(
     }
 
     const sub = doc.data() as Subscription;
-    if (userId && sub.userId && sub.userId !== userId) {
+    if (userId && sub.userId && !areUserIdsEquivalent(sub.userId, userId)) {
       continue;
     }
     const catFilter = sub.apartmentConfig?.categoryFilter || "ALL";
@@ -113,7 +117,9 @@ export async function syncApartmentBillsToSubscriptions(
     const latestDueDateStr = latestDueDates[0] ? latestDueDates[0].split("T")[0] : undefined;
 
     const latestCreatedDates = latestBills.map((b) => b.createdAt).filter(Boolean).sort();
-    const latestStatementDateStr = latestCreatedDates[0] ? latestCreatedDates[0].split("T")[0] : undefined;
+    const latestStatementDateStr = latestCreatedDates[0]
+      ? latestCreatedDates[0].split("T")[0]
+      : sub.currentCycle?.statementDate || `${latestCycleMonth}-01`;
 
     const latestPaidDates = latestBills
       .map((b) => b.paidRequest?.[0]?.date)
@@ -142,8 +148,15 @@ export async function syncApartmentBillsToSubscriptions(
     const parsedDueDay = latestDueDateStr ? parseInt(latestDueDateStr.split("-")[2], 10) : undefined;
     const dueDay = parsedDueDay && !isNaN(parsedDueDay) ? parsedDueDay : sub.dueDayOfMonth;
 
+    // Load any separately saved manual overrides for this subscription
+    const overridesMap = await getCycleOverridesForSubscription(doc.id);
+
+    const appliedCurrentCycle = overridesMap.has(latestCycleMonth)
+      ? applyCycleOverride(currentCycle, overridesMap.get(latestCycleMonth)!)
+      : currentCycle;
+
     await doc.ref.update({
-      currentCycle: sanitizeForFirestore(currentCycle),
+      currentCycle: sanitizeForFirestore(appliedCurrentCycle),
       defaultAmount: latestTotal > 0 ? latestTotal : sub.defaultAmount,
       dueDayOfMonth: dueDay,
       updatedAt: new Date().toISOString(),
@@ -169,7 +182,9 @@ export async function syncApartmentBillsToSubscriptions(
       const mDueDateStr = mDueDates[0] ? mDueDates[0].split("T")[0] : undefined;
 
       const mCreatedDates = mBills.map((b) => b.createdAt).filter(Boolean).sort();
-      const mStatementDateStr = mCreatedDates[0] ? mCreatedDates[0].split("T")[0] : undefined;
+      const mStatementDateStr = mCreatedDates[0]
+        ? mCreatedDates[0].split("T")[0]
+        : `${bMonth}-01`;
 
       const mPaidDates = mBills
         .map((b) => b.paidRequest?.[0]?.date)
@@ -181,7 +196,7 @@ export async function syncApartmentBillsToSubscriptions(
       const mIds = mBills.map((b) => b.billId || b.id).filter(Boolean) as string[];
 
       const cycleDocId = getCycleDocId(doc.id, bMonth);
-      const histCycle: HistoricalCycle = {
+      const baseHistCycle: HistoricalCycle = {
         id: cycleDocId,
         subscriptionId: doc.id,
         subscriptionName: sub.name,
@@ -198,6 +213,10 @@ export async function syncApartmentBillsToSubscriptions(
         createdAt: mCreatedDates[0] || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      const histCycle = overridesMap.has(bMonth)
+        ? applyCycleOverride(baseHistCycle, overridesMap.get(bMonth)!)
+        : baseHistCycle;
 
       const cycleRef = db.collection("subscription_cycles").doc(cycleDocId);
       batch.set(cycleRef, sanitizeForFirestore(histCycle), { merge: true });
@@ -272,7 +291,7 @@ export async function createSubscriptionForApartmentCategory(
 
   for (const doc of existingSnap.docs) {
     const s = doc.data() as Subscription;
-    if (userId && s.userId && s.userId !== userId) {
+    if (userId && s.userId && !areUserIdsEquivalent(s.userId, userId)) {
       continue;
     }
     if (
@@ -303,7 +322,9 @@ export async function createSubscriptionForApartmentCategory(
   const latestDueDates = latestBills.map((b) => b.lastDate).filter(Boolean).sort().reverse();
   const latestDueDateStr = latestDueDates[0] ? latestDueDates[0].split("T")[0] : undefined;
   const latestCreatedDates = latestBills.map((b) => b.createdAt).filter(Boolean).sort();
-  const latestStatementDateStr = latestCreatedDates[0] ? latestCreatedDates[0].split("T")[0] : undefined;
+  const latestStatementDateStr = latestCreatedDates[0]
+    ? latestCreatedDates[0].split("T")[0]
+    : `${latestMonth}-01`;
   const latestPaidDates = latestBills
     .map((b) => b.paidRequest?.[0]?.date)
     .filter(Boolean)

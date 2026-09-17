@@ -69,6 +69,28 @@ export function ManualOverrideModal({
     }
   };
 
+  const isOverridden = Boolean(
+    targetCycle?.isManuallyOverridden ||
+    (!targetCycle && subscription?.currentCycle?.isManuallyOverridden)
+  );
+
+  const handleResetOverride = async () => {
+    if (!subscription) return;
+    setIsSubmitting(true);
+    setErrorMsg("");
+    try {
+      await onSaveOverride(subscription.id, {
+        cycleMonth,
+        resetOverride: true,
+      });
+      onClose();
+    } catch (err) {
+      setErrorMsg((err as Error).message || "Failed to reset override.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 backdrop-blur-sm">
       <div className="relative w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-white/15 bg-slate-900 shadow-2xl">
@@ -82,6 +104,11 @@ export function ManualOverrideModal({
               {cycleMonth && (
                 <span className="rounded bg-cyan-500/20 px-2 py-0.5 text-xs text-cyan-300 font-mono">
                   {formatCycleMonth(cycleMonth)}
+                </span>
+              )}
+              {isOverridden && (
+                <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                  Overridden
                 </span>
               )}
             </h2>
@@ -101,6 +128,13 @@ export function ManualOverrideModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-3.5 sm:space-y-4 flex-1">
+          <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2.5 text-[11px] text-cyan-300/90 flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Overrides are saved separately and remain protected when automated SMS or Gmail sync runs.</span>
+          </div>
+
           {errorMsg && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
               {errorMsg}
@@ -211,6 +245,19 @@ export function ManualOverrideModal({
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-2 border-t border-white/10 pt-4 shrink-0">
+            {isOverridden && (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleResetOverride}
+                className="mr-auto min-h-[40px] rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 transition"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Reset to Auto</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

@@ -223,11 +223,15 @@ export async function saveGmailTokens(
 
   await tokenDocRef.set(payload, { merge: true });
 
-  // Also store under normalized doc ID and "default_user" alias for single-tenant resilience
-  if (tokens.email && tokens.email !== userId) {
+  // Also store under normalized doc ID and original email
+  if (tokens.email) {
     const emailKey = tokens.email.replace(/[^a-zA-Z0-9_-]/g, "_");
-    await db.collection("gmail_tokens").doc(emailKey).set(payload, { merge: true });
-    await db.collection("gmail_tokens").doc("default_user").set(payload, { merge: true });
+    if (emailKey !== userId) {
+      await db.collection("gmail_tokens").doc(emailKey).set(payload, { merge: true });
+    }
+    if (tokens.email !== userId) {
+      await db.collection("gmail_tokens").doc(tokens.email).set(payload, { merge: true });
+    }
   }
 }
 
@@ -244,18 +248,18 @@ export async function getValidGmailToken(
 } | null> {
   const { db } = getFirebaseAdmin();
   
-  // Try candidate keys in order:
-  const candidateKeys = [
-    userId,
-    userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-    "default_user",
-  ];
+  // Try candidate keys in order (excluding default_user for named users):
+  const candidateKeys = Array.from(
+    new Set([
+      userId,
+      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+    ]),
+  ).filter((k) => k && k !== "default_user");
 
   let record: GmailTokenRecord | null = null;
   let activeDocKey = userId;
 
   for (const key of candidateKeys) {
-    if (!key) continue;
     const snap = await db.collection("gmail_tokens").doc(key).get();
     if (snap.exists) {
       record = snap.data() as GmailTokenRecord;
@@ -264,22 +268,32 @@ export async function getValidGmailToken(
     }
   }
 
-  // If still not found, search by email field or grab the first available token document
-  if (!record) {
-    const emailQuery = await db
-      .collection("gmail_tokens")
-      .where("email", "==", userId)
-      .limit(1)
-      .get();
-    if (!emailQuery.empty) {
-      record = emailQuery.docs[0].data() as GmailTokenRecord;
-      activeDocKey = emailQuery.docs[0].id;
-    } else {
-      const anyQuery = await db.collection("gmail_tokens").limit(1).get();
-      if (!anyQuery.empty) {
-        record = anyQuery.docs[0].data() as GmailTokenRecord;
-        activeDocKey = anyQuery.docs[0].id;
+  // If still not found by direct doc key, search by email or matching normalized id
+  if (!record && userId && userId !== "default_user") {
+    const targetNorm = userId.toLowerCase().replace(/[^a-zA-Z0-9]/g, "");
+    const allTokens = await db.collection("gmail_tokens").get();
+
+    for (const doc of allTokens.docs) {
+      if (doc.id === "attacker" || doc.id === "pentest_victim" || doc.id === "default_user") continue;
+      const d = doc.data() as GmailTokenRecord;
+      const docIdNorm = doc.id.toLowerCase().replace(/[^a-zA-Z0-9]/g, "");
+      const emailNorm = (d.email || "").toLowerCase().replace(/[^a-zA-Z0-9]/g, "");
+      const userNorm = (d.userId || "").toLowerCase().replace(/[^a-zA-Z0-9]/g, "");
+
+      if (docIdNorm === targetNorm || emailNorm === targetNorm || userNorm === targetNorm) {
+        record = d;
+        activeDocKey = doc.id;
+        break;
       }
+    }
+  }
+
+  // Fallback to default_user only if caller specifically asked for default_user or no record found
+  if (!record && (userId === "default_user" || !userId)) {
+    const snap = await db.collection("gmail_tokens").doc("default_user").get();
+    if (snap.exists) {
+      record = snap.data() as GmailTokenRecord;
+      activeDocKey = "default_user";
     }
   }
 
@@ -303,6 +317,14 @@ export async function getValidGmailToken(
         expiryDate: refreshed.expiryDate,
         refreshToken: record.refreshToken,
       });
+      if (userId && userId !== activeDocKey && userId !== "default_user") {
+        await db.collection("gmail_tokens").doc(userId).set({
+          ...record,
+          accessToken: refreshed.accessToken,
+          expiryDate: refreshed.expiryDate,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      }
       return {
         accessToken: refreshed.accessToken,
         email: record.email,

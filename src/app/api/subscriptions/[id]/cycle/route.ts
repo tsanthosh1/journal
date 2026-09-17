@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { overrideSubscriptionCycle, deleteSubscriptionCycle } from "@/lib/serverSubscriptions";
+import {
+  overrideSubscriptionCycle,
+  deleteSubscriptionCycle,
+  getSubscription,
+} from "@/lib/serverSubscriptions";
+import { getVerifiedUser, unauthorizedResponse } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -8,9 +13,23 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
     const body = await request.json();
+
+    const subscription = await getSubscription(id);
+    if (!subscription) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
+    if (subscription.userId && !user.candidateUserIds.includes(subscription.userId)) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
 
     const updated = await overrideSubscriptionCycle(id, body);
     if (!updated) {
@@ -38,8 +57,22 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getVerifiedUser(request);
+  if (!user) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id } = await params;
+    const subscription = await getSubscription(id);
+    if (!subscription) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
+    if (subscription.userId && !user.candidateUserIds.includes(subscription.userId)) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month");
 

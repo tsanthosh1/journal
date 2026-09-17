@@ -24,6 +24,7 @@ export interface SyncConsoleModalProps {
   userId?: string;
   initialSubscription?: Subscription | null;
   initialMode?: "current" | "historical";
+  initialSources?: ("GMAIL" | "SMS" | "TNEB" | "APARTMENT" | "CHENNAI_WATER")[];
   onSyncComplete?: () => void;
 }
 
@@ -33,6 +34,7 @@ export function SyncConsoleModal({
   userId = "default_user",
   initialSubscription,
   initialMode = "current",
+  initialSources,
   onSyncComplete,
 }: SyncConsoleModalProps) {
   const { user } = useAuth();
@@ -47,6 +49,7 @@ export function SyncConsoleModal({
 
   const [selectedSub, setSelectedSub] = useState<Subscription | null>(initialSubscription || null);
   const [syncMode, setSyncMode] = useState<"current" | "historical">(initialMode);
+  const [syncSources, setSyncSources] = useState<string[] | undefined>(initialSources);
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -54,7 +57,8 @@ export function SyncConsoleModal({
   useEffect(() => {
     setSelectedSub(initialSubscription || null);
     setSyncMode(initialMode);
-  }, [initialSubscription, initialMode]);
+    setSyncSources(initialSources);
+  }, [initialSubscription, initialMode, initialSources]);
 
   useEffect(() => {
     if (autoScroll && terminalEndRef.current) {
@@ -63,7 +67,11 @@ export function SyncConsoleModal({
   }, [logs, autoScroll]);
 
   // Start sync streaming
-  const startStream = async (subToSync = selectedSub, modeToSync = syncMode) => {
+  const startStream = async (
+    subToSync = selectedSub,
+    modeToSync = syncMode,
+    sourcesToSync = syncSources,
+  ) => {
     if (isRunning) return;
 
     if (abortControllerRef.current) {
@@ -82,7 +90,7 @@ export function SyncConsoleModal({
         level: "info",
         message: `--- Starting ${modeToSync === "historical" ? "Deep Historical Scan" : "Active Cycle Sync"} ${
           subToSync ? `for ${subToSync.name}` : "for all subscriptions"
-        } ---`,
+        }${sourcesToSync ? ` [Sources: ${sourcesToSync.join(", ")}]` : ""} ---`,
       },
     ]);
 
@@ -95,6 +103,7 @@ export function SyncConsoleModal({
           subscriptionId: subToSync?.id,
           mode: modeToSync,
           maxStatements: modeToSync === "historical" ? 50 : 15,
+          sources: sourcesToSync,
         }),
         signal: abortController.signal,
       });

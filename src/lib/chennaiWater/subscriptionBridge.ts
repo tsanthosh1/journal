@@ -1,6 +1,10 @@
 import { getFirebaseAdmin } from "../firebaseAdmin";
-import { sanitizeForFirestore, getCycleDocId } from "../subscriptionUtils";
+import { sanitizeForFirestore, getCycleDocId, areUserIdsEquivalent } from "../subscriptionUtils";
 import { Subscription, CycleState, HistoricalCycle } from "../subscriptionTypes";
+import {
+  getCycleOverridesForSubscription,
+  applyCycleOverride,
+} from "../serverCycleOverrides";
 import { ChennaiWaterReceipt } from "./types";
 import {
   getChennaiWaterSession,
@@ -38,11 +42,14 @@ export async function syncPastReceiptsToCanonicalCycles(
   const { db } = getFirebaseAdmin();
   if (!receipts || receipts.length === 0) return 0;
 
+  const overridesMap = await getCycleOverridesForSubscription(subscriptionId);
   const batch = db.batch();
   let count = 0;
 
   for (const r of receipts) {
     const cycleMonth = extractReceiptCycleMonth(r.receipt_dt);
+    if (!cycleMonth) continue;
+
     const cycleDocId = getCycleDocId(subscriptionId, cycleMonth);
     const amt = Number(r.amount || 0);
 
@@ -52,7 +59,7 @@ export async function syncPastReceiptsToCanonicalCycles(
       parsedIsoDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     }
 
-    const histCycle: HistoricalCycle = {
+    const baseHistCycle: HistoricalCycle = {
       id: cycleDocId,
       subscriptionId,
       subscriptionName,
@@ -69,6 +76,10 @@ export async function syncPastReceiptsToCanonicalCycles(
       updatedAt: new Date().toISOString(),
       createdAt: parsedIsoDate || new Date().toISOString(),
     };
+
+    const histCycle = overridesMap.has(cycleMonth)
+      ? applyCycleOverride(baseHistCycle, overridesMap.get(cycleMonth)!)
+      : baseHistCycle;
 
     const ref = db.collection("subscription_cycles").doc(cycleDocId);
     batch.set(ref, sanitizeForFirestore(histCycle), { merge: true });
@@ -220,7 +231,7 @@ export async function syncChennaiWaterToSubscriptions(
 
   for (const doc of subSnap.docs) {
     const sub = doc.data() as Subscription;
-    if (userId && sub.userId && sub.userId !== userId) {
+    if (userId && sub.userId && !areUserIdsEquivalent(sub.userId, userId)) {
       continue;
     }
     const billNo = sub.chennaiWaterConfig?.billNumber;

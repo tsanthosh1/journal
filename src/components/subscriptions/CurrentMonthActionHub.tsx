@@ -113,6 +113,7 @@ export function CurrentMonthActionHub({
       tnebConfig: sub.tnebConfig,
       apartmentConfig: sub.apartmentConfig,
       chennaiWaterConfig: sub.chennaiWaterConfig,
+      gcpBillingConfig: sub.gcpBillingConfig,
       notes: sub.notes,
     };
 
@@ -146,8 +147,9 @@ export function CurrentMonthActionHub({
       const isTneb = sub.source === "TNEB_MODULE";
       const isApartment = sub.source === "APARTMENT_MODULE";
       const isChennaiWater = sub.source === "CHENNAI_WATER_MODULE";
+      const isGcp = sub.source === "GCP_BILLING_MODULE";
       const isFixed = isFixedTenure(sub);
-      const hasStatementConfig = isTneb || isApartment || isChennaiWater || Boolean(
+      const hasStatementConfig = isTneb || isApartment || isChennaiWater || isGcp || Boolean(
         sub.emailConfig?.statementQuery && sub.emailConfig.statementQuery.trim(),
       );
       const hasStatementTotal = cycle.statementTotal !== undefined && cycle.statementTotal > 0;

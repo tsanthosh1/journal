@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { getFirebaseAdmin } from "../firebaseAdmin";
-import { sanitizeForFirestore } from "../subscriptionUtils";
+import { sanitizeForFirestore, getCandidateUserIds } from "../subscriptionUtils";
 import { HomefyBillRecord, HomefySession } from "./types";
 
 const LOCAL_SESSION_FILE = path.join(os.homedir(), ".homefy_session.json");
@@ -21,21 +21,26 @@ export async function getApartmentSession(userId?: string): Promise<HomefySessio
   }
 
   const { db } = getFirebaseAdmin();
-  const userDoc = getUserApartmentBase(db, userId);
+  const candidateIds = Array.from(
+    new Set([userId, ...getCandidateUserIds(userId)]),
+  );
 
-  // Check user-scoped subcollection first
-  const subDoc = await userDoc.collection("apartment_config").doc("session").get();
-  if (subDoc.exists) {
-    return subDoc.data() as HomefySession;
+  // Check user-scoped subcollection first across candidate IDs
+  for (const uid of candidateIds) {
+    const userDoc = getUserApartmentBase(db, uid);
+    const subDoc = await userDoc.collection("apartment_config").doc("session").get();
+    if (subDoc.exists) {
+      return subDoc.data() as HomefySession;
+    }
   }
 
-  // Check root apartment_config/{userId}
-  const rootDoc = await db.collection("apartment_config").doc(userId).get();
-  if (rootDoc.exists) {
-    const sessionData = rootDoc.data() as HomefySession;
-    // Migrate to user subcollection
-    await userDoc.collection("apartment_config").doc("session").set(sanitizeForFirestore(sessionData), { merge: true });
-    return sessionData;
+  // Check root apartment_config/{uid} across candidate IDs
+  for (const uid of candidateIds) {
+    const rootDoc = await db.collection("apartment_config").doc(uid).get();
+    if (rootDoc.exists) {
+      const sessionData = rootDoc.data() as HomefySession;
+      return sessionData;
+    }
   }
 
   // Migration for primary developer account (santhosh) from ~/.homefy_session.json
@@ -59,7 +64,8 @@ export async function getApartmentSession(userId?: string): Promise<HomefySessio
             updatedAt: new Date().toISOString(),
           };
 
-          await userDoc.collection("apartment_config").doc("session").set(sanitizeForFirestore(session), { merge: true });
+          const targetUserDoc = getUserApartmentBase(db, userId);
+          await targetUserDoc.collection("apartment_config").doc("session").set(sanitizeForFirestore(session), { merge: true });
           return session;
         }
       }
@@ -159,32 +165,35 @@ export async function getCachedApartmentBills(
   }
 
   const { db } = getFirebaseAdmin();
-  const userDoc = getUserApartmentBase(db, userId);
+  const candidateIds = Array.from(
+    new Set([
+      userId,
+      ...getCandidateUserIds(userId),
+      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      userId.replace(/_/g, "-"),
+    ].filter(Boolean)),
+  );
 
-  // Check user subcollection first
-  const subSnap = await userDoc.collection("apartment_bills").get();
-  if (!subSnap.empty) {
-    const bills: HomefyBillRecord[] = [];
-    subSnap.forEach((doc) => {
-      bills.push(doc.data() as HomefyBillRecord);
-    });
-    bills.sort((a, b) => {
-      const dateA = a.lastDate || a.createdAt || "";
-      const dateB = b.lastDate || b.createdAt || "";
-      return dateB.localeCompare(dateA);
-    });
-    return bills;
+  // Check user subcollection first across candidate IDs
+  for (const uid of candidateIds) {
+    const userDoc = getUserApartmentBase(db, uid);
+    const subSnap = await userDoc.collection("apartment_bills").get();
+    if (!subSnap.empty) {
+      const bills: HomefyBillRecord[] = [];
+      subSnap.forEach((doc) => {
+        bills.push(doc.data() as HomefyBillRecord);
+      });
+      bills.sort((a, b) => {
+        const dateA = a.lastDate || a.createdAt || "";
+        const dateB = b.lastDate || b.createdAt || "";
+        return dateB.localeCompare(dateA);
+      });
+      return bills;
+    }
   }
 
   // Check legacy root collection with user filter
-  const candidateIds = [
-    userId,
-    userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-    userId.replace(/_/g, "-"),
-  ];
-  const uniqueCandidateIds = Array.from(new Set(candidateIds.filter(Boolean)));
-
-  for (const uid of uniqueCandidateIds) {
+  for (const uid of candidateIds) {
     const snap = await db
       .collection("apartment_bills")
       .where("userId", "==", uid)
@@ -192,10 +201,11 @@ export async function getCachedApartmentBills(
     if (!snap.empty) {
       const bills: HomefyBillRecord[] = [];
       const batch = db.batch();
+      const targetUserDoc = getUserApartmentBase(db, userId);
       snap.forEach((doc) => {
         const b = doc.data() as HomefyBillRecord;
         bills.push(b);
-        batch.set(userDoc.collection("apartment_bills").doc(doc.id), sanitizeForFirestore(b), { merge: true });
+        batch.set(targetUserDoc.collection("apartment_bills").doc(doc.id), sanitizeForFirestore(b), { merge: true });
       });
       await batch.commit();
       bills.sort((a, b) => {

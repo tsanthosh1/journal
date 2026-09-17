@@ -22,6 +22,7 @@ import {
   BarChart3,
   ClipboardList,
   Mail,
+  Cloud,
 } from "lucide-react";
 
 interface SubscriptionCardProps {
@@ -63,6 +64,7 @@ export function SubscriptionCard({
     subscription.source === "TNEB_MODULE" ||
       subscription.source === "APARTMENT_MODULE" ||
       subscription.source === "CHENNAI_WATER_MODULE" ||
+      subscription.source === "GCP_BILLING_MODULE" ||
       (subscription.emailConfig?.statementQuery && subscription.emailConfig.statementQuery.trim()),
   );
 
@@ -242,6 +244,15 @@ export function SubscriptionCard({
                     <Droplets className="w-3 h-3 text-sky-300" />
                     <span>Metro Water</span>
                   </Link>
+                ) : subscription.source === "GCP_BILLING_MODULE" ? (
+                  <Link
+                    href="/cloud-billing"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded-lg bg-cyan-500/20 border border-cyan-500/40 px-2 py-0.5 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/30 transition"
+                  >
+                    <Cloud className="w-3 h-3 text-cyan-300" />
+                    <span>Google Cloud</span>
+                  </Link>
                 ) : subscription.source === "SMS_AUTOMATED" ? (
                   <span className="inline-flex items-center gap-1 rounded-lg bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[11px] font-medium text-teal-300">
                     <MessageSquare className="w-3 h-3 text-teal-300" />
@@ -255,7 +266,17 @@ export function SubscriptionCard({
               </div>
             </div>
           </div>
-          <div className="shrink-0">{statusBadge}</div>
+          <div className="shrink-0 flex items-center gap-1.5">
+            {statusBadge}
+            {cycle.isManuallyOverridden && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-[10px] font-semibold text-cyan-300"
+                title="Status or ledger has a manual override that persists across syncs"
+              >
+                Override
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Warning banner for parser review */}

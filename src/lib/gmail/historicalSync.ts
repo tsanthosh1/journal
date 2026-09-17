@@ -12,6 +12,10 @@ import {
   isPrepaidSubscription,
   isAdvancePaymentSubscription,
 } from "../subscriptionUtils";
+import {
+  getCycleOverridesForSubscription,
+  applyCycleOverride,
+} from "../serverCycleOverrides";
 import { getGmailMessageDetails, searchGmailMessages } from "./apiClient";
 import { createSyncLogger, SyncLogCallback } from "./syncLogger";
 
@@ -195,6 +199,9 @@ export async function syncHistoricalSubscriptionWithGmail(
   // 5. Reconcile monthly historical cycles
   const cyclesMap = new Map<string, HistoricalCycle>();
 
+  // Load any separately saved manual overrides for this subscription
+  const overridesMap = await getCycleOverridesForSubscription(subscription.id);
+
   if (statementMessages.length > 0) {
     // Mode A: Statement-Driven Cycles (e.g. Credit Cards, Utility Invoices)
     const parsedStatements: Array<{
@@ -356,7 +363,7 @@ export async function syncHistoricalSubscriptionWithGmail(
         ? stmt.stmtDate
         : undefined;
 
-      const cycleRecord: HistoricalCycle = {
+      const baseRecord: HistoricalCycle = {
         id: `${subscription.id}_${stmt.cycleMonth}`,
         subscriptionId: subscription.id,
         subscriptionName: subscription.name,
@@ -374,6 +381,10 @@ export async function syncHistoricalSubscriptionWithGmail(
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      const cycleRecord = overridesMap.has(stmt.cycleMonth)
+        ? applyCycleOverride(baseRecord, overridesMap.get(stmt.cycleMonth)!)
+        : baseRecord;
 
       cyclesMap.set(stmt.cycleMonth, cycleRecord);
 
@@ -422,7 +433,7 @@ export async function syncHistoricalSubscriptionWithGmail(
         dueDate = `${ym}-${String(subscription.dueDayOfMonth).padStart(2, "0")}`;
       }
 
-      const cycleRecord: HistoricalCycle = {
+      const baseRecord: HistoricalCycle = {
         id: `${subscription.id}_${ym}`,
         subscriptionId: subscription.id,
         subscriptionName: subscription.name,
@@ -440,6 +451,10 @@ export async function syncHistoricalSubscriptionWithGmail(
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      const cycleRecord = overridesMap.has(ym)
+        ? applyCycleOverride(baseRecord, overridesMap.get(ym)!)
+        : baseRecord;
 
       cyclesMap.set(ym, cycleRecord);
 

@@ -147,19 +147,23 @@ export async function runUnifiedSync(
       sourcesRun.push("APARTMENT");
       log("info", `Synchronizing Apartment bill subscription: ${sub.name}`);
       try {
-        const session = await getApartmentSession(userId);
+        const effectiveUserId = sub.userId || userId;
+        const session = (await getApartmentSession(effectiveUserId)) || (await getApartmentSession(userId));
         let bills: HomefyBillRecord[] = [];
         if (session?.swappedToken) {
           try {
             bills = await fetchHomefyBills(session.swappedToken, "ALL");
-            await saveCachedApartmentBills(bills, userId);
+            await saveCachedApartmentBills(bills, effectiveUserId);
           } catch (e) {
-            bills = await getCachedApartmentBills(userId);
+            bills = await getCachedApartmentBills(effectiveUserId);
           }
         } else {
+          bills = await getCachedApartmentBills(effectiveUserId);
+        }
+        if (bills.length === 0 && effectiveUserId !== userId) {
           bills = await getCachedApartmentBills(userId);
         }
-        const count = await syncApartmentBillsToSubscriptions(bills, userId, sub.id);
+        const count = await syncApartmentBillsToSubscriptions(bills, effectiveUserId, sub.id);
         log("success", `Apartment sync updated subscription with ${bills.length} community bills.`);
       } catch (err: any) {
         const msg = `Apartment sync error: ${err.message}`;
@@ -188,12 +192,27 @@ export async function runUnifiedSync(
         log("error", err);
       } else {
         if (options.mode === "historical") {
-          const res = await syncHistoricalSubscriptionWithGmail(
+          let res = await syncHistoricalSubscriptionWithGmail(
             sub,
             tokenRecord.accessToken,
             options.maxStatements || 24,
             logWrapper,
           );
+
+          // If 401 unauthenticated, force-refresh token and retry once
+          if (res.messagesScanned === 0) {
+            const refreshed = await getValidGmailToken(userId, true);
+            if (refreshed && refreshed.accessToken !== tokenRecord.accessToken) {
+              log("info", "Retrying deep scan with freshly refreshed OAuth token...");
+              res = await syncHistoricalSubscriptionWithGmail(
+                sub,
+                refreshed.accessToken,
+                options.maxStatements || 24,
+                logWrapper,
+              );
+            }
+          }
+
           gmailResultSummary = {
             syncedCount: 1,
             totalSubscriptions: 1,
@@ -201,7 +220,17 @@ export async function runUnifiedSync(
             results: [res],
           };
         } else {
-          const res = await syncSubscriptionWithGmail(sub, tokenRecord.accessToken, logWrapper);
+          let res = await syncSubscriptionWithGmail(sub, tokenRecord.accessToken, logWrapper);
+
+          // If failed with 401, force-refresh token and retry once
+          if (!res.success) {
+            const refreshed = await getValidGmailToken(userId, true);
+            if (refreshed && refreshed.accessToken !== tokenRecord.accessToken) {
+              log("info", "Retrying Gmail sync with freshly refreshed OAuth token...");
+              res = await syncSubscriptionWithGmail(sub, refreshed.accessToken, logWrapper);
+            }
+          }
+
           gmailResultSummary = {
             syncedCount: res.success ? 1 : 0,
             totalSubscriptions: 1,

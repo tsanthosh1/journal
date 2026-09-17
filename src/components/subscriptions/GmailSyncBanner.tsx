@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Mail, MessageSquare, Clock, RefreshCw, ClipboardList, X } from "lucide-react";
+import { Mail, MessageSquare, Clock, RefreshCw, ClipboardList, X, Zap } from "lucide-react";
 
 interface GmailSyncBannerProps {
   isConnected: boolean;
@@ -11,6 +11,7 @@ interface GmailSyncBannerProps {
   onTriggerSync: () => Promise<void>;
   onTriggerHistoricalSync?: () => Promise<void>;
   onTriggerSmsSync?: () => Promise<void>;
+  onTriggerSyncBoth?: () => Promise<void>;
   onConnect: () => void;
   onDisconnect: () => Promise<void>;
   isSyncing: boolean;
@@ -27,6 +28,7 @@ export function GmailSyncBanner({
   onTriggerSync,
   onTriggerHistoricalSync,
   onTriggerSmsSync,
+  onTriggerSyncBoth,
   onConnect,
   onDisconnect,
   isSyncing,
@@ -114,21 +116,46 @@ export function GmailSyncBanner({
 
         {/* Right: Actions */}
         <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto justify-end">
-          {onTriggerSmsSync && (
-            <button
-              type="button"
-              disabled={isSmsSyncing || isSyncing}
-              onClick={onTriggerSmsSync}
-              className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 hover:text-white disabled:opacity-50 transition cursor-pointer"
-              title="Process and reconcile stored Android SMS messages"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>{isSmsSyncing ? "Reconciling..." : "Sync SMS"}</span>
-            </button>
-          )}
-
           {isConnected ? (
             <>
+              {/* Primary unified action: Sync Both SMS and Email */}
+              <button
+                type="button"
+                disabled={isSyncing || isSmsSyncing || isHistoricalSyncing}
+                onClick={onTriggerSyncBoth || onTriggerSync}
+                className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 shadow-lg shadow-teal-500/20 hover:from-emerald-400 hover:via-teal-400 hover:to-cyan-400 hover:shadow-teal-500/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+                title="Sync both Android SMS bank debits and Gmail statements in a single unified run"
+              >
+                <Zap className={`h-3.5 w-3.5 fill-current ${isSyncing || isSmsSyncing ? "animate-pulse" : ""}`} />
+                <span>{isSyncing || isSmsSyncing ? "Syncing..." : "Sync SMS & Email"}</span>
+              </button>
+
+              {/* Secondary individual: Sync SMS */}
+              {onTriggerSmsSync && (
+                <button
+                  type="button"
+                  disabled={isSmsSyncing || isSyncing}
+                  onClick={onTriggerSmsSync}
+                  className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 hover:text-white disabled:opacity-50 transition cursor-pointer"
+                  title="Process and reconcile stored Android SMS messages only"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{isSmsSyncing ? "Reconciling..." : "Sync SMS"}</span>
+                </button>
+              )}
+
+              {/* Secondary individual: Sync Gmail */}
+              <button
+                type="button"
+                disabled={isSyncing || isHistoricalSyncing}
+                onClick={onTriggerSync}
+                className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 hover:text-white disabled:opacity-50 transition cursor-pointer"
+                title="Scan Gmail for new bills and payment receipts only"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                <span>{isSyncing ? "Syncing..." : "Sync Gmail"}</span>
+              </button>
+
               {onTriggerHistoricalSync && (
                 <button
                   type="button"
@@ -141,16 +168,6 @@ export function GmailSyncBanner({
                   <span>{isHistoricalSyncing ? "Backfilling..." : "Backfill Past Cycles"}</span>
                 </button>
               )}
-
-              <button
-                type="button"
-                disabled={isSyncing || isHistoricalSyncing}
-                onClick={onTriggerSync}
-                className="min-h-[38px] flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-lg hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 transition cursor-pointer"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-                <span>{isSyncing ? "Syncing..." : "Sync Gmail"}</span>
-              </button>
 
               <Link
                 href="/sync/logs"

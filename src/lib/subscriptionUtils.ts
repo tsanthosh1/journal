@@ -259,7 +259,8 @@ export function getNextStatementInfo(
     sub.currentCycle?.statementDate &&
     (sub.category === "Credit Cards" ||
       Boolean(sub.emailConfig?.statementQuery?.trim()) ||
-      sub.source === "TNEB_MODULE")
+      sub.source === "TNEB_MODULE" ||
+      sub.source === "GCP_BILLING_MODULE")
   ) {
     const parts = sub.currentCycle.statementDate.split(/[-/]/);
     if (parts.length >= 3) {
@@ -335,5 +336,45 @@ export function getNextStatementInfo(
     formattedDate,
     cycleEnded,
   };
+}
+
+// ─── User ID Normalization & Equivalence ─────────────────────────────────────
+
+/**
+ * Returns canonical candidate IDs for a user identifier, covering both
+ * raw email (tsanthosh.online@gmail.com), sanitized form (tsanthosh_online_gmail_com),
+ * and hyphenated form.
+ */
+export function getCandidateUserIds(userId?: string): string[] {
+  if (!userId || userId === "default_user" || userId === "default-user") {
+    return [];
+  }
+  const clean = userId.trim();
+  const underscore = clean.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const dot = clean.includes("@")
+    ? clean
+    : clean.replace(/_([a-z0-9]+)$/i, ".$1").replace(/_online_/i, ".online@");
+
+  return Array.from(new Set([clean, underscore, dot])).filter(Boolean);
+}
+
+/**
+ * Robust check for whether two user identifiers refer to the same user.
+ * Tolerates variations such as 'tsanthosh.online@gmail.com' vs 'tsanthosh_online_gmail_com'.
+ */
+export function areUserIdsEquivalent(id1?: string, id2?: string): boolean {
+  if (!id1 || !id2) return true;
+  if (id1 === id2) return true;
+  if (
+    id1 === "default_user" ||
+    id1 === "default-user" ||
+    id2 === "default_user" ||
+    id2 === "default-user"
+  ) {
+    return true;
+  }
+  const n1 = id1.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const n2 = id2.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return n1 === n2;
 }
 
