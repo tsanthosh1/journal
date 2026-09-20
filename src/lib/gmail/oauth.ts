@@ -89,6 +89,7 @@ export async function exchangeCodeForTokens(code: string, customOrigin?: string)
   expiryDate: number;
   email?: string;
   scope?: string;
+  idToken?: string;
 }> {
   const { clientId, clientSecret, redirectUri } = getGoogleOAuthCredentials(customOrigin);
 
@@ -142,6 +143,7 @@ export async function exchangeCodeForTokens(code: string, customOrigin?: string)
     expiryDate,
     email,
     scope: data.scope,
+    idToken: data.id_token,
   };
 }
 

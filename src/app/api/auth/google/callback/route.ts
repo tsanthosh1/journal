@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
     await saveGmailTokens(targetUserId, tokens);
 
     // Create Firebase Auth custom token if possible
+    let hasFirebaseToken = false;
     try {
       if (tokens.email) {
         const { auth: adminAuth } = getFirebaseAdmin();
@@ -65,9 +66,17 @@ export async function GET(request: NextRequest) {
         }
         const customToken = await adminAuth.createCustomToken(userRecord.uid);
         baseRedirectUrl.searchParams.set("firebase_token", customToken);
+        hasFirebaseToken = true;
       }
     } catch (adminErr) {
       console.warn("Could not generate Firebase custom token:", adminErr);
+    }
+
+    if (!hasFirebaseToken && tokens.idToken) {
+      baseRedirectUrl.searchParams.set("google_id_token", tokens.idToken);
+      if (tokens.accessToken) {
+        baseRedirectUrl.searchParams.set("google_access_token", tokens.accessToken);
+      }
     }
 
     baseRedirectUrl.searchParams.set("auth", "success");
