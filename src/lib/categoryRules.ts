@@ -25,7 +25,7 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
   {
     id: "income-credit",
     category: "Income / Credit",
-    keywords: [],
+    keywords: ["SALARY", "INTEREST", "DIVIDEND", "CREDIT", "REFUND"],
     direction: "deposit",
     priority: 10,
     enabled: true,
@@ -111,8 +111,8 @@ export function sanitizeCategoryRules(rules: CategoryRule[]) {
             ? crypto.randomUUID()
             : `rule-${Math.random().toString(36).slice(2, 11)}-${Date.now()}`),
         category: rule.category.trim(),
-        keywords: rule.keywords
-          .map((keyword) => keyword.trim())
+        keywords: (rule.keywords || [])
+          .map((keyword) => (typeof keyword === "string" ? keyword.trim() : ""))
           .filter(Boolean)
           .slice(0, 25),
         direction: sanitizeDirection(rule.direction),
@@ -133,13 +133,19 @@ function matchesRule(transaction: StatementTransaction, rule: CategoryRule) {
     return false;
   }
 
-  if (!rule.keywords.length) {
-    return true;
+  // A rule must have at least one non-empty keyword to match a transaction narration.
+  // If category keywords are empty, it should NOT be auto applied to a statement record.
+  const validKeywords = (rule.keywords || [])
+    .map((keyword) => (typeof keyword === "string" ? keyword.trim() : ""))
+    .filter(Boolean);
+
+  if (!validKeywords.length) {
+    return false;
   }
 
-  const narration = transaction.narration.toUpperCase();
+  const narration = (transaction.narration || "").toUpperCase();
 
-  return rule.keywords.some((keyword) =>
+  return validKeywords.some((keyword) =>
     narration.includes(keyword.toUpperCase()),
   );
 }

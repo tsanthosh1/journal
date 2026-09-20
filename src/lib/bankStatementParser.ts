@@ -1,4 +1,15 @@
 import type { ParsedStatement, StatementTransaction } from "@/lib/types";
+import {
+  isIciciCreditCardStatement,
+  parseIciciStatementText,
+  parseIciciCreditCardFile,
+} from "@/lib/iciciStatementParser";
+
+export {
+  isIciciCreditCardStatement,
+  parseIciciStatementText,
+  parseIciciCreditCardFile,
+};
 
 const HDFC_TRANSACTION_START = /^\d{2}\/\d{2}\/\d{2}\s+/;
 const HDFC_DELIMITED_HEADER =
@@ -41,6 +52,10 @@ export function parseBankStatement(
   text: string,
   options: ParseBankStatementOptions = {},
 ): ParsedStatement {
+  if (isIciciCreditCardStatement(text)) {
+    return parseIciciStatementText(text, options);
+  }
+
   if (HDFC_DELIMITED_HEADER.test(text)) {
     return parseDelimitedBankStatement(text, options);
   }

@@ -32,12 +32,13 @@ export class ICICICardParser implements IStatementParser {
     const matches: Record<string, string> = {};
 
     // 1. Amount Due (Strictly prioritize Total Amount Due over Minimum Amount Due)
+    // 1. Amount Due (Strictly prioritize Total Amount Due over Minimum Amount Due)
     const amountRegexes = [
-      /Total\s+Amount\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /Total\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /Total\s+Payment\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /(?<!Minimum\s+)Amount\s+Payable\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
-      /(?<!Minimum\s+)Amount\s+Due\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /Total\s+Amount\s+Due\s*[:\-|]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /Total\s+Due\s*[:\-|]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /Total\s+Payment\s+Due\s*[:\-|]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /(?<!Minimum\s+)Amount\s+Payable\s*[:\-|]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
+      /(?<!Minimum\s+)Amount\s+Due\s*[:\-|]?\s*(?:₹|Rs\.?|INR)?\s*([0-9,]+(?:\.[0-9]{2})?)/i,
     ];
 
     for (const rx of amountRegexes) {
@@ -50,7 +51,7 @@ export class ICICICardParser implements IStatementParser {
 
     // 2. Due Date
     const dueDateRegexes = [
-      /(?:payment\s+due\s+by|payment\s+due\s+date|due\s+by|due\s+date|pay\s+by)\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /(?:payment\s+due\s+by|payment\s+due\s+date|due\s+by|due\s+date|pay\s+by)\s*[:\-|]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
       /(?:by)\s+([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4})/i,
     ];
 
@@ -65,8 +66,8 @@ export class ICICICardParser implements IStatementParser {
     // 3. Statement Date / Period End
     const stmtDateRegexes = [
       /period\s+[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}\s+to\s+([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})/i,
-      /Statement\s+Date\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-      /Billing\s+Date\s*[:\-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /Statement\s+Date\s*[:\-|]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+      /Billing\s+Date\s*[:\-|]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}[-/\s]+[a-zA-Z]{3,9}[-/\s]+\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
       /statement\s+for\s+([A-Za-z]{3,9}\s+\d{4})/i,
     ];
 
@@ -81,6 +82,7 @@ export class ICICICardParser implements IStatementParser {
     // 4. Card Digits (supports body text, subject, and PDF attachment filename like 4315XXXXXXXX5005)
     const cardRegexes = [
       /(?:Credit\s+Card|Card\s+ending\s+in|ending\s+with|ending|XXXX|XX)\s*[:\-]?\s*(?:[X*]*\s*)?(\d{4})/i,
+      /\d{4,}[*Xx]+(\d{4})/i,
       /XX(\d{4})/i,
       /4315[X*]+(\d{4})/i,
       /filename=[^;]*?(\d{4})_.*\.pdf/i,

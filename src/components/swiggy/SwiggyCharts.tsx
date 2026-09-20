@@ -26,6 +26,8 @@ interface SwiggyChartsProps {
   }>;
   dayOfWeekBreakdown: Array<{ day: string; count: number; spend: number }>;
   timeSlotBreakdown: Array<{ slot: string; count: number; spend: number }>;
+  onSelectMonth?: (month: string) => void;
+  onSelectRestaurant?: (restaurant: string) => void;
 }
 
 const CUISINE_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
@@ -92,6 +94,8 @@ export function SwiggyCharts({
   cuisineBreakdown,
   dayOfWeekBreakdown,
   timeSlotBreakdown,
+  onSelectMonth,
+  onSelectRestaurant,
 }: SwiggyChartsProps) {
   const [hoveredMonth, setHoveredMonth] = useState<SwiggyMonthlySpend | null>(null);
 
@@ -175,9 +179,13 @@ export function SwiggyCharts({
               return (
                 <div
                   key={m.month}
-                  className="flex-1 min-w-[48px] max-w-[80px] flex flex-col items-center gap-2 group cursor-pointer"
+                  onClick={() => onSelectMonth?.(m.month)}
+                  className={`flex-1 min-w-[48px] max-w-[80px] flex flex-col items-center gap-2 group ${
+                    onSelectMonth ? "cursor-pointer transition hover:scale-105" : ""
+                  }`}
                   onMouseEnter={() => setHoveredMonth(m)}
                   onMouseLeave={() => setHoveredMonth(null)}
+                  title={onSelectMonth ? `Click to filter orders for ${m.displayMonth}` : undefined}
                 >
                   <span
                     className={`text-[10px] font-mono transition-opacity duration-150 ${
@@ -237,7 +245,13 @@ export function SwiggyCharts({
               return (
                 <div
                   key={rest.name}
-                  className="p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors"
+                  onClick={() => onSelectRestaurant?.(rest.name)}
+                  role={onSelectRestaurant ? "button" : undefined}
+                  tabIndex={onSelectRestaurant ? 0 : undefined}
+                  title={onSelectRestaurant ? `Click to filter orders from ${rest.name}` : undefined}
+                  className={`p-2 rounded-xl bg-white/[0.02] border border-white/5 transition-colors ${
+                    onSelectRestaurant ? "cursor-pointer hover:bg-white/[0.08] hover:border-amber-500/40" : "hover:bg-white/[0.04]"
+                  }`}
                 >
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 min-w-0">

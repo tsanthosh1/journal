@@ -2,6 +2,7 @@
 
 import React from "react";
 import { InstamartSummary } from "@/lib/instamart/types";
+import { formatDateRange } from "@/lib/dateFormatting";
 import {
   ShoppingBag,
   TrendingUp,
@@ -14,9 +15,10 @@ import {
 
 interface InstamartMetricCardsProps {
   summary: InstamartSummary;
+  onSelectFilter?: (filter: { month?: string; search?: string }) => void;
 }
 
-export function InstamartMetricCards({ summary }: InstamartMetricCardsProps) {
+export function InstamartMetricCards({ summary, onSelectFilter }: InstamartMetricCardsProps) {
   const {
     totalSpend,
     totalOrders,
@@ -40,7 +42,14 @@ export function InstamartMetricCards({ summary }: InstamartMetricCardsProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
       {/* 1. Total Spend */}
-      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-orange-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md">
+      <div
+        onClick={() => onSelectFilter?.({ month: undefined, search: undefined })}
+        role={onSelectFilter ? "button" : undefined}
+        title={onSelectFilter ? "Click to view all orders" : undefined}
+        className={`relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-orange-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md ${
+          onSelectFilter ? "cursor-pointer transition hover:scale-[1.03] hover:border-orange-500/40" : ""
+        }`}
+      >
         <div className="flex items-center justify-between">
           <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-orange-400">
             Total Spend
@@ -54,10 +63,8 @@ export function InstamartMetricCards({ summary }: InstamartMetricCardsProps) {
             ₹{totalSpend.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
           </span>
         </div>
-        <div className="mt-2 text-[11px] text-slate-400 truncate" title={firstOrderDate && latestOrderDate ? `${firstOrderDate} to ${latestOrderDate}` : "All lifetime orders"}>
-          {firstOrderDate && latestOrderDate
-            ? `${firstOrderDate} to ${latestOrderDate}`
-            : "All lifetime orders"}
+        <div className="mt-2 text-[11px] text-slate-400 truncate" title={formatDateRange(firstOrderDate, latestOrderDate) || "All lifetime orders"}>
+          {formatDateRange(firstOrderDate, latestOrderDate) || "All lifetime orders"}
         </div>
       </div>
 
@@ -83,7 +90,14 @@ export function InstamartMetricCards({ summary }: InstamartMetricCardsProps) {
       </div>
 
       {/* 3. Total Orders */}
-      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-cyan-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md">
+      <div
+        onClick={() => onSelectFilter?.({ month: undefined, search: undefined })}
+        role={onSelectFilter ? "button" : undefined}
+        title={onSelectFilter ? "Click to view all orders" : undefined}
+        className={`relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-cyan-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md ${
+          onSelectFilter ? "cursor-pointer transition hover:scale-[1.03] hover:border-cyan-500/40" : ""
+        }`}
+      >
         <div className="flex items-center justify-between">
           <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-cyan-300">
             Total Orders

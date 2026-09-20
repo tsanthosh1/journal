@@ -1,7 +1,7 @@
 // Billing Models & Schema definitions for Subscriptions and Outflow Tracker
 
 export type BillingType = "FIXED_TENURE" | "BILL_GENERATED";
-export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED" | "TNEB_MODULE" | "APARTMENT_MODULE" | "CHENNAI_WATER_MODULE" | "GCP_BILLING_MODULE";
+export type SourceType = "MANUAL" | "EMAIL_AUTOMATED" | "SMS_AUTOMATED" | "TNEB_MODULE" | "APARTMENT_MODULE" | "CHENNAI_WATER_MODULE" | "GCP_BILLING_MODULE" | "AMAZON_MODULE";
 export type BillingCycle = "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "ANNUAL" | "CUSTOM";
 export type PaymentStatus =
   | "UNPAID"
@@ -184,6 +184,11 @@ export interface GcpBillingSubscriptionConfig {
   autoSyncWithGcpBilling?: boolean;
 }
 
+export interface AmazonSubscriptionConfig {
+  orderType: "KINDLE_UNLIMITED" | "ALL";
+  autoSyncOrders?: boolean;
+}
+
 export interface Subscription {
   id: string;
   userId: string;
@@ -213,6 +218,7 @@ export interface Subscription {
   apartmentConfig?: ApartmentSubscriptionConfig;
   chennaiWaterConfig?: ChennaiWaterSubscriptionConfig;
   gcpBillingConfig?: GcpBillingSubscriptionConfig;
+  amazonConfig?: AmazonSubscriptionConfig;
   currentCycle: CycleState;
   createdAt: string;
   updatedAt: string;

@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient: Deep Luxury Slate/Obsidian -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#050914" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+
+    <!-- Outer Squircle Ring Gradient -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9" />
+      <stop offset="30%" stop-color="#06b6d4" stop-opacity="0.5" />
+      <stop offset="70%" stop-color="#10b981" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Inner Radial Glow -->
+    <radialGradient id="radialGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.4" />
+      <stop offset="45%" stop-color="#0ea5e9" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#020617" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Solid Bolt Gradient -->
+    <linearGradient id="boltGrad" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9" />
+      <stop offset="30%" stop-color="#22d3ee" />
+      <stop offset="70%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Gloss Highlight Overlay -->
+    <linearGradient id="glossGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.6" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="boltGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="24" result="blur1" />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Drop Shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.8" />
+    </filter>
+  </defs>
+
+  <!-- Base App Squircle Canvas -->
+  <rect
+    x="20"
+    y="20"
+    width="472"
+    height="472"
+    rx="106"
+    fill="url(#bgGrad)"
+    stroke="url(#borderGrad)"
+    stroke-width="5"
+  />
+
+  <!-- High-tech subtle ambient backdrop glow -->
+  <circle cx="256" cy="256" r="190" fill="url(#radialGlow)" />
+
+  <!-- Outer Neon Bolt Glow Layer -->
+  <g filter="url(#boltGlow)" opacity="0.65">
+    <path
+      d="M272 88 L124 276 H256 L240 424 L388 236 H256 Z"
+      fill="#06b6d4"
+    />
+  </g>
+
+  <!-- Main Bolt -->
+  <g filter="url(#shadow)">
+    <!-- Base Gradient Bolt -->
+    <path
+      d="M272 88 L124 276 H256 L240 424 L388 236 H256 Z"
+      fill="url(#boltGrad)"
+      stroke="#a5f3fc"
+      stroke-width="3"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+
+    <!-- Internal Gloss / Facet Overlay -->
+    <path
+      d="M272 88 L124 276 H256 L240 424 L388 236 H256 Z"
+      fill="url(#glossGrad)"
+      style="mix-blend-mode: overlay;"
+    />
+
+    <!-- Diagonal Cut / Glass Reflection -->
+    <path
+      d="M272 88 L200 276 H256 L240 424 L320 236 H256 Z"
+      fill="#ffffff"
+      opacity="0.18"
+    />
+
+    <!-- Specular Highlight along Top Leading Edge -->
+    <path
+      d="M272 88 L124 276"
+      stroke="#ffffff"
+      stroke-width="5"
+      stroke-linecap="round"
+      opacity="0.9"
+    />
+
+    <!-- Bottom trailing edge accent -->
+    <path
+      d="M388 236 L240 424"
+      stroke="#34d399"
+      stroke-width="4"
+      stroke-linecap="round"
+      opacity="0.75"
+    />
+  </g>
+
+  <!-- AI Sparkle (Top-Right) -->
+  <g transform="translate(388, 108)">
+    <circle cx="0" cy="0" r="15" fill="#38bdf8" opacity="0.45" />
+    <path
+      d="M0 -24 C0 -7 7 0 24 0 C7 0 0 7 0 24 C0 7 -7 0 -24 0 C-7 0 0 -7 0 -24 Z"
+      fill="#ffffff"
+    />
+    <circle cx="0" cy="0" r="4.5" fill="#38bdf8" />
+  </g>
+
+  <!-- Secondary subtle Sparkle (Bottom-Left) -->
+  <g transform="translate(118, 384)" opacity="0.85">
+    <circle cx="0" cy="0" r="10" fill="#10b981" opacity="0.35" />
+    <path
+      d="M0 -14 C0 -4 4 0 14 0 C4 0 0 4 0 14 C0 4 -4 0 -14 0 C-4 0 0 -4 0 -14 Z"
+      fill="#a7f3d0"
+    />
+  </g>
+</svg>

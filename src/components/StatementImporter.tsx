@@ -9,10 +9,11 @@ import {
   useRef,
   type DragEvent,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_RULES, getNextCategoryColor } from "@/lib/categoryRules";
 
-import { parseBankStatement } from "@/lib/bankStatementParser";
+import { parseBankStatement, parseIciciCreditCardFile } from "@/lib/bankStatementParser";
 import { getFirebaseClient, isFirebaseConfigured } from "@/lib/firebase";
 import { hashFile } from "@/lib/processedStatements";
 import type {
@@ -23,16 +24,32 @@ import type {
   StatementTransaction,
 } from "@/lib/types";
 
+type PreparedItem = {
+  fileName: string;
+  fileHash: string;
+  statementText: string;
+  statement: ParsedStatement;
+  duplicateRecord: ProcessedStatementRecord | null;
+};
+
 type ImportState =
   | { status: "idle" }
-  | { status: "processing"; fileName: string }
+  | {
+      status: "processing";
+      fileName: string;
+      currentFile?: number;
+      totalFiles?: number;
+    }
   | {
       status: "ready";
+      items: PreparedItem[];
+      activeItemIndex: number;
       fileName: string;
       fileHash: string;
       statementText: string;
       statement: ParsedStatement;
       duplicateRecord: ProcessedStatementRecord | null;
+      errorWarning?: string;
     }
   | { status: "error"; message: string };
 
@@ -77,7 +94,7 @@ type TransactionFilters = {
 
 type RulesState =
   | { status: "signed_out" }
-  | { status: "loading" }
+  | { status: "loading"; rules?: CategoryRule[] }
   | { status: "ready"; rules: CategoryRule[] }
   | { status: "saving"; rules: CategoryRule[] }
   | { status: "error"; message: string; rules: CategoryRule[] };
@@ -186,7 +203,7 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
 
   const categoryColorsMap = useMemo(() => {
     const colors: Record<string, string> = {};
-    if ("rules" in rulesState) {
+    if ("rules" in rulesState && rulesState.rules) {
       for (const rule of rulesState.rules) {
         if (rule.color) {
           colors[rule.category] = rule.color;
@@ -198,7 +215,7 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
 
   const categoryRuleOptions = useMemo(
     () =>
-      "rules" in rulesState
+      "rules" in rulesState && rulesState.rules
         ? Array.from(
             new Set(
               rulesState.rules
@@ -349,7 +366,10 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
   );
 
   const loadCategoryRules = useCallback(async (user: User) => {
-    setRulesState({ status: "loading" });
+    setRulesState((prev) => ({
+      status: "loading",
+      rules: "rules" in prev && prev.rules ? prev.rules : [],
+    }));
 
     try {
       const idToken = await user.getIdToken();
@@ -369,16 +389,21 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
 
       setRulesState({ status: "ready", rules: body.rules });
     } catch (error) {
-      setRulesState({
+      setRulesState((prev) => ({
         status: "error",
         message:
           error instanceof Error
             ? error.message
             : "Could not load category rules.",
-        rules: [],
-      });
+        rules: "rules" in prev && prev.rules ? prev.rules : [],
+      }));
     }
   }, []);
+
+  const handleRefreshCategories = useCallback(async () => {
+    if (!firebaseUser) return;
+    await loadCategoryRules(firebaseUser);
+  }, [firebaseUser, loadCategoryRules]);
 
   useEffect(() => {
     if (!firebase) {
@@ -449,35 +474,114 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
     setFirebaseUser(result.user);
   }
 
-  async function processFile(file: File) {
-    if (!file.name.toLowerCase().endsWith(".txt")) {
+  async function parseStatementFile(file: File): Promise<PreparedItem> {
+    const lowerName = file.name.toLowerCase();
+    const isSpreadsheet = lowerName.endsWith(".xls") || lowerName.endsWith(".xlsx");
+    let fileHash: string;
+    let statementText: string;
+    let statement: ParsedStatement;
+
+    if (isSpreadsheet) {
+      const [hash, arrayBuffer] = await Promise.all([
+        hashFile(file),
+        file.arrayBuffer(),
+      ]);
+      fileHash = hash;
+      const parsed = await parseIciciCreditCardFile(arrayBuffer, file.name);
+      statement = parsed.statement;
+      statementText = parsed.statementText;
+    } else {
+      const [hash, text] = await Promise.all([
+        hashFile(file),
+        file.text(),
+      ]);
+      fileHash = hash;
+      statementText = text;
+      statement = parseBankStatement(statementText, { fileName: file.name });
+    }
+
+    const duplicateRecord =
+      processedStatements.find((st) => st.fileHash === fileHash) ?? null;
+
+    return {
+      fileName: file.name,
+      fileHash,
+      statementText,
+      statement,
+      duplicateRecord,
+    };
+  }
+
+  async function processFiles(files: File[]) {
+    const validFiles = files.filter((file) => {
+      const name = file.name.toLowerCase();
+      return name.endsWith(".txt") || name.endsWith(".xls") || name.endsWith(".xlsx");
+    });
+
+    if (validFiles.length === 0) {
       setImportState({
         status: "error",
-        message: "For this first version, upload the text statement export.",
+        message:
+          "Please upload bank statement text exports (.txt) or ICICI Credit Card statements (.xls, .xlsx).",
       });
       return;
     }
 
-    setImportState({ status: "processing", fileName: file.name });
+    setImportState({
+      status: "processing",
+      fileName:
+        validFiles.length === 1
+          ? validFiles[0].name
+          : `${validFiles.length} files (${validFiles.map((f) => f.name).join(", ")})`,
+      currentFile: 1,
+      totalFiles: validFiles.length,
+    });
 
     try {
-      const [fileHash, statementText] = await Promise.all([
-        hashFile(file),
-        file.text(),
-      ]);
-      const duplicateRecord =
-        processedStatements.find((statement) => statement.fileHash === fileHash) ??
-        null;
-      const statement = parseBankStatement(statementText, { fileName: file.name });
+      const parsedItems: PreparedItem[] = [];
+      const errors: string[] = [];
 
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        if (validFiles.length > 1) {
+          setImportState({
+            status: "processing",
+            fileName: `${file.name} (${i + 1}/${validFiles.length})`,
+            currentFile: i + 1,
+            totalFiles: validFiles.length,
+          });
+        }
+
+        try {
+          const item = await parseStatementFile(file);
+          parsedItems.push(item);
+        } catch (err) {
+          errors.push(
+            `${file.name}: ${err instanceof Error ? err.message : "Failed to parse"}`,
+          );
+        }
+      }
+
+      if (parsedItems.length === 0) {
+        setImportState({
+          status: "error",
+          message: errors.join("\n") || "Could not process the uploaded statements.",
+        });
+        return;
+      }
+
+      const activeItem = parsedItems[0];
       setSaveState({ status: "idle" });
       setImportState({
         status: "ready",
-        fileName: file.name,
-        fileHash,
-        statementText,
-        statement,
-        duplicateRecord,
+        items: parsedItems,
+        activeItemIndex: 0,
+        fileName: activeItem.fileName,
+        fileHash: activeItem.fileHash,
+        statementText: activeItem.statementText,
+        statement: activeItem.statement,
+        duplicateRecord: activeItem.duplicateRecord,
+        errorWarning: errors.length > 0 ? errors.join("; ") : undefined,
       });
     } catch (error) {
       setImportState({
@@ -485,9 +589,29 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
         message:
           error instanceof Error
             ? error.message
-            : "Could not process this statement.",
+            : "Could not process the statements.",
       });
     }
+  }
+
+  function processFile(file: File) {
+    void processFiles([file]);
+  }
+
+  function handleSelectActiveImport(index: number) {
+    setImportState((current) => {
+      if (current.status !== "ready" || !current.items[index]) return current;
+      const activeItem = current.items[index];
+      return {
+        ...current,
+        activeItemIndex: index,
+        fileName: activeItem.fileName,
+        fileHash: activeItem.fileHash,
+        statementText: activeItem.statementText,
+        statement: activeItem.statement,
+        duplicateRecord: activeItem.duplicateRecord,
+      };
+    });
   }
 
   const handleToggleAccount = useCallback((key: string) => {
@@ -596,12 +720,31 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
           t.id === transactionId ? { ...t, categoryHint: category } : t,
         );
 
+        const updatedStatement = {
+          ...currentState.statement,
+          transactions: updatedTransactions,
+        };
+
+        const updatedItems = currentState.items?.map((item, idx) => {
+          if (idx === currentState.activeItemIndex) {
+            return {
+              ...item,
+              statement: updatedStatement,
+            };
+          }
+          return item;
+        }) ?? [{
+          fileName: currentState.fileName,
+          fileHash: currentState.fileHash,
+          statementText: currentState.statementText,
+          statement: updatedStatement,
+          duplicateRecord: currentState.duplicateRecord,
+        }];
+
         return {
           ...currentState,
-          statement: {
-            ...currentState.statement,
-            transactions: updatedTransactions,
-          },
+          statement: updatedStatement,
+          items: updatedItems,
         };
       });
     } else if (mode === "statements" && firebaseUser && transactionFingerprint) {
@@ -704,31 +847,55 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
 
     try {
       const idToken = await firebaseUser.getIdToken();
-      const response = await fetch("/api/statements/import", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fileHash: importState.fileHash,
-          fileName: importState.fileName,
-          statement: importState.statement,
-          statementText: importState.statementText,
-        }),
-      });
-      const body = (await response.json()) as {
-        error?: string;
-        transactionCount?: number;
-      };
+      const itemsToImport =
+        importState.items && importState.items.length > 0
+          ? importState.items
+          : [importState];
 
-      if (!response.ok) {
-        throw new Error(body.error ?? "Could not import statement.");
+      let totalTransactions = 0;
+      let importedCount = 0;
+      const skipped: string[] = [];
+
+      for (const item of itemsToImport) {
+        const response = await fetch("/api/statements/import", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fileHash: item.fileHash,
+            fileName: item.fileName,
+            statement: item.statement,
+            statementText: item.statementText,
+          }),
+        });
+
+        const body = (await response.json()) as {
+          error?: string;
+          transactionCount?: number;
+        };
+
+        if (!response.ok) {
+          if (response.status === 409) {
+            skipped.push(`${item.fileName} (already imported)`);
+            continue;
+          }
+          throw new Error(body.error ?? `Could not import ${item.fileName}.`);
+        }
+
+        totalTransactions += body.transactionCount ?? 0;
+        importedCount += 1;
+      }
+
+      let message = `Saved ${totalTransactions} transactions from ${importedCount} statement${importedCount === 1 ? "" : "s"} to Firestore for review.`;
+      if (skipped.length > 0) {
+        message += ` Skipped: ${skipped.join(", ")}.`;
       }
 
       setSaveState({
         status: "saved",
-        message: `Saved ${body.transactionCount ?? 0} transactions to Firestore for review.`,
+        message,
       });
       await loadProcessedStatements(firebaseUser);
     } catch (error) {
@@ -940,15 +1107,15 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
     event.preventDefault();
     setIsDragActive(false);
 
-    const file = event.dataTransfer.files.item(0);
-    if (file) {
-      void processFile(file);
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) {
+      void processFiles(files);
     }
   }
 
   const displayedStatement =
     importState.status === "ready"
-      ? importState.statement
+      ? (importState.items?.[importState.activeItemIndex]?.statement ?? importState.statement)
       : statementDetailState.status === "ready"
         ? statementDetailState.statement
         : null;
@@ -1015,26 +1182,28 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
               onDrop={handleDrop}
             >
               <input
-                accept=".txt,text/plain"
+                accept=".txt,.xls,.xlsx,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="sr-only"
+                multiple
                 onChange={(event) => {
-                  const file = event.target.files?.item(0);
-                  if (file) {
-                    void processFile(file);
+                  const files = event.target.files
+                    ? Array.from(event.target.files)
+                    : [];
+                  if (files.length > 0) {
+                    void processFiles(files);
                   }
+                  event.target.value = "";
                 }}
                 type="file"
               />
               <span className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950">
-                Upload statement
+                Upload statements
               </span>
               <h2 className="mt-5 text-2xl font-semibold text-white">
-                Drag and drop your bank statement
+                Drag and drop your bank or credit card statements
               </h2>
               <p className="mt-3 max-w-xl text-slate-300">
-                This MVP parses HDFC `.txt` exports. PDF, Gmail attachment
-                import, and Firebase Storage upload can reuse this same
-                processing pipeline next.
+                Drop one or more statements. Supports HDFC (.txt) and ICICI Credit Card (.xls, .xlsx).
               </p>
             </label>
           </div>
@@ -1234,7 +1403,10 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
         ) : null}
 
         {showImport ? (
-        <StatusPanel importState={importState} />
+        <StatusPanel
+          importState={importState}
+          onSelectIndex={handleSelectActiveImport}
+        />
         ) : null}
 
         {showImport && importState.status === "ready" ? (
@@ -1242,7 +1414,44 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
             canSave={Boolean(firebaseUser)}
             onConfirmImport={() => void handleConfirmImport()}
             saveState={saveState}
+            statementCount={importState.items?.length || 1}
           />
+        ) : null}
+
+        {showImport &&
+        importState.status === "ready" &&
+        importState.items &&
+        importState.items.length > 1 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-4">
+            <div className="text-sm text-slate-300">
+              <span className="font-semibold text-cyan-300">
+                Previewing statement:{" "}
+              </span>
+              <span className="font-medium text-white">
+                {importState.items[importState.activeItemIndex]?.fileName}
+              </span>{" "}
+              <span className="text-slate-400">
+                ({importState.activeItemIndex + 1} of{" "}
+                {importState.items.length})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {importState.items.map((item, idx) => (
+                <button
+                  key={item.fileHash || idx}
+                  className={`cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    importState.activeItemIndex === idx
+                      ? "bg-cyan-300 text-slate-950 shadow"
+                      : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
+                  onClick={() => handleSelectActiveImport(idx)}
+                  type="button"
+                >
+                  {item.fileName} ({item.statement.transactionCount} txs)
+                </button>
+              ))}
+            </div>
+          </div>
         ) : null}
 
         {(showImport || showStatements) && statementDetailState.status === "loading" ? (
@@ -1259,7 +1468,7 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
 
         {(showImport || showStatements) && displayedStatement ? (
           <StatementView
-            categories={showStatements ? categoryRuleOptions : undefined}
+            categories={categoryRuleOptions}
             categoryColorsMap={categoryColorsMap}
             submittingFingerprints={submittingFingerprints}
             filters={showStatements ? transactionFilters : undefined}
@@ -1270,6 +1479,7 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
               showStatements ? handleTransactionPageChange : undefined
             }
             onCategoryChange={handleTransactionCategoryChange}
+            onRefreshCategories={handleRefreshCategories}
             pageInfo={
               showStatements
                 ? {
@@ -1309,15 +1519,26 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
   );
 }
 
-function StatusPanel({ importState }: { importState: ImportState }) {
+function StatusPanel({
+  importState,
+  onSelectIndex,
+}: {
+  importState: ImportState;
+  onSelectIndex?: (index: number) => void;
+}) {
   if (importState.status === "idle") {
     return null;
   }
 
   if (importState.status === "processing") {
     return (
-      <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 text-cyan-100">
-        Processing {importState.fileName}...
+      <div className="flex items-center justify-between rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 text-cyan-100">
+        <div>Processing {importState.fileName}...</div>
+        {importState.totalFiles && importState.totalFiles > 1 ? (
+          <div className="rounded-full bg-cyan-400/20 px-3 py-1 text-xs font-semibold text-cyan-200">
+            {importState.currentFile} of {importState.totalFiles}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1326,6 +1547,58 @@ function StatusPanel({ importState }: { importState: ImportState }) {
     return (
       <div className="rounded-2xl border border-red-300/30 bg-red-500/10 p-4 text-red-100">
         {importState.message}
+      </div>
+    );
+  }
+
+  if (importState.items && importState.items.length > 1) {
+    const totalTransactions = importState.items.reduce(
+      (sum, item) => sum + item.statement.transactionCount,
+      0,
+    );
+
+    return (
+      <div className="flex flex-col gap-3 rounded-3xl border border-emerald-300/25 bg-emerald-500/10 p-5 text-emerald-100">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-semibold text-white">
+              Successfully processed {importState.items.length} statements
+            </h3>
+            <p className="text-xs text-emerald-200/80">
+              {totalTransactions} total transactions ready for review across {importState.items.length} statements.
+            </p>
+          </div>
+          <span className="w-fit rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+            Batch ready
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {importState.items.map((item, idx) => {
+            const isSelected = importState.activeItemIndex === idx;
+            return (
+              <button
+                key={item.fileHash || idx}
+                className={`cursor-pointer rounded-2xl border px-3 py-1.5 text-xs font-semibold transition ${
+                  isSelected
+                    ? "border-emerald-300 bg-emerald-400 text-slate-950 shadow"
+                    : "border-emerald-500/30 bg-emerald-950/60 text-emerald-200 hover:bg-emerald-900/80"
+                }`}
+                onClick={() => onSelectIndex?.(idx)}
+                type="button"
+              >
+                {item.fileName} ({item.statement.transactionCount} txs)
+                {item.duplicateRecord ? " • Already in Firestore" : ""}
+              </button>
+            );
+          })}
+        </div>
+
+        {importState.errorWarning ? (
+          <p className="text-xs text-amber-200">
+            Note: {importState.errorWarning}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -1344,6 +1617,11 @@ function StatusPanel({ importState }: { importState: ImportState }) {
           before importing to Firestore.
         </>
       )}
+      {importState.errorWarning ? (
+        <p className="mt-2 text-xs text-amber-200">
+          Note: {importState.errorWarning}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1352,16 +1630,20 @@ function ImportCommitPanel({
   canSave,
   onConfirmImport,
   saveState,
+  statementCount = 1,
 }: {
   canSave: boolean;
   onConfirmImport: () => void;
   saveState: SaveState;
+  statementCount?: number;
 }) {
   return (
     <section className="flex flex-col gap-4 rounded-4xl border border-white/10 bg-white/3 p-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 className="text-lg font-semibold text-white">
-          Confirm Firestore import
+          {statementCount > 1
+            ? `Confirm Firestore import (${statementCount} statements)`
+            : "Confirm Firestore import"}
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-slate-400">
           The backend verifies your Firebase ID token, checks for duplicate file
@@ -1384,7 +1666,9 @@ function ImportCommitPanel({
       >
         {saveState.status === "saving"
           ? "Importing..."
-          : "Confirm import to Firestore"}
+          : statementCount > 1
+            ? `Confirm import all (${statementCount} statements)`
+            : "Confirm import to Firestore"}
       </button>
     </section>
   );
@@ -1406,7 +1690,7 @@ function CategoryRulesPanel({
   storedReprocessState: SaveState;
 }) {
   const rules = useMemo(
-    () => ("rules" in rulesState ? rulesState.rules : []),
+    () => ("rules" in rulesState && rulesState.rules ? rulesState.rules : []),
     [rulesState],
   );
   const [draftRules, setDraftRules] = useState<CategoryRule[]>(rules);
@@ -1596,24 +1880,76 @@ function ColorPicker({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUpward: boolean }>({
+    top: 0,
+    left: 0,
+    openUpward: false,
+  });
+
+  const updateCoords = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const popoverHeight = 110;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const openUpward = spaceBelow < popoverHeight && spaceAbove > spaceBelow;
+
+    setCoords({
+      top: openUpward ? rect.top - 4 : rect.bottom + 4,
+      left: Math.max(8, Math.min(rect.right - 160, window.innerWidth - 168)),
+      openUpward,
+    });
+  }, []);
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    function handleScrollOrResize() {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setIsOpen(false);
+        return;
+      }
+      updateCoords();
+    }
+
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     }
+
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
     document.addEventListener("mousedown", handleClickOutside);
+
     return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [isOpen, updateCoords]);
 
   return (
     <div className="relative inline-block text-left w-full" ref={containerRef}>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) {
+            updateCoords();
+          }
+          setIsOpen((prev) => !prev);
+        }}
         className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white hover:border-white/20 transition w-full cursor-pointer"
       >
         <span
@@ -1631,26 +1967,38 @@ function ColorPicker({
         </svg>
       </button>
 
-      {isOpen && (
-        <div className="absolute right-0 mt-1 z-50 rounded-xl border border-white/10 bg-slate-950 p-2 shadow-2xl w-40">
-          <div className="grid grid-cols-5 gap-1.5 justify-items-center">
-            {CATEGORY_COLORS.map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => {
-                  onChange(color);
-                  setIsOpen(false);
-                }}
-                className={`w-5 h-5 rounded-full hover:scale-110 transition cursor-pointer border ${
-                  selectedColor === color ? "border-white" : "border-white/15"
-                }`}
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {isOpen && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            style={{
+              position: "fixed",
+              top: coords.openUpward ? undefined : `${coords.top}px`,
+              bottom: coords.openUpward ? `${window.innerHeight - coords.top}px` : undefined,
+              left: `${coords.left}px`,
+              zIndex: 99999,
+            }}
+            className="rounded-xl border border-white/15 bg-slate-950 p-2 shadow-2xl w-40 animate-in fade-in"
+          >
+            <div className="grid grid-cols-5 gap-1.5 justify-items-center">
+              {CATEGORY_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => {
+                    onChange(color);
+                    setIsOpen(false);
+                  }}
+                  className={`w-5 h-5 rounded-full hover:scale-110 transition cursor-pointer border ${
+                    selectedColor === color ? "border-white" : "border-white/15"
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -1708,9 +2056,18 @@ function CategoryRuleEditor({
         value={rule.category}
       />
       <input
-        className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/70"
+        className={`rounded-xl border bg-slate-950 px-3 py-2 text-sm text-white outline-none transition ${
+          !keywordText.trim()
+            ? "border-amber-500/30 placeholder:text-slate-500 focus:border-amber-400/60"
+            : "border-white/10 focus:border-cyan-300/70"
+        }`}
         onChange={(event) => handleKeywordChange(event.target.value)}
-        placeholder="Keywords, comma separated"
+        placeholder="Keywords, comma separated (empty = not applied)"
+        title={
+          !keywordText.trim()
+            ? "Empty keywords: this rule will not be auto-applied until keywords are added."
+            : "Comma-separated keywords to match in transaction narration"
+        }
         value={keywordText}
       />
       <select
@@ -1767,30 +2124,98 @@ function CategoryCell({
   categories,
   categoryColorsMap,
   onCategoryChange,
+  onRefresh,
   isSubmitting = false,
 }: {
   categoryHint: string;
   categories: string[];
   categoryColorsMap: Record<string, string>;
   onCategoryChange: (category: string) => void;
+  onRefresh?: () => Promise<void> | void;
   isSubmitting?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    openUpward: boolean;
+  }>({
+    top: 0,
+    left: 0,
+    width: 0,
+    openUpward: false,
+  });
+
+  const updateCoords = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const dropdownHeight = 330;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const openUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+    setCoords({
+      top: openUpward ? rect.top - 4 : rect.bottom + 4,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - Math.max(rect.width, 240) - 8)),
+      width: Math.max(rect.width, 240),
+      openUpward,
+    });
+  }, []);
 
   useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery("");
+    } else {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleScrollOrResize() {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setIsOpen(false);
+        return;
+      }
+      updateCoords();
+    }
+
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     }
+
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
     document.addEventListener("mousedown", handleClickOutside);
+
     return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [isOpen, updateCoords]);
 
   const allCategories = useMemo(() => {
     const set = new Set(categories);
@@ -1799,10 +2224,16 @@ function CategoryCell({
     return ["Uncategorized", ...Array.from(set).sort()];
   }, [categories, categoryHint]);
 
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return allCategories;
+    return allCategories.filter((cat) => cat.toLowerCase().includes(q));
+  }, [allCategories, searchQuery]);
+
   const currentColor = getCategoryColor(categoryHint, categoryColorsMap);
 
   return (
-    <div className="relative inline-block text-left w-48 text-xs sm:text-sm" ref={dropdownRef}>
+    <div className="relative inline-block text-left w-48 text-xs sm:text-sm">
       <div className="h-10 flex items-center">
         {isEditing ? (
           <div className="flex items-center gap-1 w-full bg-slate-950 rounded-xl border border-white/20 p-1" onClick={(e) => e.stopPropagation()}>
@@ -1856,10 +2287,16 @@ function CategoryCell({
           </div>
         ) : (
           <button
+            ref={buttonRef}
             type="button"
             disabled={isSubmitting}
-            onClick={() => setIsOpen(!isOpen)}
-            className={`flex items-center justify-between w-full rounded-xl border border-white/10 px-3 py-2 text-left text-white outline-none hover:border-white/20 hover:bg-slate-900/80 transition ${
+            onClick={() => {
+              if (!isOpen) {
+                updateCoords();
+              }
+              setIsOpen((prev) => !prev);
+            }}
+            className={`flex items-center justify-between w-full rounded-xl border border-white/10 px-3 py-2 text-left text-white outline-none hover:border-white/20 hover:bg-slate-900/80 transition cursor-pointer ${
               isSubmitting ? "shimmer-bg opacity-85 pointer-events-none" : "bg-slate-950"
             }`}
           >
@@ -1883,46 +2320,178 @@ function CategoryCell({
         )}
       </div>
 
-      {isOpen && !isEditing && (
-        <div className="absolute left-0 mt-1 z-50 w-full rounded-xl border border-white/10 bg-slate-950 p-1 shadow-2xl">
-          <div className="max-h-60 overflow-y-auto">
-            {allCategories.map((cat) => {
-              const catColor = getCategoryColor(cat, categoryColorsMap);
-              const isSelected = cat === categoryHint;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => {
-                    onCategoryChange(cat);
-                    setIsOpen(false);
-                  }}
-                  className={`flex items-center gap-2 w-full text-left rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition ${
-                    isSelected
-                      ? "bg-cyan-300/15 text-white font-medium"
-                      : "text-slate-300 hover:bg-white/5 hover:text-white"
-                  }`}
+      {isOpen && !isEditing && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: coords.openUpward ? undefined : `${coords.top}px`,
+              bottom: coords.openUpward ? `${window.innerHeight - coords.top}px` : undefined,
+              left: `${coords.left}px`,
+              width: `${coords.width}px`,
+              zIndex: 99999,
+            }}
+            className="rounded-xl border border-white/15 bg-slate-950 p-1.5 shadow-2xl animate-in fade-in flex flex-col gap-1"
+          >
+            {/* Popover Header with Title and Refresh Button */}
+            <div className="flex items-center justify-between px-2 py-1 border-b border-white/10 select-none">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Categories
+              </span>
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (isRefreshing) return;
+                  setIsRefreshing(true);
+                  try {
+                    if (onRefresh) {
+                      await onRefresh();
+                    }
+                  } catch (err) {
+                    console.error("Failed to refresh categories:", err);
+                  } finally {
+                    setTimeout(() => setIsRefreshing(false), 450);
+                  }
+                }}
+                disabled={isRefreshing}
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-slate-400 hover:text-cyan-300 hover:bg-white/10 transition cursor-pointer disabled:opacity-50"
+                title="Refresh categories to show newly added entries"
+              >
+                <svg
+                  className={`w-3 h-3 ${isRefreshing ? "animate-spin text-cyan-300" : ""}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: catColor }}
-                  />
-                  <span className="truncate">{cat}</span>
-                </button>
-              );
-            })}
-            <div className="h-px bg-white/10 my-1" />
-            <button
-              type="button"
-              onClick={() => setIsEditing(true)}
-              className="flex items-center gap-2 w-full text-left rounded-lg px-2.5 py-1.5 text-xs sm:text-sm text-cyan-300 font-medium hover:bg-cyan-300/10 transition"
-            >
-              <span className="text-base font-bold leading-none shrink-0">+</span>
-              <span className="truncate">Add custom category...</span>
-            </button>
-          </div>
-        </div>
-      )}
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                  <path d="M16 21h5v-5" />
+                </svg>
+                <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="px-1 pt-0.5 pb-0.5">
+              <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-900/90 px-2 py-1.5 focus-within:border-cyan-400/50 transition">
+                <svg
+                  className="w-3.5 h-3.5 text-slate-400 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search categories..."
+                  className="w-full bg-transparent text-xs text-white placeholder-slate-500 outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      if (searchQuery) {
+                        setSearchQuery("");
+                        e.stopPropagation();
+                      } else {
+                        setIsOpen(false);
+                      }
+                    } else if (e.key === "Enter") {
+                      if (filteredCategories.length === 1) {
+                        onCategoryChange(filteredCategories[0]);
+                        setIsOpen(false);
+                      } else if (filteredCategories.length === 0 && searchQuery.trim()) {
+                        setNewCategoryName(searchQuery.trim());
+                        setIsEditing(true);
+                        setIsOpen(false);
+                      }
+                    }
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSearchQuery("");
+                      searchInputRef.current?.focus();
+                    }}
+                    className="text-slate-400 hover:text-white text-xs px-0.5 cursor-pointer leading-none"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="max-h-56 overflow-y-auto">
+              {filteredCategories.length === 0 ? (
+                <div className="py-3 px-2 text-center text-xs text-slate-400">
+                  No matching categories
+                </div>
+              ) : (
+                filteredCategories.map((cat) => {
+                  const catColor = getCategoryColor(cat, categoryColorsMap);
+                  const isSelected = cat === categoryHint;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        onCategoryChange(cat);
+                        setIsOpen(false);
+                      }}
+                      className={`flex items-center gap-2 w-full text-left rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition cursor-pointer ${
+                        isSelected
+                          ? "bg-cyan-300/15 text-white font-medium"
+                          : "text-slate-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: catColor }}
+                      />
+                      <span className="truncate">{cat}</span>
+                    </button>
+                  );
+                })
+              )}
+              <div className="h-px bg-white/10 my-1" />
+              <button
+                type="button"
+                onClick={() => {
+                  if (searchQuery.trim() && !allCategories.includes(searchQuery.trim())) {
+                    setNewCategoryName(searchQuery.trim());
+                  }
+                  setIsEditing(true);
+                  setIsOpen(false);
+                }}
+                className="flex items-center gap-2 w-full text-left rounded-lg px-2.5 py-1.5 text-xs sm:text-sm text-cyan-300 font-medium hover:bg-cyan-300/10 transition cursor-pointer"
+              >
+                <span className="text-base font-bold leading-none shrink-0">+</span>
+                <span className="truncate">
+                  {searchQuery.trim() && !allCategories.includes(searchQuery.trim())
+                    ? `Add "${searchQuery.trim()}"...`
+                    : "Add custom category..."}
+                </span>
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -1935,6 +2504,7 @@ function StatementView({
   onFiltersChange,
   onPageChange,
   onCategoryChange,
+  onRefreshCategories,
   pageInfo,
   serverBacked = false,
   statement,
@@ -1950,6 +2520,7 @@ function StatementView({
     transactionFingerprint: string | undefined,
     category: string,
   ) => void;
+  onRefreshCategories?: () => Promise<void> | void;
   pageInfo?: {
     page: number;
     totalPages: number;
@@ -1976,6 +2547,28 @@ function StatementView({
     });
     setShowFilters(true);
   }, [filters, updateFilters]);
+
+  const isUncategorizedActive = filters.category === "Uncategorized";
+  const uncategorizedCount = useMemo(() => {
+    return statement.transactions.filter(
+      (t) => !t.categoryHint || t.categoryHint === "Uncategorized",
+    ).length;
+  }, [statement.transactions]);
+
+  const handleToggleUncategorized = useCallback(() => {
+    if (isUncategorizedActive) {
+      updateFilters({
+        ...filters,
+        category: "",
+      });
+    } else {
+      setActiveTab("transactions");
+      updateFilters({
+        ...filters,
+        category: "Uncategorized",
+      });
+    }
+  }, [filters, isUncategorizedActive, updateFilters]);
   const transactionCategories = useMemo(
     () =>
       Array.from(
@@ -2071,22 +2664,65 @@ function StatementView({
                 : currencyFormatter.format(statement.closingBalance)}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-white/5 cursor-pointer"
-          >
-            <span>{showFilters ? "Hide filters" : "Show filters"}</span>
-            <svg
-              className="h-4 w-4 text-cyan-300 transition-transform duration-200"
-              style={{ transform: showFilters ? "rotate(180deg)" : "rotate(0deg)" }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Quick Filter: Show Uncategorized */}
+            <button
+              type="button"
+              onClick={handleToggleUncategorized}
+              className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition cursor-pointer ${
+                isUncategorizedActive
+                  ? "bg-amber-400/20 border-amber-400/60 text-amber-300 shadow-md shadow-amber-500/10"
+                  : "border-white/10 text-slate-300 hover:border-white/25 hover:text-white hover:bg-white/5"
+              }`}
+              title={
+                isUncategorizedActive
+                  ? "Clear uncategorized filter"
+                  : "Filter to show only uncategorized transactions"
+              }
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isUncategorizedActive
+                    ? "bg-amber-400 animate-pulse"
+                    : "bg-slate-400"
+                }`}
+              />
+              <span>Show uncategorized</span>
+              {uncategorizedCount > 0 && (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                    isUncategorizedActive
+                      ? "bg-amber-400 text-slate-950"
+                      : "bg-white/10 text-slate-300"
+                  }`}
+                >
+                  {uncategorizedCount}
+                </span>
+              )}
+              {isUncategorizedActive && (
+                <span className="text-amber-300/70 hover:text-amber-200 text-xs ml-0.5">
+                  ×
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-white/5 cursor-pointer"
+            >
+              <span>{showFilters ? "Hide filters" : "Show filters"}</span>
+              <svg
+                className="h-4 w-4 text-cyan-300 transition-transform duration-200"
+                style={{ transform: showFilters ? "rotate(180deg)" : "rotate(0deg)" }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Tab switcher */}
@@ -2173,6 +2809,7 @@ function StatementView({
                                   category,
                                 )
                               }
+                              onRefresh={onRefreshCategories}
                             />
                           ) : (
                             transaction.categoryHint
@@ -2551,8 +3188,14 @@ function filterTransactions(
       return false;
     }
 
-    if (filters.category && transaction.categoryHint !== filters.category) {
-      return false;
+    if (filters.category) {
+      if (filters.category === "Uncategorized") {
+        if (transaction.categoryHint && transaction.categoryHint !== "Uncategorized") {
+          return false;
+        }
+      } else if (transaction.categoryHint !== filters.category) {
+        return false;
+      }
     }
 
     if (filters.direction && transaction.direction !== filters.direction) {

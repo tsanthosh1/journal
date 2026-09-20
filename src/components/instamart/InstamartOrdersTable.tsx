@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { InstamartOrder } from "@/lib/instamart/types";
+import { formatMonthName, formatReadableDate } from "@/lib/dateFormatting";
 import {
   Search,
   Calendar,
@@ -97,7 +98,7 @@ export function InstamartOrdersTable({
               <option value="ALL">All Months</option>
               {availableMonths.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {formatMonthName(m)}
                 </option>
               ))}
             </select>
@@ -148,7 +149,7 @@ export function InstamartOrdersTable({
                   {/* Date */}
                   <td className="py-3 pl-2 whitespace-nowrap">
                     <div className="font-semibold text-white">
-                      {ord.orderDate}
+                      {formatReadableDate(ord.orderDate)}
                     </div>
                     <div className="text-[11px] text-slate-400">
                       {ord.orderTime} • {ord.dayOfWeek.slice(0, 3)}
@@ -262,7 +263,7 @@ export function InstamartOrdersTable({
                     <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-cyan-400" />
                       <span>
-                        {activeOrder.orderDate} at {activeOrder.orderTime} ({activeOrder.dayOfWeek})
+                        {formatReadableDate(activeOrder.orderDate)} at {activeOrder.orderTime} ({activeOrder.dayOfWeek})
                       </span>
                     </div>
                   </div>

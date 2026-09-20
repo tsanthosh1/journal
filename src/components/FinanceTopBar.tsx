@@ -21,6 +21,7 @@ import {
   Layers,
   Wrench,
   UtensilsCrossed,
+  Package,
 } from "lucide-react";
 
 interface DropdownItem {
@@ -52,11 +53,18 @@ export function FinanceTopBar({ title }: { title?: string }) {
   const primaryLinks = [
     { href: "/subscriptions", label: "Subscriptions & Bills", icon: Layers },
     { href: "/food-calendar", label: "Food Calendar", icon: Calendar },
+    { href: "/fitness", label: "Fitness", icon: Activity },
     { href: "/timeline", label: "Life Timeline", icon: Activity },
   ];
 
   // Specialized tracker modules
   const trackerItems: DropdownItem[] = [
+    {
+      href: "/fitness",
+      label: "Fitness Tracker",
+      description: "Treadmill runs, walks & workouts",
+      icon: Activity,
+    },
     {
       href: "/swiggy",
       label: "Swiggy Food",
@@ -68,6 +76,12 @@ export function FinanceTopBar({ title }: { title?: string }) {
       label: "Instamart",
       description: "Groceries & delivery orders",
       icon: ShoppingBag,
+    },
+    {
+      href: "/amazon",
+      label: "Amazon Orders",
+      description: "Order history, spend & Kindle",
+      icon: Package,
     },
     {
       href: "/cloud-billing",

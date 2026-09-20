@@ -1,25 +1,20 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import Link from "next/link";
 import { FinanceTopBar } from "@/components/FinanceTopBar";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 import { LifeEvent, FoodPrimaryAnchor } from "@/lib/timeline/types";
 import { authFetch } from "@/lib/authFetch";
 import { FoodEntryModal } from "@/components/timeline/FoodEntryModal";
+import { FoodVoiceModal } from "@/components/timeline/FoodVoiceModal";
+import { FoodHabitInsights } from "@/components/timeline/FoodHabitInsights";
 import {
-  Utensils,
   ChevronLeft,
   ChevronRight,
   Plus,
   Sparkles,
   Clock,
-  Trash2,
-  Calendar,
-  LayoutList,
-  Sun,
-  Moon,
   Loader2,
   CheckCircle2,
   Copy,
@@ -27,6 +22,7 @@ import {
   Send,
   AlertCircle,
   SlidersHorizontal,
+  Mic,
 } from "lucide-react";
 
 // Google Calendar time scale hours: 6 AM to 11 PM
@@ -111,9 +107,11 @@ export default function FoodCalendarPage() {
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [dragOverSlotKey, setDragOverSlotKey] = useState<string | null>(null);
 
-  // Dedicated Food AI bar state
-  const [quickAiText, setQuickAiText] = useState("");
-  const [isSubmittingQuickAi, setIsSubmittingQuickAi] = useState(false);
+  // Voice & Text AI Modal State
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+
+  // AI Habit Suggestions & Insights Panel State
+  const [isInsightsOpen, setIsInsightsOpen] = useState(true);
 
   // Auto-scroll ref
   const calendarGridRef = useRef<HTMLDivElement>(null);
@@ -280,44 +278,6 @@ export default function FoodCalendarPage() {
     setIsModalOpen(true);
   };
 
-  // Top AI Quick Bar Submit
-  const handleQuickAiSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickAiText.trim()) return;
-
-    setIsSubmittingQuickAi(true);
-    setStatusMessage(null);
-    try {
-      const todayIso = formatDateIso(new Date());
-      const qUserId = user?.email || user?.uid || userId || "";
-      const res = await authFetch(user, "/api/timeline/food/cell-action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: todayIso,
-          primaryAnchor: "Breakfast",
-          prompt: quickAiText.trim(),
-          userId: qUserId,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to log meal with AI");
-      }
-
-      const data = await res.json();
-      setQuickAiText("");
-      setStatusMessage(data.changeSummary || "Meal logged with AI!");
-      await fetchWeekEvents();
-      setTimeout(() => setStatusMessage(null), 3000);
-    } catch (err: any) {
-      alert(err.message || "Failed to process meal log");
-    } finally {
-      setIsSubmittingQuickAi(false);
-    }
-  };
-
   // Drag and Drop Handlers
   const handleDragStart = (e: React.DragEvent, ev: LifeEvent) => {
     setDraggedEvent(ev);
@@ -433,128 +393,99 @@ export default function FoodCalendarPage() {
         <FinanceTopBar title="Food Calendar" />
 
         <main className="mx-auto flex-1 w-full max-w-7xl px-2 sm:px-6 py-6 pb-28 sm:pb-12 space-y-6">
-          {/* Top Control & Hero Banner */}
-          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-amber-950/20 p-6 sm:p-8 shadow-2xl backdrop-blur-md">
-            <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+          {/* Single-Line Unified Toolbar: Date, Add Entry, Scale */}
+          <div className="rounded-2xl border border-white/10 bg-slate-900/80 px-3.5 py-2.5 shadow-xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3">
+            {/* Left: Date Switcher */}
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center rounded-xl border border-white/10 bg-slate-950/70 p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => handleShiftWeek(-1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition active:scale-95 cursor-pointer"
+                  title="Previous Week"
+                  aria-label="Previous Week"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
 
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              {/* Header Title & Tab Switcher */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/15 text-amber-300 font-bold text-sm">
-                    <Utensils className="w-4 h-4 text-amber-300" />
-                  </span>
-                  <span className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">
-                    Nutrition Timeline
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    Food Calendar
-                  </h1>
-
-                  {/* Switcher Tabs */}
-                  <div className="inline-flex rounded-xl bg-slate-900/90 p-1 border border-white/10 text-xs font-semibold">
-                    <Link
-                      href="/timeline"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition"
-                    >
-                      <LayoutList className="w-3.5 h-3.5" />
-                      <span>Daily Activity</span>
-                    </Link>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>Food Calendar</span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-400 max-w-xl">
-                  Weekly food timeline using time as the scale. Drag cards to change meal time or day, or hold{" "}
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-white/10 font-mono text-[11px]">
-                    Option (Alt)
-                  </kbd>{" "}
-                  to duplicate. Click any hour slot to log meals.
-                </p>
-              </div>
-
-              {/* Week Switcher */}
-              <div className="flex flex-col items-start sm:items-end gap-1.5">
-                <div className="inline-flex items-center rounded-2xl border border-white/10 bg-slate-950/70 p-1 shadow-sm backdrop-blur-sm">
-                  <button
-                    type="button"
-                    onClick={() => handleShiftWeek(-1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition active:scale-95 cursor-pointer"
-                    title="Previous Week"
-                    aria-label="Previous Week"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-
-                  <span className="px-3 text-xs font-semibold text-slate-200">
-                    {weekDays[0].monthShort} {weekDays[0].dayNum} – {weekDays[6].monthShort} {weekDays[6].dayNum}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => handleShiftWeek(1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition active:scale-95 cursor-pointer"
-                    title="Next Week"
-                    aria-label="Next Week"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+                <span className="px-2.5 sm:px-3 text-xs font-semibold text-slate-200 whitespace-nowrap">
+                  {weekDays[0].monthShort} {weekDays[0].dayNum} – {weekDays[6].monthShort} {weekDays[6].dayNum}
+                </span>
 
                 <button
                   type="button"
-                  onClick={handleResetToCurrentWeek}
-                  disabled={isCurrentWeek}
-                  className={`text-[11px] transition cursor-pointer flex items-center gap-1 ${
-                    isCurrentWeek
-                      ? "text-slate-500 cursor-default"
-                      : "text-amber-400 hover:text-amber-300 hover:underline font-medium"
-                  }`}
+                  onClick={() => handleShiftWeek(1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition active:scale-95 cursor-pointer"
+                  title="Next Week"
+                  aria-label="Next Week"
                 >
-                  <span>This Week</span>
-                  {isCurrentWeek && <span className="text-[10px] text-slate-600">• current</span>}
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={handleResetToCurrentWeek}
+                disabled={isCurrentWeek}
+                className={`text-xs px-2.5 py-1.5 rounded-xl border transition cursor-pointer ${
+                  isCurrentWeek
+                    ? "text-slate-600 border-transparent cursor-default"
+                    : "text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 font-medium"
+                }`}
+              >
+                This Week
+              </button>
             </div>
 
-            {/* Dedicated Food AI Bar */}
-            <div className="mt-5 pt-4 border-t border-white/10">
-              <form onSubmit={handleQuickAiSubmit} className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400">
-                    <Sparkles className="w-4 h-4" />
-                  </span>
-                  <input
-                    type="text"
-                    value={quickAiText}
-                    onChange={(e) => setQuickAiText(e.target.value)}
-                    placeholder="Log meals with AI (e.g., 'Had 2 idlis, vada and filter coffee at 8:30am')..."
-                    disabled={isSubmittingQuickAi}
-                    className="w-full rounded-2xl border border-white/15 bg-slate-950/80 pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSubmittingQuickAi || !quickAiText.trim()}
-                  className="flex items-center gap-1.5 rounded-2xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-amber-400 transition disabled:opacity-40 cursor-pointer"
-                >
-                  {isSubmittingQuickAi ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Log Meal</span>
-                    </>
-                  )}
-                </button>
-              </form>
+            {/* Center: Add Entry & AI Insights Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsVoiceModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 hover:shadow-lg hover:shadow-amber-500/20 active:scale-95 transition cursor-pointer shadow-md"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Add Entry</span>
+                <span className="w-px h-3.5 bg-slate-900/30" />
+                <Mic className="w-3.5 h-3.5 fill-current" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsInsightsOpen((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer active:scale-95 ${
+                  isInsightsOpen
+                    ? "bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-sm"
+                    : "border-white/10 bg-slate-950/70 text-slate-300 hover:text-white hover:bg-white/10"
+                }`}
+                title="Toggle AI Food Habit Suggestions & Feedback"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">AI Habit Suggestions</span>
+                <span className="sm:hidden">AI Insights</span>
+              </button>
+            </div>
+
+            {/* Right: Scale Length Slider */}
+            <div className="flex items-center gap-2.5 bg-slate-950/70 border border-white/10 rounded-xl px-3 py-1.5 shadow-sm">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <label htmlFor="scale-slider" className="text-xs font-semibold text-slate-300 select-none">
+                Scale:
+              </label>
+              <input
+                id="scale-slider"
+                type="range"
+                min={20}
+                max={140}
+                step={2}
+                value={scaleHeight}
+                onChange={(e) => setScaleHeight(Number(e.target.value))}
+                className="w-20 sm:w-28 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                title={`Scale: ${scaleHeight}px`}
+              />
+              <span className="text-[11px] font-mono font-bold text-amber-400 min-w-7 text-right">
+                {scaleHeight}px
+              </span>
             </div>
           </div>
 
@@ -573,46 +504,12 @@ export default function FoodCalendarPage() {
             </div>
           )}
 
-          {/* Scale Control & Quick Hints Toolbar directly above the table */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/60 border border-white/10 text-[11px] text-slate-300">
-                <Move className="w-3 h-3 text-amber-400" />
-                <span>Drag to move</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/60 border border-white/10 text-[11px] text-slate-300">
-                <Copy className="w-3 h-3 text-amber-400" />
-                <span>Option-drag to copy</span>
-              </span>
-            </div>
-
-            {/* Scale Length Slider */}
-            <div className="flex items-center gap-2.5 bg-slate-900/80 border border-white/10 rounded-2xl px-3.5 py-1.5 backdrop-blur-sm shadow-sm">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <label htmlFor="scale-slider" className="text-xs font-semibold text-slate-300 select-none">
-                Scale Length:
-              </label>
-              <input
-                id="scale-slider"
-                type="range"
-                min={20}
-                max={140}
-                step={2}
-                value={scaleHeight}
-                onChange={(e) => setScaleHeight(Number(e.target.value))}
-                className="w-28 sm:w-40 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400 focus:outline-none"
-                title={`Scale length: ${scaleHeight}px per hour`}
-              />
-              <button
-                type="button"
-                onClick={() => setScaleHeight(68)}
-                className="text-[10px] font-mono text-slate-400 hover:text-amber-300 transition px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
-                title="Reset scale to default (68px)"
-              >
-                {scaleHeight}px
-              </button>
-            </div>
-          </div>
+          {/* AI Food Habit Insights & Suggestions Section */}
+          <FoodHabitInsights
+            lookbackDays={14}
+            isOpen={isInsightsOpen}
+            onToggleOpen={() => setIsInsightsOpen((prev) => !prev)}
+          />
 
           {/* Google Calendar-Style Weekly Time Grid */}
           <div
@@ -625,8 +522,8 @@ export default function FoodCalendarPage() {
                 style={{ gridTemplateColumns: "60px repeat(7, minmax(0, 1fr))" }}
                 className="grid border-b border-white/10 bg-slate-950/90 sticky top-0 z-20 backdrop-blur-md"
               >
-                {/* Top-left corner time icon */}
-                <div className="p-3 border-r border-white/10 flex items-center justify-center text-slate-500 min-w-0">
+                {/* Top-left corner time icon (Sticky Top & Left) */}
+                <div className="sticky left-0 top-0 z-30 p-3 border-r border-white/10 flex items-center justify-center text-slate-400 min-w-0 bg-slate-950 shadow-[2px_0_5px_rgba(0,0,0,0.3)]">
                   <Clock className="w-4 h-4" />
                 </div>
 
@@ -669,9 +566,9 @@ export default function FoodCalendarPage() {
                       }}
                       className="grid transition-[min-height] duration-75"
                     >
-                      {/* Left Time Gutter */}
+                      {/* Left Time Gutter (Sticky Left) */}
                       <div
-                        className={`border-r border-white/10 text-slate-400 text-right pr-2 font-mono font-medium select-none shrink-0 flex items-center justify-end min-w-0 ${
+                        className={`sticky left-0 z-10 bg-slate-950/95 backdrop-blur-md border-r border-white/10 shadow-[2px_0_5px_rgba(0,0,0,0.2)] text-slate-400 text-right pr-2 font-mono font-medium select-none shrink-0 flex items-center justify-end min-w-0 ${
                           scaleHeight < 36 ? "text-[9px] py-0 leading-none" : "text-[11px] py-1.5"
                         }`}
                       >
@@ -730,6 +627,8 @@ export default function FoodCalendarPage() {
                                 const isBeingDragged = draggedEvent?.id === ev.id;
                                 const timeDisplay = ev.startTime || formatHourLabel(hour);
                                 const isUltraCompact = scaleHeight < 48;
+                                const sourceType = ev.attributes?.sourceType as string | undefined;
+                                const sourceName = (ev.attributes?.sourceName || ev.attributes?.location) as string | undefined;
 
                                 const anchorBorder =
                                   anchor === "Breakfast"
@@ -758,28 +657,83 @@ export default function FoodCalendarPage() {
                                     }`}
                                   >
                                     {isUltraCompact ? (
-                                      <div className="min-w-0 leading-tight">
-                                        <span className="text-[10px] font-mono font-semibold text-slate-400 mr-1.5 inline-block shrink-0">
-                                          {timeDisplay}
-                                        </span>
-                                        <span
-                                          className="text-xs font-bold text-white break-words whitespace-normal tracking-tight"
+                                      <div className="min-w-0">
+                                        <div className="flex items-center justify-between gap-1 leading-none">
+                                          <span className="text-[10px] font-mono font-semibold text-slate-400 shrink-0">
+                                            {timeDisplay}
+                                          </span>
+                                          {sourceType && sourceType !== "Home Cooked" && (
+                                            <span
+                                              className={`shrink-0 text-[9px] px-1 py-0.5 rounded font-bold leading-none ${
+                                                sourceType === "Online Delivery"
+                                                  ? "bg-orange-500/25 text-orange-200 border border-orange-500/40"
+                                                  : sourceType === "Hotel / Restaurant"
+                                                  ? "bg-purple-500/25 text-purple-200 border border-purple-500/40"
+                                                  : "bg-sky-500/25 text-sky-200 border border-sky-500/40"
+                                              }`}
+                                              title={`${sourceType}${sourceName ? `: ${sourceName}` : ""}`}
+                                            >
+                                              {sourceType === "Online Delivery" ? "🛵" : sourceType === "Hotel / Restaurant" ? "🏨" : "🥡"}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div
+                                          className="text-xs font-bold text-white mt-0.5 leading-snug break-words whitespace-normal tracking-tight"
                                           title={ev.title}
                                         >
                                           {ev.title}
-                                        </span>
+                                        </div>
                                       </div>
                                     ) : (
                                       <div className="min-w-0">
-                                        <div className="text-[10px] font-mono font-semibold text-slate-400 leading-none">
-                                          {timeDisplay}
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="text-[10px] font-mono font-semibold text-slate-400 leading-none">
+                                            {timeDisplay}
+                                          </span>
+
+                                          {/* Dining Source Badge */}
+                                          {sourceType && sourceType !== "Home Cooked" && (
+                                            <span
+                                              className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border shrink-0 ${
+                                                sourceType === "Online Delivery"
+                                                  ? "bg-orange-500/20 border-orange-500/40 text-orange-300"
+                                                  : sourceType === "Hotel / Restaurant"
+                                                  ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                                                  : "bg-sky-500/20 border-sky-500/40 text-sky-300"
+                                              }`}
+                                              title={sourceName ? `${sourceType}: ${sourceName}` : sourceType}
+                                            >
+                                              <span>{sourceType === "Online Delivery" ? "🛵" : sourceType === "Hotel / Restaurant" ? "🏨" : "🥡"}</span>
+                                              <span className="max-w-[75px] truncate">
+                                                {sourceName || (sourceType === "Online Delivery" ? "Delivery" : "Hotel")}
+                                              </span>
+                                            </span>
+                                          )}
+                                          {sourceType === "Home Cooked" && (
+                                            <span
+                                              className="inline-flex items-center gap-0.5 text-[9px] font-medium text-emerald-400/80 bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.2 rounded shrink-0"
+                                              title="Home Cooked"
+                                            >
+                                              <span>🏠</span>
+                                              <span className="hidden sm:inline">Home</span>
+                                            </span>
+                                          )}
                                         </div>
+
                                         <div
                                           className="text-sm font-bold text-white mt-1 leading-snug break-words whitespace-normal tracking-tight"
                                           title={ev.title}
                                         >
                                           {ev.title}
                                         </div>
+
+                                        {/* Location / Restaurant subtitle if specified */}
+                                        {sourceName && sourceType !== "Home Cooked" && (
+                                          <div className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
+                                            <span className="text-slate-500 font-medium">via</span>
+                                            <span className="text-slate-300 font-medium truncate">{sourceName}</span>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -816,6 +770,20 @@ export default function FoodCalendarPage() {
           defaultAnchor={modalTargetAnchor}
           defaultTime={modalTargetTime}
           existingEvent={modalExistingEvent}
+        />
+
+        {/* Voice & AI Control Modal (Microphone Audio + Text) */}
+        <FoodVoiceModal
+          isOpen={isVoiceModalOpen}
+          onClose={() => setIsVoiceModalOpen(false)}
+          todayDate={formatDateIso(new Date())}
+          weekRange={{ start: startDateIso, end: endDateIso }}
+          existingEvents={events}
+          onSuccess={async (summary) => {
+            setStatusMessage(summary);
+            await fetchWeekEvents();
+            setTimeout(() => setStatusMessage(null), 4000);
+          }}
         />
       </div>
     </AuthGuard>

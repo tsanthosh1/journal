@@ -2,6 +2,7 @@
 
 import React from "react";
 import { SwiggySummary } from "@/lib/swiggy/types";
+import { formatDateRange } from "@/lib/dateFormatting";
 import {
   UtensilsCrossed,
   Calendar,
@@ -15,9 +16,10 @@ import {
 
 interface SwiggyMetricCardsProps {
   summary: SwiggySummary;
+  onSelectFilter?: (filter: { month?: string; restaurant?: string }) => void;
 }
 
-export function SwiggyMetricCards({ summary }: SwiggyMetricCardsProps) {
+export function SwiggyMetricCards({ summary, onSelectFilter }: SwiggyMetricCardsProps) {
   const {
     totalSpend,
     totalOrders,
@@ -41,7 +43,14 @@ export function SwiggyMetricCards({ summary }: SwiggyMetricCardsProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
       {/* 1. Total Spend */}
-      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-orange-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md">
+      <div
+        onClick={() => onSelectFilter?.({ month: undefined, restaurant: undefined })}
+        role={onSelectFilter ? "button" : undefined}
+        title={onSelectFilter ? "Click to view all orders" : undefined}
+        className={`relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-orange-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md ${
+          onSelectFilter ? "cursor-pointer transition hover:scale-[1.03] hover:border-orange-500/40" : ""
+        }`}
+      >
         <div className="flex items-center justify-between">
           <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-orange-400">
             Total Spend
@@ -58,14 +67,10 @@ export function SwiggyMetricCards({ summary }: SwiggyMetricCardsProps) {
         <div
           className="mt-2 text-[11px] text-slate-400 truncate"
           title={
-            firstOrderDate && latestOrderDate
-              ? `${firstOrderDate} to ${latestOrderDate}`
-              : "All lifetime orders"
+            formatDateRange(firstOrderDate, latestOrderDate) || "All lifetime orders"
           }
         >
-          {firstOrderDate && latestOrderDate
-            ? `${firstOrderDate} to ${latestOrderDate}`
-            : "All lifetime food deliveries"}
+          {formatDateRange(firstOrderDate, latestOrderDate) || "All lifetime food deliveries"}
         </div>
       </div>
 
@@ -94,7 +99,14 @@ export function SwiggyMetricCards({ summary }: SwiggyMetricCardsProps) {
       </div>
 
       {/* 3. Total Orders */}
-      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-cyan-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md">
+      <div
+        onClick={() => onSelectFilter?.({ month: undefined, restaurant: undefined })}
+        role={onSelectFilter ? "button" : undefined}
+        title={onSelectFilter ? "Click to view all orders" : undefined}
+        className={`relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-cyan-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md ${
+          onSelectFilter ? "cursor-pointer transition hover:scale-[1.03] hover:border-cyan-500/40" : ""
+        }`}
+      >
         <div className="flex items-center justify-between">
           <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-cyan-300">
             Total Orders
@@ -140,7 +152,14 @@ export function SwiggyMetricCards({ summary }: SwiggyMetricCardsProps) {
       </div>
 
       {/* 5. Top Restaurant */}
-      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-amber-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md">
+      <div
+        onClick={() => topRest && onSelectFilter?.({ restaurant: topRest.name })}
+        role={topRest && onSelectFilter ? "button" : undefined}
+        title={topRest && onSelectFilter ? `Click to filter orders from ${topRest.name}` : undefined}
+        className={`relative overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-amber-950/20 p-4 sm:p-5 shadow-xl backdrop-blur-md ${
+          topRest && onSelectFilter ? "cursor-pointer transition hover:scale-[1.03] hover:border-amber-500/40" : ""
+        }`}
+      >
         <div className="flex items-center justify-between">
           <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-amber-400">
             Top Restaurant

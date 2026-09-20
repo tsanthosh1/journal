@@ -23,16 +23,64 @@ export type FoodOccasion =
   | "Pre-Dinner Snack"
   | "Late-Night Snack";
 
+export type FoodSourceType =
+  | "Home Cooked"
+  | "Hotel / Restaurant"
+  | "Online Delivery"
+  | "Takeaway"
+  | "Other";
+
 export interface FoodAttributes {
   primaryAnchor?: FoodPrimaryAnchor;
   occasionType?: FoodOccasionType;
   occasion?: FoodOccasion;
   mealType?: string;
   foodItems?: string[];
+  sourceType?: FoodSourceType | string;
+  sourceName?: string;
   location?: string;
   caloriesEst?: number;
   dietaryNotes?: string;
   [key: string]: any;
+}
+
+export interface TreadmillAttributes {
+  exerciseType: "Treadmill" | string;
+  workoutMode?: "Brisk Walk" | "Incline Walk" | "Jog" | "Endurance Run" | "HIIT Intervals" | "Warmup / Cooldown" | string;
+  distanceKm: number;
+  durationMins: number;
+  speedKph?: number;
+  inclinePercentage?: number;
+  paceMinPerKm?: string;
+  caloriesBurned?: number;
+  avgHeartRate?: number;
+  rpe?: number; // 1-10 rate of perceived exertion
+  notes?: string;
+  [key: string]: any;
+}
+
+export interface BodyWeightAttributes {
+  metricType: "Weight" | string;
+  weightKg: number;
+  unit?: "kg" | "lbs";
+  bodyFatPercentage?: number;
+  waistCm?: number;
+  bmiAtTime?: number;
+  notes?: string;
+  [key: string]: any;
+}
+
+export interface FitnessProfile {
+  userId: string;
+  heightCm?: number;
+  heightUnit?: "cm" | "ft";
+  targetWeightKg?: number;
+  startingWeightKg?: number;
+  currentWeightKg?: number;
+  lastWeighedDate?: string;
+  bmi?: number;
+  bmiCategory?: "Underweight" | "Normal" | "Overweight" | "Obese";
+  updatedAt?: string;
 }
 
 export interface MasterFoodItem {

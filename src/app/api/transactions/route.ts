@@ -254,6 +254,11 @@ function applyExactFilters(query: FirebaseFirestore.Query, url: URL) {
 }
 
 function matchesServerFilters(transaction: StatementTransaction, url: URL) {
+  const category = url.searchParams.get("category");
+  if (category && transaction.categoryHint !== category) {
+    return false;
+  }
+
   const fromDate = url.searchParams.get("fromDate");
   const toDate = url.searchParams.get("toDate");
   const minAmount = Number(url.searchParams.get("minAmount") || "NaN");

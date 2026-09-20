@@ -160,6 +160,22 @@ export default function SwiggyPage() {
     return summary.topRestaurants.map((r) => r.name);
   }, [summary]);
 
+  const handleFilterMonth = (month: string) => {
+    setSelectedMonth(month);
+    setActiveTab("ORDERS");
+  };
+
+  const handleFilterRestaurant = (restaurant: string) => {
+    setSelectedRestaurant(restaurant);
+    setActiveTab("ORDERS");
+  };
+
+  const handleMetricCardFilter = (filter: { month?: string; restaurant?: string }) => {
+    if (filter.month !== undefined) setSelectedMonth(filter.month);
+    if (filter.restaurant !== undefined) setSelectedRestaurant(filter.restaurant);
+    setActiveTab("ORDERS");
+  };
+
   return (
     <AuthGuard title="Swiggy Food">
       <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 selection:bg-orange-500/30">
@@ -244,7 +260,12 @@ export default function SwiggyPage() {
           )}
 
           {/* KPI Metric Cards */}
-          {summary && <SwiggyMetricCards summary={summary} />}
+          {summary && (
+            <SwiggyMetricCards
+              summary={summary}
+              onSelectFilter={handleMetricCardFilter}
+            />
+          )}
 
           {/* Navigation Tabs */}
           <div className="flex items-center gap-2 border-b border-white/10 pb-1">
@@ -285,6 +306,8 @@ export default function SwiggyPage() {
                 cuisineBreakdown={summary.cuisineBreakdown}
                 dayOfWeekBreakdown={summary.dayOfWeekBreakdown}
                 timeSlotBreakdown={summary.timeSlotBreakdown}
+                onSelectMonth={handleFilterMonth}
+                onSelectRestaurant={handleFilterRestaurant}
               />
 
               {/* Top Dishes Leaderboard */}

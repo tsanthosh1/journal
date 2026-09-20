@@ -74,17 +74,16 @@ export async function saveLifeEventsBatch(events: Omit<LifeEvent, "id">[]): Prom
   return savedEvents;
 }
 
-export async function getLifeEventsByDate(date: string, userId = ""): Promise<LifeEvent[]> {
-  if (!userId || userId === "default_user" || userId === "default-user") {
+export async function getLifeEventsByDate(date: string, userId: string | string[] = ""): Promise<LifeEvent[]> {
+  const inputIds = Array.isArray(userId) ? userId : [userId];
+  const validIds = inputIds.filter((id) => id && id !== "default_user" && id !== "default-user");
+  if (validIds.length === 0) {
     return [];
   }
 
   const { db } = getFirebaseAdmin();
   const possibleUserIds = Array.from(
-    new Set([
-      userId,
-      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-    ]),
+    new Set(validIds.flatMap((id) => [id, id.replace(/[^a-zA-Z0-9_-]/g, "_")]))
   ).filter(Boolean);
 
   const snap = await db
@@ -110,18 +109,17 @@ export async function getLifeEventsByDate(date: string, userId = ""): Promise<Li
 export async function getLifeEventsRange(
   startDate: string,
   endDate: string,
-  userId = ""
+  userId: string | string[] = ""
 ): Promise<LifeEvent[]> {
-  if (!userId || userId === "default_user" || userId === "default-user") {
+  const inputIds = Array.isArray(userId) ? userId : [userId];
+  const validIds = inputIds.filter((id) => id && id !== "default_user" && id !== "default-user");
+  if (validIds.length === 0) {
     return [];
   }
 
   const { db } = getFirebaseAdmin();
   const possibleUserIds = Array.from(
-    new Set([
-      userId,
-      userId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-    ]),
+    new Set(validIds.flatMap((id) => [id, id.replace(/[^a-zA-Z0-9_-]/g, "_")]))
   ).filter(Boolean);
 
   const events: LifeEvent[] = [];

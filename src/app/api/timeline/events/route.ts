@@ -22,20 +22,28 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     
-    // Resolve user ID: query param or authenticated user identity
+    // Resolve user IDs: include query param, email, UID, and primaryUserId to cover all past & present events
     const queryUserId = searchParams.get("userId");
     const authUserId = verifiedUser.email || verifiedUser.primaryUserId;
-    const userId = (queryUserId && queryUserId !== "default_user") ? queryUserId : authUserId;
+    const userIds = Array.from(
+      new Set([
+        queryUserId,
+        authUserId,
+        verifiedUser.uid,
+        verifiedUser.primaryUserId,
+        verifiedUser.email,
+      ].filter(Boolean) as string[])
+    );
 
     let events: LifeEvent[] = [];
 
     if (date) {
-      events = await getLifeEventsByDate(date, userId);
+      events = await getLifeEventsByDate(date, userIds);
     } else if (startDate && endDate) {
-      events = await getLifeEventsRange(startDate, endDate, userId);
+      events = await getLifeEventsRange(startDate, endDate, userIds);
     } else {
       const today = new Date().toLocaleDateString("en-CA");
-      events = await getLifeEventsByDate(today, userId);
+      events = await getLifeEventsByDate(today, userIds);
     }
 
     // Compute summary metrics

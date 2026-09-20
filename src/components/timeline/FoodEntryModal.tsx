@@ -5,6 +5,7 @@ import {
   FoodPrimaryAnchor,
   FoodOccasion,
   FoodOccasionType,
+  FoodSourceType,
   LifeEvent,
   MasterFoodItem,
 } from "@/lib/timeline/types";
@@ -24,6 +25,11 @@ import {
   Loader2,
   Tag,
   Wand2,
+  Home,
+  Building2,
+  Bike,
+  ShoppingBag,
+  Store,
 } from "lucide-react";
 
 interface FoodEntryModalProps {
@@ -57,6 +63,51 @@ const OCCASIONS_BY_ANCHOR: Record<
   ],
 };
 
+const SOURCE_OPTIONS: {
+  type: FoodSourceType;
+  label: string;
+  icon: any;
+  selectedClass: string;
+}[] = [
+  {
+    type: "Home Cooked",
+    label: "Home",
+    icon: Home,
+    selectedClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md shadow-emerald-500/10",
+  },
+  {
+    type: "Hotel / Restaurant",
+    label: "Hotel",
+    icon: Building2,
+    selectedClass: "bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md shadow-purple-500/10",
+  },
+  {
+    type: "Online Delivery",
+    label: "Delivery",
+    icon: Bike,
+    selectedClass: "bg-orange-500/20 text-orange-300 border-orange-500/50 shadow-md shadow-orange-500/10",
+  },
+  {
+    type: "Takeaway",
+    label: "Takeaway",
+    icon: ShoppingBag,
+    selectedClass: "bg-sky-500/20 text-sky-300 border-sky-500/50 shadow-md shadow-sky-500/10",
+  },
+  {
+    type: "Other",
+    label: "Other",
+    icon: Store,
+    selectedClass: "bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-md shadow-amber-500/10",
+  },
+];
+
+const PRESET_CHIPS_BY_SOURCE: Record<string, string[]> = {
+  "Online Delivery": ["Swiggy", "Zomato", "Blinkit", "Zepto", "Domino's", "EatClub", "Uber Eats"],
+  "Hotel / Restaurant": ["Hotel Saravana Bhavan", "A2B", "Sangeetha Veg", "Mess / Local Eatery", "Cafe", "Fine Dine"],
+  "Takeaway": ["Takeaway Parcel", "Bakery", "Street Food Stall", "Drive-thru"],
+  "Other": ["Office Cafeteria", "Party / Event", "Friend's Place", "Travel / Flight"],
+};
+
 export function FoodEntryModal({
   isOpen,
   onClose,
@@ -73,6 +124,8 @@ export function FoodEntryModal({
   const [primaryAnchor, setPrimaryAnchor] = useState<FoodPrimaryAnchor>(defaultAnchor);
   const [occasion, setOccasion] = useState<FoodOccasion>("Breakfast");
   const [startTime, setStartTime] = useState("");
+  const [sourceType, setSourceType] = useState<FoodSourceType>("Home Cooked");
+  const [sourceName, setSourceName] = useState("");
   const [foodItems, setFoodItems] = useState<string[]>([]);
   const [newItemInput, setNewItemInput] = useState("");
   const [caloriesEst, setCaloriesEst] = useState<string>("");
@@ -123,6 +176,8 @@ export function FoodEntryModal({
           (anchor === "Lunch" ? "Lunch / Brunch" : anchor === "Dinner" ? "Dinner / Supper" : "Breakfast")
       );
       setStartTime(existingEvent.startTime || "");
+      setSourceType((existingEvent.attributes?.sourceType as FoodSourceType) || "Home Cooked");
+      setSourceName(existingEvent.attributes?.sourceName || existingEvent.attributes?.location || "");
       setFoodItems(Array.isArray(existingEvent.attributes?.foodItems) ? existingEvent.attributes.foodItems : []);
       setCaloriesEst(existingEvent.attributes?.caloriesEst ? String(existingEvent.attributes.caloriesEst) : "");
       setDietaryNotes(existingEvent.attributes?.dietaryNotes || existingEvent.description || "");
@@ -133,6 +188,8 @@ export function FoodEntryModal({
       setOccasion(defaultOcc);
       setTitle(`${initialAnchor} Meal`);
       setStartTime(defaultTime || "");
+      setSourceType("Home Cooked");
+      setSourceName("");
       setFoodItems([]);
       setCaloriesEst("");
       setDietaryNotes("");
@@ -200,10 +257,15 @@ export function FoodEntryModal({
         primaryAnchor,
         occasion,
         startTime,
+        sourceType,
+        sourceName,
         foodItems,
         caloriesEst: caloriesEst ? parseFloat(caloriesEst) : null,
         dietaryNotes,
       };
+
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
       const res = await authFetch(user, "/api/timeline/food/cell-action", {
         method: "POST",
@@ -211,6 +273,7 @@ export function FoodEntryModal({
         body: JSON.stringify({
           date,
           primaryAnchor,
+          currentTime: currentLocalTime,
           prompt: aiPrompt.trim(),
           existingEventId: existingEvent?.id,
           currentFields: currentFieldsPayload,
@@ -237,6 +300,12 @@ export function FoodEntryModal({
         }
         if (updated.startTime !== undefined) {
           setStartTime(updated.startTime || "");
+        }
+        if (updated.sourceType) {
+          setSourceType(updated.sourceType);
+        }
+        if (updated.sourceName !== undefined) {
+          setSourceName(updated.sourceName || "");
         }
         if (Array.isArray(updated.foodItems)) {
           setFoodItems(updated.foodItems);
@@ -274,6 +343,9 @@ export function FoodEntryModal({
         occasionType,
         occasion,
         mealType: occasionType === "Snack" ? "Snack" : primaryAnchor,
+        sourceType,
+        sourceName: sourceName.trim() || undefined,
+        location: sourceName.trim() || undefined,
         foodItems,
         caloriesEst: caloriesEst ? parseFloat(caloriesEst) : null,
         dietaryNotes: dietaryNotes.trim() || null,
@@ -303,7 +375,12 @@ export function FoodEntryModal({
             description: dietaryNotes.trim() || title.trim(),
             activityType: "FOOD",
             startTime: startTime || null,
-            tags: ["food", primaryAnchor.toLowerCase(), occasionType.toLowerCase()],
+            tags: [
+              "food",
+              primaryAnchor.toLowerCase(),
+              occasionType.toLowerCase(),
+              ...(sourceType ? [sourceType.toLowerCase().replace(/[^a-z0-9]/g, "")] : []),
+            ],
             attributes,
           }),
         });
@@ -479,6 +556,110 @@ export function FoodEntryModal({
                 className="w-full rounded-2xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-slate-200 focus:border-amber-400 focus:outline-none [color-scheme:dark] transition cursor-pointer"
               />
             </div>
+          </div>
+
+          {/* Dining Source & Origin Selector */}
+          <div className="space-y-2 rounded-2xl border border-white/10 bg-slate-950/70 p-3.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5 text-amber-400" />
+                <span>Dining Source / Origin</span>
+              </label>
+              <span className="text-[10px] font-semibold text-slate-400">
+                {sourceType}
+              </span>
+            </div>
+
+            {/* Source Type Pills */}
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+              {SOURCE_OPTIONS.map((opt) => {
+                const isSelected = sourceType === opt.type;
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    onClick={() => {
+                      setSourceType(opt.type);
+                      if (opt.type === "Home Cooked" && !sourceName) {
+                        setSourceName("");
+                      }
+                    }}
+                    className={`flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2 px-2 rounded-xl border text-[11px] font-bold transition cursor-pointer text-center sm:text-left ${
+                      isSelected
+                        ? opt.selectedClass
+                        : "bg-slate-900/80 text-slate-400 border-white/5 hover:text-white hover:border-white/15"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dynamic Name Input & Preset Chips */}
+            {sourceType !== "Home Cooked" ? (
+              <div className="pt-2 border-t border-white/5 space-y-2 animate-in fade-in duration-150">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-300">
+                    {sourceType === "Online Delivery"
+                      ? "Delivery App / Platform / Restaurant Name"
+                      : sourceType === "Hotel / Restaurant"
+                      ? "Hotel or Restaurant Name"
+                      : sourceType === "Takeaway"
+                      ? "Takeaway / Parcel from"
+                      : "Place / Details"}
+                  </label>
+                  <input
+                    type="text"
+                    value={sourceName}
+                    onChange={(e) => setSourceName(e.target.value)}
+                    placeholder={
+                      sourceType === "Online Delivery"
+                        ? "e.g. Swiggy, Zomato, Blinkit, Zepto, Domino's"
+                        : sourceType === "Hotel / Restaurant"
+                        ? "e.g. Hotel Saravana Bhavan, A2B, Paradise Biryani"
+                        : sourceType === "Takeaway"
+                        ? "e.g. Thalappakatti Takeaway, Bakery"
+                        : "e.g. Office Cafeteria, Party, Travel"
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none transition"
+                  />
+                </div>
+
+                {/* Quick Suggestions Chips */}
+                {PRESET_CHIPS_BY_SOURCE[sourceType] && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                      Quick Pick:
+                    </span>
+                    {PRESET_CHIPS_BY_SOURCE[sourceType].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setSourceName(chip)}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-medium transition cursor-pointer ${
+                          sourceName === chip
+                            ? "bg-amber-500/20 text-amber-200 border-amber-500/40"
+                            : "bg-slate-900 border-white/10 text-slate-300 hover:text-white hover:border-amber-400/40"
+                        }`}
+                      >
+                        <span>+</span>
+                        <span>{chip}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
+                <span>Cooked / prepared at home</span>
+                {sourceName && (
+                  <span className="text-slate-400 font-medium">({sourceName})</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Food Items Consumed (Tag Chip List & Master Autocomplete) */}

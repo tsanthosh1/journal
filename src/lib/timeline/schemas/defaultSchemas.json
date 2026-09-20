@@ -97,6 +97,12 @@
         },
         "mealType": { "type": "string", "title": "Meal Type", "enum": ["Breakfast", "Lunch", "Dinner", "Snack", "Beverage / Coffee"] },
         "foodItems": { "type": "array", "title": "Food Items", "items": { "type": "string" } },
+        "sourceType": {
+          "type": "string",
+          "title": "Dining Source",
+          "enum": ["Home Cooked", "Hotel / Restaurant", "Online Delivery", "Takeaway", "Other"]
+        },
+        "sourceName": { "type": "string", "title": "Hotel / Restaurant / Delivery App Name" },
         "location": { "type": "string", "title": "Location or Restaurant" },
         "caloriesEst": { "type": "number", "title": "Estimated Calories", "unit": "kcal" },
         "dietaryNotes": { "type": "string", "title": "Dietary Notes" }
@@ -137,6 +143,14 @@
       },
       { "key": "mealType", "label": "Meal Type", "type": "string", "suggestedValues": ["Breakfast", "Lunch", "Dinner", "Snack", "Coffee"] },
       { "key": "foodItems", "label": "Food Items", "type": "list", "description": "Dishes or ingredients consumed" },
+      {
+        "key": "sourceType",
+        "label": "Dining Source",
+        "type": "string",
+        "suggestedValues": ["Home Cooked", "Hotel / Restaurant", "Online Delivery", "Takeaway", "Other"],
+        "description": "Source or dining type: Home, Hotel/Restaurant, Online Delivery, etc."
+      },
+      { "key": "sourceName", "label": "Source / Hotel / App Name", "type": "string", "description": "Name of Hotel, Restaurant, or Delivery App" },
       { "key": "location", "label": "Place / Home", "type": "string" },
       { "key": "caloriesEst", "label": "Estimated Calories", "type": "unit_number", "unit": "kcal" },
       { "key": "dietaryNotes", "label": "Dietary Notes", "type": "string" }

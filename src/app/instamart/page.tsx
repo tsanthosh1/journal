@@ -146,6 +146,22 @@ export default function InstamartPage() {
     }
   };
 
+  const handleFilterMonth = (month: string) => {
+    setSelectedMonth(month);
+    setActiveTab("ORDERS");
+  };
+
+  const handleFilterCategory = (category: string) => {
+    setSearchQuery(category);
+    setActiveTab("ORDERS");
+  };
+
+  const handleMetricCardFilter = (filter: { month?: string; search?: string }) => {
+    if (filter.month !== undefined) setSelectedMonth(filter.month);
+    if (filter.search !== undefined) setSearchQuery(filter.search);
+    setActiveTab("ORDERS");
+  };
+
   const availableMonths = useMemo(() => {
     if (!summary?.monthlySpend) return [];
     return summary.monthlySpend.map((m) => m.month).reverse();
@@ -235,7 +251,12 @@ export default function InstamartPage() {
           </div>
 
           {/* Metric KPI Cards */}
-          {summary && <InstamartMetricCards summary={summary} />}
+          {summary && (
+            <InstamartMetricCards
+              summary={summary}
+              onSelectFilter={handleMetricCardFilter}
+            />
+          )}
 
           {/* View Mode Tabs */}
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -280,6 +301,8 @@ export default function InstamartPage() {
                 categories={summary.categoryBreakdown}
                 dayOfWeekBreakdown={summary.dayOfWeekBreakdown}
                 timeSlotBreakdown={summary.timeSlotBreakdown}
+                onSelectMonth={handleFilterMonth}
+                onSelectCategory={handleFilterCategory}
               />
 
               <InstamartTopItems items={summary.topItems} />

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { SwiggyOrder } from "@/lib/swiggy/types";
+import { formatMonthName, formatReadableDate } from "@/lib/dateFormatting";
 import {
   Search,
   Receipt,
@@ -131,7 +132,7 @@ export function SwiggyOrdersTable({
               <option value="ALL">All Months</option>
               {availableMonths.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {formatMonthName(m)}
                 </option>
               ))}
             </select>
@@ -193,7 +194,7 @@ export function SwiggyOrdersTable({
                     {/* Date */}
                     <td className="py-3 pl-1 text-slate-300 font-mono whitespace-nowrap">
                       <div className="font-semibold text-white">
-                        {ord.orderDate}
+                        {formatReadableDate(ord.orderDate)}
                       </div>
                       <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                         <Clock className="w-3 h-3 text-slate-500" />
@@ -330,7 +331,7 @@ export function SwiggyOrdersTable({
                     <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-orange-400" />
                       <span>
-                        {activeOrder.orderDate} at {activeOrder.orderTime} (
+                        {formatReadableDate(activeOrder.orderDate)} at {activeOrder.orderTime} (
                         {activeOrder.dayOfWeek})
                       </span>
                       {activeOrder.deliveryDurationMinutes && (

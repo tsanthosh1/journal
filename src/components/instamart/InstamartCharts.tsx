@@ -18,6 +18,8 @@ interface InstamartChartsProps {
   categories: InstamartCategoryStat[];
   dayOfWeekBreakdown: Array<{ day: string; count: number; spend: number }>;
   timeSlotBreakdown: Array<{ slot: string; count: number; spend: number }>;
+  onSelectMonth?: (month: string) => void;
+  onSelectCategory?: (category: string) => void;
 }
 
 const CATEGORY_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
@@ -78,6 +80,8 @@ export function InstamartCharts({
   categories,
   dayOfWeekBreakdown,
   timeSlotBreakdown,
+  onSelectMonth,
+  onSelectCategory,
 }: InstamartChartsProps) {
   const [hoveredMonth, setHoveredMonth] = useState<InstamartMonthlySpend | null>(
     null
@@ -156,9 +160,13 @@ export function InstamartCharts({
               return (
                 <div
                   key={m.month}
-                  className="flex-1 min-w-[48px] max-w-[80px] flex flex-col items-center gap-2 group cursor-pointer"
+                  onClick={() => onSelectMonth?.(m.month)}
+                  className={`flex-1 min-w-[48px] max-w-[80px] flex flex-col items-center gap-2 group ${
+                    onSelectMonth ? "cursor-pointer transition hover:scale-105" : ""
+                  }`}
                   onMouseEnter={() => setHoveredMonth(m)}
                   onMouseLeave={() => setHoveredMonth(null)}
+                  title={onSelectMonth ? `Click to filter orders for ${m.displayMonth}` : undefined}
                 >
                   <div className="text-[10px] font-mono text-slate-400 group-hover:text-orange-300 font-semibold transition">
                     ₹{m.spend > 1000 ? `${(m.spend / 1000).toFixed(1)}k` : m.spend}
@@ -202,7 +210,16 @@ export function InstamartCharts({
               const col = CATEGORY_COLORS[cat.category] || CATEGORY_COLORS.Other;
 
               return (
-                <div key={cat.category} className="space-y-1">
+                <div
+                  key={cat.category}
+                  onClick={() => onSelectCategory?.(cat.category)}
+                  role={onSelectCategory ? "button" : undefined}
+                  tabIndex={onSelectCategory ? 0 : undefined}
+                  title={onSelectCategory ? `Click to filter orders in ${cat.category}` : undefined}
+                  className={`space-y-1 p-1.5 rounded-xl transition ${
+                    onSelectCategory ? "cursor-pointer hover:bg-white/5 active:scale-[0.99]" : ""
+                  }`}
+                >
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-white truncate max-w-[170px]" title={cat.category}>
                       {cat.category}
