@@ -96,9 +96,7 @@ export default function TimelinePage() {
         throw new Error(`Failed to load timeline for ${selectedDate}`);
       }
       const data = await res.json();
-      // Food entries are now completely separated and managed in the Food Calendar
-      const activityEvents = (data.events || []).filter((ev: LifeEvent) => ev.activityType !== "FOOD");
-      setEvents(activityEvents);
+      setEvents(data.events || []);
       setSummary(data.summary || null);
     } catch (err: any) {
       setError(err.message || "Failed to load events");
@@ -411,7 +409,6 @@ export default function TimelinePage() {
             </button>
 
             {Object.entries(ACTIVITY_META_MAP)
-              .filter(([type]) => type !== "FOOD")
               .map(([type, meta]) => {
                 const count = events.filter((e) => e.activityType === type).length;
                 if (count === 0 && selectedCategory !== type) return null;
