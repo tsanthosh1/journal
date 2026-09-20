@@ -13,7 +13,6 @@ import {
   onAuthStateChanged,
   signInWithCredential,
   signInWithCustomToken,
-  signInWithPopup,
   signOut as fbSignOut,
   type User,
 } from "firebase/auth";
@@ -93,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const googleAccessToken = url.searchParams.get("google_access_token");
 
       if (customToken) {
+        setIsLoading(true);
         signInWithCustomToken(firebase.auth, customToken)
           .then((cred) => {
             setUser(cred.user);
@@ -102,11 +102,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error("Firebase custom token signin error:", err);
           })
           .finally(() => {
+            setIsLoading(false);
             url.searchParams.delete("firebase_token");
             url.searchParams.delete("auth");
             window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
           });
       } else if (googleIdToken) {
+        setIsLoading(true);
         const credential = GoogleAuthProvider.credential(googleIdToken, googleAccessToken || undefined);
         signInWithCredential(firebase.auth, credential)
           .then((cred) => {
@@ -117,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error("Firebase Google credential signin error:", err);
           })
           .finally(() => {
+            setIsLoading(false);
             url.searchParams.delete("google_id_token");
             url.searchParams.delete("google_access_token");
             url.searchParams.delete("auth");
@@ -137,6 +140,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(firebase.auth, async (currentUser) => {
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        const hasPendingToken =
+          url.searchParams.has("google_id_token") ||
+          url.searchParams.has("firebase_token");
+        if (!currentUser && hasPendingToken) {
+          // Do not reset loading while pending OAuth redirect token is being exchanged
+          return;
+        }
+      }
+
       setUser(currentUser);
       setIsLoading(false);
 
@@ -166,53 +180,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = useCallback(async (returnTo?: string) => {
     if (typeof window !== "undefined") {
       setIsLoading(true);
-
-      // Attempt client-side popup first for instantaneous login
-      if (firebase?.auth && firebase?.googleProvider) {
-        try {
-          const result = await signInWithPopup(firebase.auth, firebase.googleProvider);
-          const credential = GoogleAuthProvider.credentialFromResult(result);
-          if (credential?.accessToken) {
-            try {
-              const idToken = await result.user.getIdToken();
-              const qUserId = result.user.email || result.user.uid;
-              await fetch("/api/auth/google/store-token", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${idToken}`,
-                },
-                body: JSON.stringify({
-                  userId: qUserId,
-                  accessToken: credential.accessToken,
-                  email: result.user.email,
-                }),
-              });
-            } catch (storeErr) {
-              console.warn("Could not store token from popup:", storeErr);
-            }
-          }
-          setUser(result.user);
-          setIsLoading(false);
-          checkGmailSyncStatus();
-          return;
-        } catch (popupErr: unknown) {
-          const errCode = (popupErr as { code?: string })?.code;
-          if (errCode === "auth/popup-closed-by-user") {
-            setIsLoading(false);
-            return;
-          }
-          console.warn("Popup sign-in failed or blocked, falling back to server OAuth redirect:", popupErr);
-        }
-      }
-
       const destination =
-        returnTo || window.location.pathname + window.location.search || "/subscriptions";
+        returnTo || window.location.pathname + window.location.search || "/";
       const qUserId = user?.email || user?.uid || "default_user";
-      // Redirect to server OAuth endpoint for offline consent & refresh token
+      // Direct full-page OAuth redirect (avoids popup cross-origin cookie blockage)
       window.location.href = `/api/auth/google?userId=${encodeURIComponent(qUserId)}&returnTo=${encodeURIComponent(destination)}`;
     }
-  }, [firebase, user, checkGmailSyncStatus]);
+  }, [user]);
 
   const signOut = useCallback(async () => {
     if (firebase) {

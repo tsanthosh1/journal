@@ -1,6 +1,6 @@
 "use client";
 
-import { onAuthStateChanged, signInWithPopup, type User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import {
   useCallback,
   useEffect,
@@ -466,12 +466,9 @@ export function StatementImporter({ mode }: { mode: FinancePageMode }) {
   ]);
 
   async function handleSignIn() {
-    if (!firebase) {
-      return;
+    if (typeof window !== "undefined") {
+      window.location.href = `/api/auth/google?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
     }
-
-    const result = await signInWithPopup(firebase.auth, firebase.googleProvider);
-    setFirebaseUser(result.user);
   }
 
   async function parseStatementFile(file: File): Promise<PreparedItem> {
